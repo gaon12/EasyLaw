@@ -1,15 +1,34 @@
 :root {
-  --background: #f6f7f8;
-  --foreground: #17191c;
-  --muted: #666f7a;
-  --line: #d9dde3;
-  --surface: #ffffff;
-  --surface-soft: #eef4f2;
-  --primary: #155e63;
-  --primary-strong: #0e474b;
-  --accent: #b7791f;
-  --info: #245a9c;
-  --danger: #a23a3a;
+  --bg-canvas: oklch(0.972 0.002 286);
+  --bg-surface: oklch(1 0 0);
+  --bg-muted: oklch(0.961 0.002 286);
+  --bg-brand: oklch(0.563 0.232 257);
+  --bg-brand-hover: oklch(0.607 0.225 257);
+  --bg-brand-subtle: oklch(0.954 0.022 250);
+  --bg-warning-subtle: oklch(0.967 0.03 81);
+  --bg-success-subtle: oklch(0.968 0.052 154);
+  --fg-strong: oklch(0.148 0.004 277);
+  --fg-default: oklch(0.259 0.01 273 / 0.88);
+  --fg-secondary: oklch(0.298 0.01 273 / 0.61);
+  --fg-tertiary: oklch(0.298 0.01 273 / 0.43);
+  --fg-brand: oklch(0.563 0.232 257);
+  --fg-warning: oklch(0.625 0.148 56);
+  --fg-success: oklch(0.673 0.211 144);
+  --fg-danger: oklch(0.546 0.22 27);
+  --border-subtle: oklch(0.521 0.018 273 / 0.08);
+  --border-default: oklch(0.521 0.018 273 / 0.22);
+  --border-strong: oklch(0.521 0.018 273 / 0.35);
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-full: 999px;
+  --font-sans:
+    "Pretendard JP", "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR",
+    "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    "Wanted Sans Variable", "Wanted Sans", "Pretendard JP",
+    "Pretendard Variable", system-ui, sans-serif;
 }
 
 html {
@@ -26,10 +45,10 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family:
-    Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--fg-default);
+  background: var(--bg-canvas);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss20", "calt", "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -55,6 +74,16 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+:focus-visible {
+  outline: 2px solid var(--bg-brand);
+  outline-offset: 2px;
+}
+
 ::selection {
-  background: #cfe5e1;
+  background: var(--bg-brand-subtle);
 }

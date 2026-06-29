@@ -16,21 +16,23 @@ type Judgment = {
 };
 
 export function JudgmentExplorer({
+  compact = false,
   initialJudgments,
 }: {
+  compact?: boolean;
   initialJudgments: Judgment[];
 }) {
   const [query, setQuery] = useState("2023구합54112");
   const [email, setEmail] = useState("");
   const [judgments, setJudgments] = useState(initialJudgments);
   const [message, setMessage] = useState(
-    "외부 API로 확인된 공개 판결문만 항목으로 만듭니다.",
+    "외부 API로 확인된 공개 판결문만 목록에 보여줘요.",
   );
   const [isLoading, setIsLoading] = useState(false);
 
   async function search() {
     setIsLoading(true);
-    setMessage("외부 근거 조회 결과를 확인하고 있습니다.");
+    setMessage("외부 출처와 공개 여부를 확인하고 있어요.");
     const response = await fetch("/api/judgments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,15 +42,15 @@ export function JudgmentExplorer({
     setIsLoading(false);
 
     if (!response.ok) {
-      setMessage("검색 요청을 처리하지 못했습니다. 입력값을 확인해 주세요.");
+      setMessage("검색 요청을 처리하지 못했어요. 입력값을 확인해 주세요.");
       return;
     }
 
     setJudgments(data.judgments);
     setMessage(
       data.count > 0
-        ? `${data.count}개 판결문 항목을 외부 API 기준으로 확인했습니다.`
-        : "외부 API에서 확인된 판결문이 없습니다.",
+        ? `${data.count}개의 판결문을 외부 API 기준으로 확인했어요.`
+        : "외부 API에서 확인된 공개 판결문이 없어요.",
     );
   }
 
@@ -66,128 +68,124 @@ export function JudgmentExplorer({
     const data = await response.json();
 
     if (!response.ok) {
-      setMessage("알림 등록에 실패했습니다. 이메일 주소를 확인해 주세요.");
+      setMessage("알림 등록에 실패했어요. 이메일 주소를 확인해 주세요.");
       return;
     }
 
-    setMessage(`생성 작업에 연결했습니다. 작업 ID: ${data.jobId}`);
+    setMessage(`생성 작업에 연결했어요. 작업 ID: ${data.jobId}`);
   }
+
+  const visibleJudgments = compact ? judgments.slice(0, 3) : judgments;
 
   return (
     <>
-      <div className={styles.workspace}>
-        <div className={styles.panelHeader}>
+      {!compact && (
+        <div className={styles.workspace}>
           <h2>판결문 이해 작업대</h2>
-          <span className={styles.badge}>외부 근거 우선</span>
-        </div>
-        <div className={styles.workspaceBody}>
-          <label className={styles.label} htmlFor="judgment-query">
-            사건번호, 법원명, 판결 제목
-          </label>
-          <input
-            id="judgment-query"
-            className={styles.input}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="예: 2023구합54112"
-          />
-          <label className={styles.label} htmlFor="notify-email">
-            생성 완료 알림 이메일
-          </label>
-          <input
-            id="notify-email"
-            className={styles.input}
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
-            type="email"
-          />
-          <textarea
-            className={styles.textarea}
-            value={
-              "판결문 원문을 붙여넣거나 텍스트 PDF에서 추출한 내용을 넣는 영역입니다.\n\nOCR은 Beta 핵심에서 제외하고, 텍스트 PDF 추출과 외부 API 근거 확인을 먼저 안정화합니다."
-            }
-            readOnly
-            aria-label="판결문 입력 예시"
-          />
-          <div className={styles.buttonRow}>
-            <button
-              className={styles.primaryButton}
-              type="button"
-              onClick={search}
-              disabled={isLoading}
-            >
-              {isLoading ? "조회 중" : "외부 API로 판결문 확인"}
-            </button>
-            <button
-              className={styles.secondaryButton}
-              type="button"
-              onClick={() => {
-                setQuery("학교폭력 처분 취소");
-                setMessage("샘플 판결문 검색어를 입력했습니다.");
-              }}
-            >
-              샘플 입력
-            </button>
+          <p>
+            사건번호나 판결문 제목을 검색하고, 아직 생성되지 않은 결과는 이메일
+            알림을 신청할 수 있어요.
+          </p>
+          <div className={styles.workspaceBody}>
+            <label className={styles.label} htmlFor="judgment-query">
+              사건번호, 법원명, 판결문 제목
+            </label>
+            <input
+              className={styles.input}
+              id="judgment-query"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="예: 2023구합54112"
+              value={query}
+            />
+            <label className={styles.label} htmlFor="notify-email">
+              완료 알림 이메일
+            </label>
+            <input
+              className={styles.input}
+              id="notify-email"
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              type="email"
+              value={email}
+            />
+            <textarea
+              aria-label="판결문 입력 예시"
+              className={styles.textarea}
+              readOnly
+              value={
+                "판결문 원문을 붙여넣거나 텍스트 PDF에서 추출한 내용을 넣는 영역이에요.\n\nOCR은 Beta 핵심 범위에서 제외하고, 텍스트 PDF 추출과 외부 API 근거 확인을 먼저 안정화해요."
+              }
+            />
+            <div className={styles.buttonRow}>
+              <button
+                className={styles.primaryButton}
+                disabled={isLoading}
+                onClick={search}
+                type="button"
+              >
+                {isLoading ? "조회 중" : "판결문 확인하기"}
+              </button>
+              <button
+                className={styles.secondaryButton}
+                onClick={() => {
+                  setQuery("학교폭력 처분 취소");
+                  setMessage("샘플 검색어를 입력했어요.");
+                }}
+                type="button"
+              >
+                샘플 입력하기
+              </button>
+            </div>
+            <p className={styles.notice}>{message}</p>
           </div>
-          <p className={styles.notice}>{message}</p>
         </div>
-      </div>
+      )}
 
-      <section className={styles.section} aria-labelledby="catalog-title">
-        <div className={styles.sectionTitle}>
-          <div>
-            <h2 id="catalog-title">공개 판결문 카탈로그</h2>
-            <p>
-              생성 전 항목도 보이지만, 공개 출처가 확인된 판결문만 공개합니다.
-            </p>
-          </div>
-        </div>
-        <div className={styles.catalog}>
-          {judgments.map((judgment) => (
-            <article className={styles.judgmentCard} key={judgment.id}>
-              <div>
-                <span
-                  className={
-                    judgment.status === "ready"
-                      ? styles.statusReady
-                      : judgment.status === "needs_review"
-                        ? styles.statusReview
-                        : styles.statusPending
-                  }
-                >
-                  {judgment.status === "ready"
-                    ? "생성 완료"
+      <div className={styles.catalog}>
+        {visibleJudgments.map((judgment) => (
+          <article className={styles.judgmentCard} key={judgment.id}>
+            <div>
+              <span
+                className={
+                  judgment.status === "ready"
+                    ? styles.statusReady
                     : judgment.status === "needs_review"
-                      ? "검토 필요"
-                      : "생성 대기"}
-                </span>
-                <h3>{judgment.title}</h3>
-                <div className={styles.meta}>
-                  <span>{judgment.caseNumber}</span>
-                  <span>{judgment.courtName}</span>
-                  <span>{judgment.decidedOn}</span>
-                </div>
+                      ? styles.statusReview
+                      : styles.statusPending
+                }
+              >
+                {judgment.status === "ready"
+                  ? "생성 완료"
+                  : judgment.status === "needs_review"
+                    ? "검토 필요"
+                    : "생성 대기"}
+              </span>
+              <h3>{judgment.title}</h3>
+              <div className={styles.meta}>
+                <span>{judgment.caseNumber}</span>
+                <span>{judgment.courtName}</span>
+                <span>{judgment.decidedOn}</span>
               </div>
-              <div>
-                <p className={styles.meta}>
-                  작업 상태: {judgment.latestJobStatus ?? "아직 없음"} / 알림{" "}
-                  {judgment.notificationCount}건
-                </p>
-                <div className={styles.buttonRow}>
-                  <button
-                    className={styles.secondaryButton}
-                    type="button"
-                    onClick={() => subscribe(judgment.id)}
-                  >
-                    완료 알림 받기
-                  </button>
-                </div>
+            </div>
+            <div>
+              <p className={styles.meta}>
+                작업 상태: {judgment.latestJobStatus ?? "아직 없음"} / 알림{" "}
+                {judgment.notificationCount}건
+              </p>
+              <div className={styles.buttonRow}>
+                <button
+                  className={styles.secondaryButton}
+                  onClick={() => subscribe(judgment.id)}
+                  type="button"
+                >
+                  완료 알림 받기
+                </button>
               </div>
-            </article>
-          ))}
-        </div>
-      </section>
+            </div>
+          </article>
+        ))}
+      </div>
+      {compact && <p className={styles.notice}>{message}</p>}
     </>
   );
 }
