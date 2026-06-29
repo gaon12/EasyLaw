@@ -29,6 +29,7 @@ import {
   configureSetup,
   ensureInstallationState,
   isInstallationComplete,
+  testSetupEmailConfiguration,
   unlockSetup,
   verifySetupEmail,
 } from "../src/lib/setup";
@@ -69,14 +70,36 @@ test("first-run setup creates the verified service super administrator", async (
     assert.equal(unlocked.ok, true);
     assert.ok(unlocked.ok);
 
-    const configured = await configureSetup(db, unlocked.sessionToken, {
+    const setupInput = {
       serviceName: "EasyLaw Test",
-      baseUrl: "http://localhost:3000",
       adminName: "최고 관리자",
       adminEmail: "first@example.com",
       resendApiKey: "re_test_key",
-      fromEmail: "EasyLaw <hello@example.com>",
+      fromName: "EasyLaw",
+      fromAddress: "hello@example.com",
+    };
+    const blockedBeforeTest = await configureSetup(
+      db,
+      unlocked.sessionToken,
+      setupInput,
+    );
+    assert.deepEqual(blockedBeforeTest, {
+      ok: false,
+      reason: "api_test_required",
     });
+
+    const emailTest = await testSetupEmailConfiguration(
+      db,
+      unlocked.sessionToken,
+      setupInput,
+    );
+    assert.equal(emailTest.ok, true);
+
+    const configured = await configureSetup(
+      db,
+      unlocked.sessionToken,
+      setupInput,
+    );
     assert.equal(configured.ok, true);
 
     const emailVerified = await verifySetupEmail(

@@ -97,8 +97,16 @@ try {
   await page.getByLabel("관리자 이름").fill("최고 관리자");
   await page.getByLabel("관리자 이메일").fill("first@example.com");
   await page.getByLabel("Resend API 키").fill("re_browser_test");
-  await page.getByLabel("보내는 주소").fill("EasyLaw <hello@example.com>");
-  await page.getByRole("button", { name: "저장하고 인증 메일 보내기" }).click();
+  await page.getByLabel("보내는 이메일").fill("hello@example.com");
+  const configureButton = page.getByRole("button", {
+    name: "저장하고 인증 메일 보내기",
+  });
+  if (await configureButton.isEnabled()) {
+    throw new Error("Setup continued before the email API test passed.");
+  }
+  await page.getByRole("button", { name: "API 키 테스트" }).click();
+  await page.getByRole("button", { name: "테스트 통과" }).waitFor();
+  await configureButton.click();
 
   await page.getByLabel("이메일 인증 코드").fill("123456");
   await page.getByRole("button", { name: "이메일 확인" }).click();
