@@ -78,9 +78,57 @@ try {
   });
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { level: 1, name: "EasyLaw" }).waitFor();
+  await page.getByRole("region", { name: "EasyLaw 결과 예시" }).waitFor();
   await page.locator('form[action="/catalog"] input').waitFor();
   await page.locator('a[href="/login"]').first().waitFor();
   await page.locator('a[href="/signup"]').first().waitFor();
+  if ((await page.getByText("공개 판결문", { exact: true }).count()) !== 0) {
+    throw new Error(
+      "Landing page still exposes the removed public catalog section.",
+    );
+  }
+  if ((await page.getByText(/외부 API/).count()) !== 0) {
+    throw new Error("Landing page still exposes implementation terminology.");
+  }
+
+  const themeToggle = page.getByRole("button", {
+    name: "다크 모드로 전환",
+  });
+  await themeToggle.click();
+  if ((await page.locator("html").getAttribute("data-theme")) !== "dark") {
+    throw new Error("Theme toggle did not apply dark mode.");
+  }
+  await page.reload({ waitUntil: "networkidle" });
+  if ((await page.locator("html").getAttribute("data-theme")) !== "dark") {
+    throw new Error("Theme choice was not persisted.");
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth,
+    )
+  ) {
+    throw new Error("Landing page has horizontal overflow on mobile.");
+  }
+  const navItems = page.locator("nav a");
+  for (let index = 0; index < (await navItems.count()); index += 1) {
+    const lineHeight = await navItems.nth(index).evaluate((item) => {
+      const style = getComputedStyle(item);
+      return {
+        height: item.getBoundingClientRect().height,
+        lineHeight: Number.parseFloat(style.lineHeight),
+      };
+    });
+    if (lineHeight.height > lineHeight.lineHeight * 1.5) {
+      throw new Error("A mobile navigation item wrapped onto multiple lines.");
+    }
+  }
+
+  await page.setViewportSize({ width: 1440, height: 1100 });
   await page.locator('a[href="/catalog"]').first().click();
   await page.locator("main article").first().waitFor();
 
