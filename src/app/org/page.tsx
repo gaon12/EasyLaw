@@ -1,3 +1,4 @@
+import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import styles from "../page.module.css";
 
@@ -49,30 +50,18 @@ export default function OrganizationPage() {
     .all();
 
   return (
-    <div className={styles.shell}>
-      <header className={styles.topbar}>
-        <div className={styles.topbarInner}>
-          <a className={styles.brand} href="/">
-            <span className={styles.mark}>EL</span>
-            <span>조직 페이지</span>
-          </a>
-          <nav className={styles.nav} aria-label="조직 페이지 이동">
-            <a href="/">홈</a>
-            <a href="/me">개인</a>
-            <a href="/admin">운영 관리자</a>
-          </nav>
-        </div>
-      </header>
+    <AppShell>
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>조직 관리</h1>
+              <h1>조직 문서함</h1>
               <p>
-                조직 소유자와 멤버 구조로 시작합니다. 소유자는 TOTP 필수입니다.
+                조직 공유 결과, 구성원 초대, 사용량, 보안 상태를 함께 관리해요.
+                조직 소유자는 TOTP가 필요해요.
               </p>
             </div>
-            <span className={styles.badge}>Owner + Member</span>
+            <span className={styles.badge}>소유자 + 멤버</span>
           </div>
           <div className={styles.catalog}>
             {orgs.map((org) => (
@@ -98,7 +87,7 @@ export default function OrganizationPage() {
           <div className={styles.sectionTitle}>
             <div>
               <h2>구성원</h2>
-              <p>조직 공유 결과, 초대, 사용량, 보안 상태의 시작점입니다.</p>
+              <p>조직 공유 결과와 초대, 보안 상태를 이 화면에서 확장해요.</p>
             </div>
           </div>
           <div className={styles.tableWrap}>
@@ -118,7 +107,7 @@ export default function OrganizationPage() {
                     <td>{member.email}</td>
                     <td>{member.role}</td>
                     <td>
-                      {member.totp_enabled ? "사용 중" : "권장/필수 확인"}
+                      {member.totp_enabled ? "사용 중" : "권장 또는 필수"}
                     </td>
                   </tr>
                 ))}
@@ -127,6 +116,6 @@ export default function OrganizationPage() {
           </div>
         </section>
       </main>
-    </div>
+    </AppShell>
   );
 }

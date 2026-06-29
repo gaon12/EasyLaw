@@ -1,3 +1,4 @@
+import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import styles from "../page.module.css";
 
@@ -41,31 +42,18 @@ export default function MePage() {
     .all();
 
   return (
-    <div className={styles.shell}>
-      <header className={styles.topbar}>
-        <div className={styles.topbarInner}>
-          <a className={styles.brand} href="/">
-            <span className={styles.mark}>EL</span>
-            <span>개인 페이지</span>
-          </a>
-          <nav className={styles.nav} aria-label="개인 페이지 이동">
-            <a href="/">홈</a>
-            <a href="/org">조직</a>
-            <a href="/admin">운영 관리자</a>
-          </nav>
-        </div>
-      </header>
+    <AppShell>
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>내 계정과 분석 이력</h1>
+              <h1>내 문서함</h1>
               <p>
-                일반 사용자는 TOTP를 선택할 수 있지만, 결과 저장과 조직 가입 시
-                강하게 권장합니다.
+                분석 이력, 저장 결과, 알림 구독, 삭제 요청, TOTP 설정을 한곳에서
+                관리해요.
               </p>
             </div>
-            <span className={styles.badge}>Magic link + optional TOTP</span>
+            <span className={styles.badge}>매직링크 + TOTP 권장</span>
           </div>
           <div className={styles.catalog}>
             {users.map((user) => (
@@ -88,8 +76,8 @@ export default function MePage() {
                 </div>
                 <p className={styles.notice}>
                   {user.totp_required
-                    ? "이 계정은 관리 기능 때문에 TOTP가 필수입니다."
-                    : "계정 설정에서 TOTP와 복구코드를 등록하도록 권장합니다."}
+                    ? "관리 기능 접근 때문에 TOTP가 필요해요."
+                    : "계정 설정에서 TOTP와 복구코드를 등록해 두면 더 안전해요."}
                 </p>
               </article>
             ))}
@@ -100,9 +88,7 @@ export default function MePage() {
           <div className={styles.sectionTitle}>
             <div>
               <h2>알림 구독</h2>
-              <p>
-                생성 완료 이메일은 판결문 생성 작업과 idempotent하게 연결됩니다.
-              </p>
+              <p>생성 완료 이메일은 판결문 생성 작업과 중복 없이 연결해요.</p>
             </div>
           </div>
           <div className={styles.tableWrap}>
@@ -129,6 +115,6 @@ export default function MePage() {
           </div>
         </section>
       </main>
-    </div>
+    </AppShell>
   );
 }
