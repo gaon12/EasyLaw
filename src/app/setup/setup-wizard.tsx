@@ -55,6 +55,9 @@ function errorMessage(error: string | undefined) {
   const messages: Record<string, string> = {
     email_delivery_failed:
       "인증 이메일을 보내지 못했어요. 발송 설정을 확인해 주세요.",
+    email_test_failed:
+      "테스트 메일을 보내지 못했어요. API 키와 발신 정보를 확인해 주세요.",
+    api_test_required: "API 키 테스트를 먼저 통과해 주세요.",
     invalid_code: "코드가 올바르지 않거나 유효 시간이 지났어요.",
     invalid_request: "입력한 내용을 다시 확인해 주세요.",
     rate_limited: "시도 횟수가 많아요. 잠시 후 다시 시도해 주세요.",
@@ -85,21 +88,15 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   const [authCode, setAuthCode] = useState("");
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [apiTestPassed, setApiTestPassed] = useState(false);
   const [config, setConfig] = useState({
     serviceName: "EasyLaw",
-    baseUrl: "",
     adminName: "",
     adminEmail: "",
     resendApiKey: "",
-    fromEmail: "",
+    fromName: "EasyLaw",
+    fromAddress: "",
   });
-
-  useEffect(() => {
-    setConfig((current) => ({
-      ...current,
-      baseUrl: current.baseUrl || window.location.origin,
-    }));
-  }, []);
 
   useEffect(() => {
     if (stage !== "totp_pending" || enrollment) {
@@ -149,6 +146,19 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
       setMessage("인증 코드를 이메일로 보냈어요.");
       setStage("email_pending");
     }, "메일 발송 설정을 확인하고 있어요.");
+  }
+
+  function testEmailConfiguration() {
+    void submit(async () => {
+      await postJson("/api/setup/test-email", {
+        adminEmail: config.adminEmail,
+        resendApiKey: config.resendApiKey,
+        fromName: config.fromName,
+        fromAddress: config.fromAddress,
+      });
+      setApiTestPassed(true);
+      setMessage("테스트 메일을 보냈어요. API 키와 발신 정보를 확인했습니다.");
+    }, "테스트 메일을 보내고 있어요.");
   }
 
   function verifyEmail(event: FormEvent) {
@@ -261,17 +271,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                     />
                   </label>
                   <label>
-                    서비스 주소
-                    <input
-                      onChange={(event) =>
-                        setConfig({ ...config, baseUrl: event.target.value })
-                      }
-                      required
-                      type="url"
-                      value={config.baseUrl}
-                    />
-                  </label>
-                  <label>
                     관리자 이름
                     <input
                       autoComplete="name"
@@ -286,9 +285,13 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                     관리자 이메일
                     <input
                       autoComplete="email"
-                      onChange={(event) =>
-                        setConfig({ ...config, adminEmail: event.target.value })
-                      }
+                      onChange={(event) => {
+                        setConfig({
+                          ...config,
+                          adminEmail: event.target.value,
+                        });
+                        setApiTestPassed(false);
+                      }}
                       required
                       type="email"
                       value={config.adminEmail}
@@ -298,36 +301,75 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                     Resend API 키
                     <input
                       autoComplete="off"
-                      onChange={(event) =>
+                      onChange={(event) => {
                         setConfig({
                           ...config,
                           resendApiKey: event.target.value,
-                        })
-                      }
+                        });
+                        setApiTestPassed(false);
+                      }}
                       placeholder="re_..."
                       required
                       type="password"
                       value={config.resendApiKey}
                     />
                   </label>
-                  <label className={styles.fullField}>
-                    보내는 주소
+                  <label>
+                    보내는 이름
                     <input
-                      onChange={(event) =>
-                        setConfig({ ...config, fromEmail: event.target.value })
-                      }
-                      placeholder="EasyLaw <hello@example.com>"
+                      onChange={(event) => {
+                        setConfig({
+                          ...config,
+                          fromName: event.target.value,
+                        });
+                        setApiTestPassed(false);
+                      }}
                       required
-                      value={config.fromEmail}
+                      value={config.fromName}
+                    />
+                  </label>
+                  <label>
+                    보내는 이메일
+                    <input
+                      onChange={(event) => {
+                        setConfig({
+                          ...config,
+                          fromAddress: event.target.value,
+                        });
+                        setApiTestPassed(false);
+                      }}
+                      placeholder="hello@example.com"
+                      required
+                      type="email"
+                      value={config.fromAddress}
                     />
                   </label>
                 </div>
-                <p className={styles.fieldHelp}>
-                  관리자 이메일 확인과 서비스 알림 발송에 사용합니다.
-                </p>
+                <div className={styles.apiTestPanel}>
+                  <div>
+                    <strong>이메일 발송 테스트</strong>
+                    <p>
+                      위 발신 정보로 관리자 이메일에 테스트 메일을 보냅니다.
+                    </p>
+                  </div>
+                  <button
+                    className={styles.testButton}
+                    disabled={
+                      busy ||
+                      !config.adminEmail ||
+                      !config.resendApiKey ||
+                      !config.fromName ||
+                      !config.fromAddress
+                    }
+                    onClick={testEmailConfiguration}
+                    type="button"
+                  >
+                    {apiTestPassed ? "테스트 통과" : "API 키 테스트"}
+                  </button>
+                </div>
                 <button
                   className={styles.nextButton}
-                  disabled={busy}
+                  disabled={busy || !apiTestPassed}
                   type="submit"
                 >
                   {busy ? "확인 중..." : "저장하고 인증 메일 보내기"}
@@ -476,11 +518,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
             <output className={styles.setupMessage}>{message}</output>
           )}
         </section>
-
-        <footer className={styles.setupFooter}>
-          <span>설정 정보는 이 서버에만 저장됩니다.</span>
-          <span>오픈소스 · 자체 호스팅</span>
-        </footer>
       </div>
     </main>
   );
