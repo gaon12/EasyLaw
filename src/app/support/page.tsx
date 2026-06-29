@@ -22,7 +22,7 @@ export default function SupportPage() {
                   생성되지 않은 판결문도 알림을 받을 수 있나요?
                 </a>
                 <a className={styles.listLink} href="/security">
-                  TOTP를 꼭 켜야 하나요?
+                  2차 인증을 꼭 설정해야 하나요?
                 </a>
                 <a className={styles.listLink} href="/org">
                   조직에서 결과를 공유할 수 있나요?

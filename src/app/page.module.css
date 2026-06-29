@@ -1,5 +1,7 @@
 .shell {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   color: var(--fg-default);
   background: var(--bg-canvas);
 }
@@ -758,6 +760,7 @@
 }
 
 .footer {
+  margin-top: auto;
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-surface);
 }

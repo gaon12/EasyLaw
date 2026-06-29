@@ -58,7 +58,7 @@ export default function OrganizationPage() {
               <h1>조직 문서함</h1>
               <p>
                 조직 공유 결과, 구성원 초대, 사용량, 보안 상태를 함께 관리해요.
-                조직 소유자는 TOTP가 필요해요.
+                조직 소유자는 2차 인증이 필요해요.
               </p>
             </div>
             <span className={styles.badge}>소유자 + 멤버</span>
@@ -75,7 +75,7 @@ export default function OrganizationPage() {
                   </div>
                 </div>
                 <p className={styles.notice}>
-                  소유자 TOTP:{" "}
+                  소유자 2차 인증:{" "}
                   {org.owner_totp_enabled ? "등록됨" : "필수 등록 필요"}
                 </p>
               </article>
@@ -97,7 +97,7 @@ export default function OrganizationPage() {
                   <th>조직</th>
                   <th>이메일</th>
                   <th>역할</th>
-                  <th>TOTP</th>
+                  <th>2차 인증</th>
                 </tr>
               </thead>
               <tbody>

@@ -8,8 +8,8 @@ export default function LoginPage() {
         <section className={styles.authPanel}>
           <h1>로그인</h1>
           <p>
-            이메일로 받은 매직링크로 로그인해요. TOTP를 켠 계정은 로그인 후 한
-            번 더 확인해요.
+            입력한 이메일로 인증 안내를 보내드려요. 2차 인증을 설정한 계정은
+            로그인 과정에서 한 번 더 확인해요.
           </p>
           <form className={styles.authForm}>
             <label className={styles.label} htmlFor="email">
@@ -22,7 +22,7 @@ export default function LoginPage() {
               type="email"
             />
             <button className={styles.primaryButton} type="button">
-              매직링크 받기
+              이메일로 인증하기
             </button>
             <a className={styles.secondaryButton} href="/signup">
               회원가입하기

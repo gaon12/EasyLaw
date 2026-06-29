@@ -21,10 +21,10 @@ export default async function AdminPage() {
               <h1>운영 관리센터</h1>
               <p>
                 사용자, 조직, 생성 큐, 정보 동기화, 실패 작업, 감사 로그를
-                확인해요. 운영 관리자는 TOTP 등록이 필요해요.
+                확인해요. 운영 관리자는 2차 인증 설정이 필요해요.
               </p>
             </div>
-            <span className={styles.badge}>TOTP 필수</span>
+            <span className={styles.badge}>2차 인증 필수</span>
           </div>
           <div className={styles.adminGrid}>
             <div className={styles.metric}>
@@ -51,7 +51,8 @@ export default async function AdminPage() {
             <div>
               <h2>사용자 보안 상태</h2>
               <p>
-                관리자와 조직 소유자는 관리 기능 접근 전에 TOTP를 켜야 해요.
+                관리자와 조직 소유자는 관리 기능을 사용하기 전에 2차 인증을
+                설정해야 해요.
               </p>
             </div>
           </div>
@@ -61,7 +62,7 @@ export default async function AdminPage() {
                 <tr>
                   <th>이메일</th>
                   <th>역할</th>
-                  <th>TOTP</th>
+                  <th>2차 인증</th>
                   <th>필수 여부</th>
                 </tr>
               </thead>
@@ -121,7 +122,9 @@ export default async function AdminPage() {
           <div className={styles.sectionTitle}>
             <div>
               <h2>감사 로그</h2>
-              <p>TOTP 실패, 복구코드 사용, 작업 완료, 알림 발송을 남겨요.</p>
+              <p>
+                2차 인증 실패, 복구 코드 사용, 작업 완료, 알림 발송을 남겨요.
+              </p>
             </div>
           </div>
           <div className={styles.tableWrap}>

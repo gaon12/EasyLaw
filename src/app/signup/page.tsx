@@ -8,8 +8,8 @@ export default function SignupPage() {
         <section className={styles.authPanel}>
           <h1>회원가입</h1>
           <p>
-            EasyLaw Beta는 이메일 계정으로 시작해요. 일반 사용자는 TOTP가 선택
-            권장이고, 조직 소유자와 운영 관리자는 필수예요.
+            이메일 인증으로 간편하게 시작해요. 가입 후 계정 보안 페이지에서
+            필요에 따라 2차 인증을 설정할 수 있어요.
           </p>
           <form className={styles.authForm}>
             <label className={styles.label} htmlFor="signup-email">
@@ -31,7 +31,7 @@ export default function SignupPage() {
               type="text"
             />
             <button className={styles.primaryButton} type="button">
-              가입 시작하기
+              이메일 인증하고 가입하기
             </button>
           </form>
         </section>

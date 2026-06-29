@@ -49,11 +49,11 @@ export default function MePage() {
             <div>
               <h1>내 문서함</h1>
               <p>
-                분석 이력, 저장 결과, 알림 구독, 삭제 요청, TOTP 설정을 한곳에서
-                관리해요.
+                분석 이력, 저장 결과, 알림 구독, 삭제 요청, 2차 인증 설정을
+                한곳에서 관리해요.
               </p>
             </div>
-            <span className={styles.badge}>매직링크 + TOTP 권장</span>
+            <span className={styles.badge}>이메일 인증 + 2차 인증 권장</span>
           </div>
           <div className={styles.catalog}>
             {users.map((user) => (
@@ -66,7 +66,7 @@ export default function MePage() {
                         : styles.statusPending
                     }
                   >
-                    {user.totp_enabled ? "TOTP 사용 중" : "TOTP 권장"}
+                    {user.totp_enabled ? "2차 인증 사용 중" : "2차 인증 권장"}
                   </span>
                   <h3>{user.display_name}</h3>
                   <div className={styles.meta}>
@@ -76,8 +76,8 @@ export default function MePage() {
                 </div>
                 <p className={styles.notice}>
                   {user.totp_required
-                    ? "관리 기능 접근 때문에 TOTP가 필요해요."
-                    : "계정 설정에서 TOTP와 복구코드를 등록해 두면 더 안전해요."}
+                    ? "관리 기능을 사용하려면 2차 인증이 필요해요."
+                    : "계정 설정에서 2차 인증과 복구 코드를 등록하면 더 안전해요."}
                 </p>
               </article>
             ))}

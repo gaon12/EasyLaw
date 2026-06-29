@@ -123,8 +123,8 @@ export const serviceShortcuts = [
   {
     href: "/security",
     icon: ShieldIcon,
-    label: "TOTP 설정",
-    description: "중요 계정은 2단계 인증을 켜요",
+    label: "2차 인증 설정",
+    description: "중요 계정의 보안을 한 단계 높여요",
   },
   {
     href: "/admin",

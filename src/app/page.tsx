@@ -193,8 +193,8 @@ export default function Home() {
             <span>계정 보안</span>
             <h2>중요한 문서일수록 한 단계 더 안전하게</h2>
             <p>
-              이메일 로그인에 TOTP 2단계 인증을 더할 수 있어요. 조직 소유자와
-              운영 관리자는 필수로 사용합니다.
+              이메일 로그인에 2차 인증을 더할 수 있어요. 조직 소유자와 운영
+              관리자는 필수로 사용합니다.
             </p>
           </div>
           <a className={styles.secondaryButton} href="/security">
