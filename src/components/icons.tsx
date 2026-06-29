@@ -13,6 +13,7 @@ function IconBase({
       aria-hidden="true"
       className={className}
       fill="none"
+      focusable="false"
       height={size}
       stroke="currentColor"
       strokeLinecap="round"
@@ -112,6 +113,50 @@ export function ChevronRightIcon(props: IconProps) {
   return (
     <IconBase {...props}>
       <path d="m9 18 6-6-6-6" />
+    </IconBase>
+  );
+}
+
+export function SunIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.42 1.42" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </IconBase>
+  );
+}
+
+export function MoonIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M20.8 15.2A9 9 0 0 1 8.8 3.2 9 9 0 1 0 20.8 15.2Z" />
+    </IconBase>
+  );
+}
+
+export function UploadIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 16V4" />
+      <path d="m7 9 5-5 5 5" />
+      <path d="M20 15v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4" />
+    </IconBase>
+  );
+}
+
+export function SparklesIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="m12 3-1.2 3.1a2 2 0 0 1-1.1 1.1L6.5 8.5l3.2 1.2a2 2 0 0 1 1.1 1.1L12 14l1.2-3.2a2 2 0 0 1 1.1-1.1l3.2-1.2-3.2-1.3a2 2 0 0 1-1.1-1.1L12 3Z" />
+      <path d="m5 15-.7 1.8a1 1 0 0 1-.6.6L2 18l1.7.6a1 1 0 0 1 .6.6L5 21l.7-1.8a1 1 0 0 1 .6-.6L8 18l-1.7-.6a1 1 0 0 1-.6-.6L5 15Z" />
+      <path d="m19 14-.6 1.5a1 1 0 0 1-.5.5l-1.4.5 1.4.5a1 1 0 0 1 .5.5L19 20l.6-1.5a1 1 0 0 1 .5-.5l1.4-.5-1.4-.5a1 1 0 0 1-.5-.5L19 14Z" />
     </IconBase>
   );
 }

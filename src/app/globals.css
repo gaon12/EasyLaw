@@ -18,6 +18,7 @@
   --border-subtle: oklch(0.521 0.018 273 / 0.08);
   --border-default: oklch(0.521 0.018 273 / 0.22);
   --border-strong: oklch(0.521 0.018 273 / 0.35);
+  --shadow-soft: 0 18px 50px oklch(0.2 0.02 270 / 0.08);
   --radius-8: 8px;
   --radius-12: 12px;
   --radius-16: 16px;
@@ -31,8 +32,65 @@
     "Pretendard Variable", system-ui, sans-serif;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg-canvas: oklch(0.17 0.008 274);
+    --bg-surface: oklch(0.215 0.01 274);
+    --bg-muted: oklch(0.255 0.012 274);
+    --bg-brand: oklch(0.66 0.2 255);
+    --bg-brand-hover: oklch(0.71 0.18 255);
+    --bg-brand-subtle: oklch(0.31 0.065 255);
+    --bg-warning-subtle: oklch(0.31 0.04 72);
+    --bg-success-subtle: oklch(0.3 0.05 152);
+    --fg-strong: oklch(0.96 0.004 277);
+    --fg-default: oklch(0.9 0.006 277 / 0.9);
+    --fg-secondary: oklch(0.82 0.008 277 / 0.7);
+    --fg-tertiary: oklch(0.78 0.008 277 / 0.52);
+    --fg-brand: oklch(0.74 0.15 252);
+    --fg-warning: oklch(0.78 0.13 72);
+    --fg-success: oklch(0.78 0.16 145);
+    --fg-danger: oklch(0.74 0.16 24);
+    --border-subtle: oklch(0.84 0.01 273 / 0.1);
+    --border-default: oklch(0.84 0.01 273 / 0.2);
+    --border-strong: oklch(0.84 0.01 273 / 0.34);
+    --shadow-soft: 0 18px 50px oklch(0.05 0.01 270 / 0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg-canvas: oklch(0.17 0.008 274);
+  --bg-surface: oklch(0.215 0.01 274);
+  --bg-muted: oklch(0.255 0.012 274);
+  --bg-brand: oklch(0.66 0.2 255);
+  --bg-brand-hover: oklch(0.71 0.18 255);
+  --bg-brand-subtle: oklch(0.31 0.065 255);
+  --bg-warning-subtle: oklch(0.31 0.04 72);
+  --bg-success-subtle: oklch(0.3 0.05 152);
+  --fg-strong: oklch(0.96 0.004 277);
+  --fg-default: oklch(0.9 0.006 277 / 0.9);
+  --fg-secondary: oklch(0.82 0.008 277 / 0.7);
+  --fg-tertiary: oklch(0.78 0.008 277 / 0.52);
+  --fg-brand: oklch(0.74 0.15 252);
+  --fg-warning: oklch(0.78 0.13 72);
+  --fg-success: oklch(0.78 0.16 145);
+  --fg-danger: oklch(0.74 0.16 24);
+  --border-subtle: oklch(0.84 0.01 273 / 0.1);
+  --border-default: oklch(0.84 0.01 273 / 0.2);
+  --border-strong: oklch(0.84 0.01 273 / 0.34);
+  --shadow-soft: 0 18px 50px oklch(0.05 0.01 270 / 0.35);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 html {
   height: 100%;
+  color-scheme: light dark;
 }
 
 html,
@@ -72,6 +130,11 @@ textarea {
 
 button {
   cursor: pointer;
+}
+
+svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 button:disabled {
