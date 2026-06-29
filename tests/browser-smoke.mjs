@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { generate } from "otplib";
 import { chromium } from "playwright";
 
 const port = Number(process.env.EASYLAW_E2E_PORT ?? 3210);
@@ -11,7 +12,11 @@ mkdirSync(tempDir, { recursive: true });
 
 const env = {
   ...process.env,
-  EASYLAW_DATABASE_PATH: join(tempDir, "easylaw.sqlite"),
+  EASYLAW_TEST_MODE: "1",
+  EASYLAW_TEST_DATA_DIR: tempDir,
+  EASYLAW_TEST_DATABASE_PATH: join(tempDir, "easylaw.sqlite"),
+  EASYLAW_TEST_SETUP_CODE: "TEST-SETUP-01",
+  EASYLAW_TEST_EMAIL_CODE: "123456",
   NEXT_TELEMETRY_DISABLED: "1",
 };
 const devArgs = [
@@ -78,6 +83,64 @@ try {
   });
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  if (new URL(page.url()).pathname !== "/setup") {
+    throw new Error(
+      "Unconfigured service did not redirect to the setup wizard.",
+    );
+  }
+  if ((await page.request.get(`${baseUrl}/api/judgments`)).status() !== 503) {
+    throw new Error("Application API was available before setup completed.");
+  }
+
+  await page.getByLabel("설치 코드").fill("TEST-SETUP-01");
+  await page.getByRole("button", { name: "계속" }).click();
+  await page.getByLabel("관리자 이름").fill("최고 관리자");
+  await page.getByLabel("관리자 이메일").fill("first@example.com");
+  await page.getByLabel("Resend API 키").fill("re_browser_test");
+  await page.getByLabel("보내는 주소").fill("EasyLaw <hello@example.com>");
+  await page.getByRole("button", { name: "저장하고 인증 메일 보내기" }).click();
+
+  await page.getByLabel("이메일 인증 코드").fill("123456");
+  await page.getByRole("button", { name: "이메일 확인" }).click();
+
+  const manualKey = page.locator("details code");
+  await page.getByText("직접 입력 키 보기", { exact: true }).click();
+  await manualKey.waitFor({ state: "visible" });
+  const secret = (await manualKey.textContent())?.trim();
+  if (!secret) {
+    throw new Error("Authenticator secret was not available.");
+  }
+  await page.getByLabel("인증 앱 코드").fill(await generate({ secret }));
+  await page.getByRole("button", { name: "설치 완료" }).click();
+  await page
+    .getByRole("heading", { name: "EasyLaw를 사용할 준비가 됐어요" })
+    .waitFor();
+  if ((await page.locator("code").count()) !== 10) {
+    throw new Error("Setup did not issue ten recovery codes.");
+  }
+  await page.getByRole("link", { name: "EasyLaw 시작하기" }).click();
+  await page.waitForURL(baseUrl);
+
+  const setupResponse = await page.request.get(`${baseUrl}/api/setup/status`);
+  if (setupResponse.status() !== 410) {
+    throw new Error("Setup API remained available after installation.");
+  }
+
+  const anonymousContext = await browser.newContext();
+  const anonymousPage = await anonymousContext.newPage();
+  await anonymousPage.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
+  if (new URL(anonymousPage.url()).pathname !== "/login") {
+    throw new Error("Anonymous user could access the administration page.");
+  }
+  if (
+    (
+      await anonymousPage.request.post(`${baseUrl}/api/auth/totp/setup`)
+    ).status() !== 401
+  ) {
+    throw new Error("Second-factor setup API accepted an anonymous request.");
+  }
+  await anonymousContext.close();
+
   await page.getByRole("heading", { level: 1, name: "EasyLaw" }).waitFor();
   await page.getByRole("region", { name: "EasyLaw 결과 예시" }).waitFor();
   await page.locator('form[action="/catalog"] input').waitFor();

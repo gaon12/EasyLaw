@@ -23,12 +23,26 @@ import {
 import { sendReadyNotifications } from "../src/lib/notifications";
 import { getPublicJudgments } from "../src/lib/queries";
 import { decryptSecret } from "../src/lib/security/crypto";
+import { getSessionUser } from "../src/lib/session";
+import {
+  completeSetup,
+  configureSetup,
+  ensureInstallationState,
+  isInstallationComplete,
+  unlockSetup,
+  verifySetupEmail,
+} from "../src/lib/setup";
+
+const testDataDir = mkdtempSync(path.join(tmpdir(), "easylaw-keys-"));
+process.env.EASYLAW_TEST_MODE = "1";
+process.env.EASYLAW_TEST_DATA_DIR = testDataDir;
+process.env.EASYLAW_TEST_SETUP_CODE = "TEST-SETUP-01";
+process.env.EASYLAW_TEST_EMAIL_CODE = "123456";
 
 function withDb() {
   const dir = mkdtempSync(path.join(tmpdir(), "easylaw-test-"));
   const file = path.join(dir, "test.sqlite");
   const db = createDatabase(file);
-  seedDatabase(db);
   return {
     db,
     cleanup() {
@@ -38,17 +52,95 @@ function withDb() {
   };
 }
 
-test("SQLite migration enables WAL and seeds beta users", () => {
+test("first-run setup creates the verified service super administrator", async () => {
   const { db, cleanup } = withDb();
   try {
     const journalMode = db.pragma("journal_mode", { simple: true });
     assert.equal(String(journalMode).toLowerCase(), "wal");
+    assert.equal(
+      db
+        .prepare<[], { count: number }>("SELECT COUNT(*) count FROM users")
+        .get()?.count,
+      0,
+    );
+
+    ensureInstallationState(db);
+    const unlocked = unlockSetup(db, "TEST-SETUP-01", "test-client");
+    assert.equal(unlocked.ok, true);
+    assert.ok(unlocked.ok);
+
+    const configured = await configureSetup(db, unlocked.sessionToken, {
+      serviceName: "EasyLaw Test",
+      baseUrl: "http://localhost:3000",
+      adminName: "최고 관리자",
+      adminEmail: "first@example.com",
+      resendApiKey: "re_test_key",
+      fromEmail: "EasyLaw <hello@example.com>",
+    });
+    assert.equal(configured.ok, true);
+
+    const emailVerified = await verifySetupEmail(
+      db,
+      unlocked.sessionToken,
+      "123456",
+    );
+    assert.equal(emailVerified.ok, true);
+    assert.ok(emailVerified.ok);
+
+    const secret = new URL(
+      emailVerified.enrollment.otpauthUrl,
+    ).searchParams.get("secret");
+    assert.ok(secret);
+    const authCode = await generate({ secret });
+    const completed = await completeSetup(db, unlocked.sessionToken, authCode);
+    assert.equal(completed.ok, true);
+    assert.ok(completed.ok);
+    assert.equal(isInstallationComplete(db), true);
+    assert.equal(
+      getSessionUser(db, completed.session.token)?.role,
+      "super_admin",
+    );
+
     const admin = db
-      .prepare<[string], { totp_required: number }>(
-        "SELECT totp_required FROM users WHERE email = ?",
+      .prepare<
+        [string],
+        {
+          role: string;
+          totp_enabled: number;
+          totp_required: number;
+          verified_at: string | null;
+        }
+      >(
+        `SELECT users.role, users.totp_enabled, users.totp_required,
+          user_auth_methods.verified_at
+        FROM users
+        JOIN user_auth_methods ON user_auth_methods.user_id = users.id
+          AND user_auth_methods.kind = 'email'
+        WHERE users.email = ?`,
       )
-      .get("admin@easylaw.local");
-    assert.equal(admin?.totp_required, 1);
+      .get("first@example.com");
+    assert.deepEqual(
+      {
+        role: admin?.role,
+        totpEnabled: admin?.totp_enabled,
+        totpRequired: admin?.totp_required,
+        emailVerified: Boolean(admin?.verified_at),
+      },
+      {
+        role: "super_admin",
+        totpEnabled: 1,
+        totpRequired: 1,
+        emailVerified: true,
+      },
+    );
+
+    const storedSecret = db
+      .prepare<[string], { value_ciphertext: string }>(
+        "SELECT value_ciphertext FROM service_settings WHERE key = ?",
+      )
+      .get("resend_api_key");
+    assert.ok(storedSecret);
+    assert.equal(storedSecret.value_ciphertext.includes("re_test_key"), false);
   } finally {
     cleanup();
   }
@@ -120,6 +212,7 @@ test("external values win over generated metadata conflicts", () => {
 test("TOTP enrollment, recovery code, and management access policy", async () => {
   const { db, cleanup } = withDb();
   try {
+    seedDatabase(db);
     const admin = db
       .prepare<[string], { id: string; totp_secret_ciphertext: string | null }>(
         "SELECT id, totp_secret_ciphertext FROM users WHERE email = ?",
