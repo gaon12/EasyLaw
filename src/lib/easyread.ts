@@ -64,7 +64,7 @@ export function buildPendingAnalysis(title: string): EasyReadAnalysis {
     ...sampleAnalysis,
     summary: `${title}의 Easy-Read 판결문은 아직 생성되지 않았습니다.`,
     easyRead: [
-      "이 판결문 항목은 외부 공개 정보로 확인되었습니다.",
+      "이 판결문 항목은 확인된 사건 정보를 바탕으로 작성되었습니다.",
       "아직 쉬운 설명은 준비되지 않았습니다.",
       "이메일을 남기면 생성이 끝났을 때 알려드립니다.",
     ],

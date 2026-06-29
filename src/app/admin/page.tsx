@@ -20,7 +20,7 @@ export default async function AdminPage() {
             <div>
               <h1>운영 관리센터</h1>
               <p>
-                사용자, 조직, 생성 큐, 외부 API 동기화, 실패 작업, 감사 로그를
+                사용자, 조직, 생성 큐, 정보 동기화, 실패 작업, 감사 로그를
                 확인해요. 운영 관리자는 TOTP 등록이 필요해요.
               </p>
             </div>

@@ -24,7 +24,7 @@ export default async function CatalogPage() {
                 이메일로 알림을 받아요.
               </p>
             </div>
-            <span className={styles.badge}>외부 API 우선</span>
+            <span className={styles.badge}>확인된 정보 우선</span>
           </div>
           <JudgmentExplorer initialJudgments={judgments} />
         </section>

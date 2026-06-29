@@ -26,13 +26,13 @@ export function JudgmentExplorer({
   const [email, setEmail] = useState("");
   const [judgments, setJudgments] = useState(initialJudgments);
   const [message, setMessage] = useState(
-    "외부 API로 확인된 공개 판결문만 목록에 보여줘요.",
+    "확인된 판결문 정보를 기준으로 검색해요.",
   );
   const [isLoading, setIsLoading] = useState(false);
 
   async function search() {
     setIsLoading(true);
-    setMessage("외부 출처와 공개 여부를 확인하고 있어요.");
+    setMessage("판결문 정보를 확인하고 있어요.");
     const response = await fetch("/api/judgments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -49,8 +49,8 @@ export function JudgmentExplorer({
     setJudgments(data.judgments);
     setMessage(
       data.count > 0
-        ? `${data.count}개의 판결문을 외부 API 기준으로 확인했어요.`
-        : "외부 API에서 확인된 공개 판결문이 없어요.",
+        ? `${data.count}개의 판결문을 찾았어요.`
+        : "검색 조건에 맞는 판결문이 없어요.",
     );
   }
 
@@ -113,7 +113,7 @@ export function JudgmentExplorer({
               className={styles.textarea}
               readOnly
               value={
-                "판결문 원문을 붙여넣거나 텍스트 PDF에서 추출한 내용을 넣는 영역이에요.\n\nOCR은 Beta 핵심 범위에서 제외하고, 텍스트 PDF 추출과 외부 API 근거 확인을 먼저 안정화해요."
+                "판결문 원문을 붙여넣거나 텍스트 PDF에서 추출한 내용을 넣는 영역이에요.\n\n현재는 글자를 선택할 수 있는 PDF와 직접 붙여넣은 텍스트를 지원해요."
               }
             />
             <div className={styles.buttonRow}>

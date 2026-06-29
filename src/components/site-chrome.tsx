@@ -10,6 +10,7 @@ import {
   ShieldIcon,
   UserPlusIcon,
 } from "@/components/icons";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const mainNav = [
   { href: "/catalog", label: "판결문 찾기" },
@@ -48,6 +49,7 @@ export function AppHeader() {
             <UserPlusIcon size={18} />
             회원가입
           </a>
+          <ThemeToggle />
         </div>
       </div>
       <nav className={styles.mainNav} aria-label="주요 서비스">
@@ -98,7 +100,7 @@ export const serviceShortcuts = [
     href: "/catalog",
     icon: FileTextIcon,
     label: "판결문 찾기",
-    description: "사건번호와 법원으로 공개 판결문을 찾아요",
+    description: "사건번호와 법원명으로 판결문을 찾아요",
   },
   {
     href: "/guide",

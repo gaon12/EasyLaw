@@ -1,213 +1,206 @@
-import { ChevronRightIcon, FileTextIcon, SearchIcon } from "@/components/icons";
-import { AppShell, serviceShortcuts } from "@/components/site-chrome";
-import { getDatabase } from "@/lib/db";
-import { sampleAnalysis } from "@/lib/easyread";
-import { syncSampleExternalCatalog } from "@/lib/external-law";
-import { getPublicJudgments } from "@/lib/queries";
-import { JudgmentExplorer } from "./easylaw-client";
+import {
+  BellIcon,
+  BuildingIcon,
+  ChevronRightIcon,
+  FileTextIcon,
+  SearchIcon,
+  ShieldIcon,
+  SparklesIcon,
+  UploadIcon,
+} from "@/components/icons";
+import { AppShell } from "@/components/site-chrome";
 import styles from "./page.module.css";
 
-export const dynamic = "force-dynamic";
+const steps = [
+  {
+    number: "01",
+    title: "판결문을 찾거나 올려요",
+    description: "사건번호로 찾거나 텍스트와 PDF 문서를 직접 올릴 수 있어요.",
+  },
+  {
+    number: "02",
+    title: "중요한 내용을 나눠요",
+    description: "결론, 판단 이유, 법률 용어, 주의할 점을 구분해서 정리해요.",
+  },
+  {
+    number: "03",
+    title: "쉬운 설명으로 읽어요",
+    description: "긴 문장과 어려운 표현을 풀어 쓰고 원문 근거도 함께 보여줘요.",
+  },
+];
 
-export default async function Home() {
-  const db = getDatabase();
-  await syncSampleExternalCatalog(db);
-  const judgments = getPublicJudgments(db);
+const paths = [
+  {
+    href: "/catalog",
+    icon: SearchIcon,
+    title: "사건번호로 찾기",
+    description: "알고 있는 사건번호나 법원명으로 시작해요.",
+  },
+  {
+    href: "/guide",
+    icon: FileTextIcon,
+    title: "쉬운 판결문 예시",
+    description: "결과가 어떤 순서와 표현으로 제공되는지 살펴봐요.",
+  },
+  {
+    href: "/me",
+    icon: BellIcon,
+    title: "내 문서와 알림",
+    description: "저장한 결과와 처리 중인 문서의 알림을 관리해요.",
+  },
+  {
+    href: "/org",
+    icon: BuildingIcon,
+    title: "조직에서 함께 보기",
+    description: "구성원과 문서를 공유하고 보안 상태를 확인해요.",
+  },
+];
 
+export default function Home() {
   return (
     <AppShell>
-      <main className={styles.main}>
-        <section className={styles.portalGrid} aria-labelledby="home-title">
-          <div className={styles.searchHero}>
-            <div className={styles.searchBlock}>
-              <h1 className={styles.searchTitle} id="home-title">
-                안녕하세요. 어떤 판결문을 쉽게 읽고 싶으세요?
-              </h1>
-              <form className={styles.searchForm} action="/catalog">
-                <input
-                  aria-label="통합검색"
-                  name="q"
-                  placeholder="사건번호, 법원명, 판결문 제목을 검색해요"
-                />
-                <button className={styles.searchButton} type="submit">
-                  <SearchIcon size={26} />
-                </button>
-              </form>
-            </div>
-
-            <section
-              className={styles.servicePanel}
-              aria-labelledby="quick-title"
-            >
-              <h2 className={styles.panelTitle} id="quick-title">
-                자주 찾는 서비스
-              </h2>
-              <div className={styles.shortcutGrid}>
-                {serviceShortcuts.slice(0, 6).map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <a
-                      className={styles.shortcut}
-                      href={item.href}
-                      key={item.href}
-                    >
-                      <span className={styles.shortcutIcon}>
-                        <Icon size={20} />
-                      </span>
-                      <span>
-                        <strong>{item.label}</strong>
-                        <span>{item.description}</span>
-                      </span>
-                    </a>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
-
-          <aside className={styles.sideGrid} aria-label="계정과 알림">
-            <section className={styles.loginPanel}>
-              <h2>로그인하고 판결문 알림과 저장 결과를 편하게 이용하세요.</h2>
-              <div className={styles.loginServices}>
-                <span>
-                  <FileTextIcon size={18} />내 문서함
-                </span>
-                <span>
-                  <FileTextIcon size={18} />
-                  저장 결과
-                </span>
-                <span>
-                  <FileTextIcon size={18} />
-                  알림 신청
-                </span>
-                <span>
-                  <FileTextIcon size={18} />
-                  TOTP 보안
-                </span>
-              </div>
-              <a
-                className={`${styles.primaryButton} ${styles.fullButton}`}
-                href="/login"
-              >
-                로그인하기
+      <main>
+        <section className={styles.hero} aria-labelledby="home-title">
+          <div className={styles.heroInner}>
+            <span className={styles.heroEyebrow}>
+              <SparklesIcon size={16} />
+              판결문 이해 보조 서비스
+            </span>
+            <h1 id="home-title">EasyLaw</h1>
+            <p className={styles.heroLead}>
+              어려운 판결문을 결론부터 차근차근.
+              <br />
+              필요한 내용을 쉬운 말로 나눠 읽어보세요.
+            </p>
+            <form className={styles.heroSearch} action="/catalog">
+              <SearchIcon size={22} />
+              <input
+                aria-label="판결문 검색"
+                name="q"
+                placeholder="사건번호, 법원명, 판결문 제목을 입력하세요"
+              />
+              <button type="submit">찾기</button>
+            </form>
+            <div className={styles.heroActions}>
+              <a className={styles.primaryButton} href="/catalog">
+                <SearchIcon size={18} />
+                판결문 찾기
               </a>
-            </section>
-
-            <section className={styles.noticePanel}>
-              <h2>공지사항</h2>
-              <div className={styles.noticeList}>
-                <a className={styles.noticeItem} href="/support">
-                  공개 판결문 생성 알림 기능을 준비하고 있어요
-                  <span>안내</span>
-                </a>
-                <a className={styles.noticeItem} href="/security">
-                  조직 소유자와 운영 관리자는 TOTP가 필요해요
-                  <span>보안</span>
-                </a>
-                <a className={styles.noticeItem} href="/guide">
-                  어려운 법률 용어는 쉬운말로 나눠 설명해요
-                  <span>가이드</span>
-                </a>
-              </div>
-            </section>
-          </aside>
-        </section>
-
-        <section className={styles.section} aria-labelledby="guide-title">
-          <div className={styles.contentGrid}>
-            <article className={styles.contentCard}>
-              <h2 className={styles.panelTitle} id="guide-title">
-                상황별 도움
-              </h2>
-              <div className={styles.guideTabs}>
-                <a
-                  className={`${styles.guideTab} ${styles.guideTabActive}`}
-                  href="/guide"
-                >
-                  판결문을 처음 볼 때
-                </a>
-                <a className={styles.guideTab} href="/catalog">
-                  사건번호가 있을 때
-                </a>
-                <a className={styles.guideTab} href="/me">
-                  결과를 저장할 때
-                </a>
-                <a className={styles.guideTab} href="/org">
-                  팀과 함께 볼 때
-                </a>
-              </div>
-              <div className={styles.listLinks}>
-                <a className={styles.listLink} href="/catalog">
-                  공개 판결문을 찾아 쉬운 설명 신청하기
-                  <ChevronRightIcon size={18} />
-                </a>
-                <a className={styles.listLink} href="/guide">
-                  쉬운 판결문이 어떤 구조인지 보기
-                  <ChevronRightIcon size={18} />
-                </a>
-                <a className={styles.listLink} href="/security">
-                  계정 보안을 먼저 확인하기
-                  <ChevronRightIcon size={18} />
-                </a>
-              </div>
-            </article>
-
-            <article className={styles.contentCard}>
-              <h2 className={styles.panelTitle}>원스톱 서비스</h2>
-              <div className={styles.serviceTabs}>
-                <span className={`${styles.chip} ${styles.chipActive}`}>
-                  전체
-                </span>
-                <span className={styles.chip}>판결문</span>
-                <span className={styles.chip}>알림</span>
-                <span className={styles.chip}>조직</span>
-              </div>
-              <div className={styles.serviceCards}>
-                <a className={styles.miniCard} href="/catalog">
-                  <strong>판결문 검색</strong>
-                  <span>공개 출처가 확인된 판결문부터 보여줘요</span>
-                </a>
-                <a className={styles.miniCard} href="/guide">
-                  <strong>쉬운 설명 예시</strong>
-                  <span>{sampleAnalysis.easyRead[0]}</span>
-                </a>
-                <a className={styles.miniCard} href="/me">
-                  <strong>완료 알림</strong>
-                  <span>아직 생성되지 않은 판결문도 이메일로 알려줘요</span>
-                </a>
-                <a className={styles.miniCard} href="/org">
-                  <strong>조직 공유</strong>
-                  <span>팀 문서함과 구성원 보안 상태를 확인해요</span>
-                </a>
-              </div>
-            </article>
+              <a className={styles.secondaryButton} href="/catalog">
+                <UploadIcon size={18} />내 문서로 시작하기
+              </a>
+            </div>
           </div>
         </section>
 
-        <section className={styles.section} aria-labelledby="catalog-title">
-          <div className={styles.sectionTitle}>
+        <section
+          className={styles.previewSection}
+          aria-label="EasyLaw 결과 예시"
+        >
+          <div className={styles.previewHeader}>
             <div>
-              <h2 id="catalog-title">공개 판결문</h2>
-              <p>외부 API 출처가 확인된 판결문만 공개 목록으로 보여줘요.</p>
+              <span className={styles.previewLabel}>쉬운 판결문 미리보기</span>
+              <h2>핵심은 먼저, 근거는 바로 옆에</h2>
             </div>
-            <a className={styles.secondaryButton} href="/catalog">
-              더 보기
+            <a href="/guide">
+              전체 예시 보기
+              <ChevronRightIcon size={18} />
             </a>
           </div>
-          <JudgmentExplorer initialJudgments={judgments} compact />
+          <div className={styles.documentPreview}>
+            <div className={styles.documentNav}>
+              <span className={styles.documentTitle}>
+                <FileTextIcon size={18} />
+                손해배상 사건
+              </span>
+              <span className={styles.documentMeta}>
+                서울중앙지방법원 · 판결
+              </span>
+            </div>
+            <div className={styles.documentBody}>
+              <div className={styles.originalPane}>
+                <span className={styles.paneLabel}>판결문 원문</span>
+                <p>
+                  피고는 원고에게 손해배상금과 이에 대하여 정해진 날부터 다 갚는
+                  날까지 계산한 지연손해금을 지급한다.
+                </p>
+                <p>소송비용 중 일부는 원고가, 나머지는 피고가 부담한다.</p>
+              </div>
+              <div className={styles.easyPane}>
+                <span className={styles.paneLabel}>쉬운 설명</span>
+                <div className={styles.resultCallout}>
+                  <span>한눈에 보는 결론</span>
+                  <strong>피고가 원고에게 배상금을 지급해야 해요.</strong>
+                </div>
+                <ul>
+                  <li>늦게 지급하면 그 기간만큼 이자가 더해져요.</li>
+                  <li>재판에 든 비용은 양쪽이 나누어 부담해요.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <section className={styles.section}>
-          <article className={styles.banner}>
-            <span className={styles.badge}>쉬운 판결문 Beta</span>
-            <h2 className={styles.panelTitle}>
-              어려운 표현은 나누고, 근거는 남겨요
-            </h2>
+        <section
+          className={styles.processSection}
+          aria-labelledby="process-title"
+        >
+          <div className={styles.sectionIntro}>
+            <span>이용 방법</span>
+            <h2 id="process-title">판결문을 이해하는 세 단계</h2>
+            <p>읽는 순서를 고민하지 않아도 중요한 내용부터 정리해 드려요.</p>
+          </div>
+          <div className={styles.stepGrid}>
+            {steps.map((step) => (
+              <article className={styles.stepItem} key={step.number}>
+                <span>{step.number}</span>
+                <h3>{step.title}</h3>
+                <p>{step.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.pathSection} aria-labelledby="path-title">
+          <div className={styles.sectionIntro}>
+            <span>필요한 곳부터</span>
+            <h2 id="path-title">지금 하려는 일로 시작하세요</h2>
+          </div>
+          <div className={styles.pathGrid}>
+            {paths.map((path) => {
+              const Icon = path.icon;
+              return (
+                <a className={styles.pathItem} href={path.href} key={path.href}>
+                  <span className={styles.pathIcon}>
+                    <Icon size={22} />
+                  </span>
+                  <div>
+                    <h3>{path.title}</h3>
+                    <p>{path.description}</p>
+                  </div>
+                  <ChevronRightIcon size={19} />
+                </a>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className={styles.securityBand}>
+          <div className={styles.securityIcon}>
+            <ShieldIcon size={26} />
+          </div>
+          <div>
+            <span>계정 보안</span>
+            <h2>중요한 문서일수록 한 단계 더 안전하게</h2>
             <p>
-              판결의 결론, 이유, 법률 용어, 주의할 점을 분리해서 보여주고 외부
-              API의 사건 정보가 LLM 결과보다 우선되도록 설계했어요.
+              이메일 로그인에 TOTP 2단계 인증을 더할 수 있어요. 조직 소유자와
+              운영 관리자는 필수로 사용합니다.
             </p>
-          </article>
+          </div>
+          <a className={styles.secondaryButton} href="/security">
+            보안 설정 보기
+            <ChevronRightIcon size={18} />
+          </a>
         </section>
       </main>
     </AppShell>

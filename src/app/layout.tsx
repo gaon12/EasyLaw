@@ -3,8 +3,9 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EasyLaw | 쉬운 판결문",
-  description: "판결문과 법률문서를 쉬운 설명으로 바꾸는 이해 보조 서비스",
+  title: "EasyLaw | 판결문을 이해하기 쉽게",
+  description:
+    "판결의 결론과 이유, 어려운 법률 용어를 쉬운 설명으로 나눠 읽는 판결문 이해 보조 서비스",
 };
 
 export default function RootLayout({
@@ -13,8 +14,9 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <head>
+        <script src="/theme-init.js" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" />
         <link
           crossOrigin="anonymous"
