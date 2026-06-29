@@ -1,34 +1,58 @@
 # EasyLaw
 
-EasyLaw는 판결문과 법률문서를 일반 사용자가 이해하기 쉬운 설명으로 바꾸는 Beta 서비스입니다. 공개 판결문은 외부 법률 API 값을 우선하고, 아직 생성되지 않은 판결문은 목록에 남긴 뒤 이메일 알림을 받을 수 있게 합니다.
+EasyLaw는 어려운 판결문과 법률 문서를 일반 사용자가 이해하기 쉬운 설명으로
+정리하는 오픈소스 서비스입니다.
 
-## Product Goal
+## 주요 기능
 
-- 판결문 이해 보조와 Easy-Read 변환을 제공한다.
-- 공개 판결문과 사용자/조직 문서를 분리한다.
-- 사건번호, 법원, 선고일 같은 메타데이터는 LLM보다 외부 API 값을 우선한다.
-- 로그인은 이메일 매직링크로 시작하고, 일반 사용자는 TOTP를 권장한다.
-- 운영 관리자와 조직 소유자는 TOTP를 필수로 한다.
+- 판결의 결론, 이유, 법률 용어와 주의할 점을 나누어 설명합니다.
+- 사용자 문서와 조직 문서를 공개 데이터와 분리합니다.
+- 처리 중인 문서가 준비되면 이메일로 알려줍니다.
+- 이메일 인증, 2차 인증, 일회용 복구 코드를 지원합니다.
+- 개인, 조직, 서비스 운영 관리 화면을 제공합니다.
 
-## Current Status
+## 최초 설치
 
-- Next 16 App Router 기반 화면과 Route Handler가 구성되어 있다.
-- `better-sqlite3` 기반 SQLite WAL, migration, seed, 작업 큐, 감사 로그가 있다.
-- 공개 판결문 카탈로그, 내 문서함, 조직 문서함, 운영 관리센터가 있다.
-- 매직링크, TOTP 등록/검증, 복구코드, rate limit의 서버 로직이 있다.
-- Resend 키가 있으면 생성 완료 알림을 보내고, 없으면 no-op으로 동작한다.
-- Montage/Wanted 패키지는 GitHub Packages 인증이 필요해, 현재는 `DESIGN.md`의 Wanted 토큰을 내부 CSS/컴포넌트 레이어로 구현했다.
+빈 데이터 디렉터리로 서버를 실행하면 모든 일반 페이지가 `/setup`으로
+이동합니다.
 
-## Development
+1. 서버 로그에 표시된 일회용 설치 코드를 입력합니다.
+2. 서비스 주소와 이메일 발송 설정을 저장합니다.
+3. 최초 최고 관리자의 이메일을 확인합니다.
+4. 인증 앱으로 2차 인증을 등록합니다.
+5. 복구 코드를 보관하고 설치를 완료합니다.
+
+최초 설치를 완료한 계정은 `super_admin` 권한을 가집니다. 이메일 확인과 2차
+인증을 모두 마쳐야 설치가 완료됩니다.
+
+## 개발
 
 ```bash
 npm ci
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000`을 엽니다.
+기본 주소는 `http://localhost:3000`입니다. 포트를 바꾸려면 `.env`에 다음
+값만 지정합니다.
 
-## Validation
+```dotenv
+PORT=3000
+```
+
+서비스 이름, 공개 주소, 이메일 발송 설정과 자격 증명은 최초 설치 화면에서
+입력하며 SQLite에 암호화해 저장합니다.
+
+## 데이터와 비밀키
+
+- 데이터베이스: `data/easylaw.sqlite`
+- 마스터 키: `data/.master-key`
+- SQLite는 WAL 모드로 동작합니다.
+- 마스터 키는 최초 실행 시 자동 생성되며 DB 안에 저장하지 않습니다.
+- `data` 디렉터리는 소유자만 접근할 수 있는 persistent volume에 두세요.
+- DB와 `.master-key`는 반드시 함께 백업해야 합니다. 키를 잃으면 암호화된
+  설정을 복구할 수 없습니다.
+
+## 검증
 
 ```bash
 npm run lint
@@ -38,13 +62,13 @@ npm run test:browser
 npm run format
 ```
 
-`npm run test:browser`는 Playwright Chromium으로 홈, 판결문 찾기, 로그인, 회원가입, 관리 화면의 기본 렌더링을 확인합니다.
+브라우저 테스트는 빈 임시 DB에서 OOBE 전체와 설치 전후 접근 제어까지
+검증합니다.
 
-## Deployment Notes
+## 배포
 
-- 기본 배포 형태는 VPS/컨테이너 + persistent volume입니다.
-- SQLite 파일은 `EASYLAW_DATABASE_PATH`로 지정할 수 있고, 기본값은 `data/easylaw.sqlite`입니다.
-- 운영 환경에서는 `EASYLAW_ENCRYPTION_KEY`, `RESEND_API_KEY`를 설정해야 합니다.
-- CI/CD는 GitHub Actions의 `.github/workflows/ci.yml`을 사용합니다.
+VPS 또는 컨테이너에 `data` persistent volume을 연결하는 방식을 권장합니다.
+외부 접속은 TLS가 적용된 리버스 프록시 뒤에서 제공하세요.
 
-자세한 프로젝트 진행 상황은 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)를 참고하세요.
+자세한 상태는 [docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md), CI 안내는
+[docs/CI_CD.md](docs/CI_CD.md)를 참고하세요.

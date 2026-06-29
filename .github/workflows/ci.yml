@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_TELEMETRY_DISABLED: "1"
-      EASYLAW_ENCRYPTION_KEY: "ci-only-32-byte-development-key"
-      EASYLAW_DATABASE_PATH: "${{ runner.temp }}/easylaw-ci.sqlite"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

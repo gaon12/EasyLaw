@@ -1,52 +1,33 @@
 # EasyLaw Project Status
 
-## What This Project Is
+## 제품
 
-EasyLaw is a Korean legal-document comprehension service. Its first Beta target is public judgment discovery plus Easy-Read summaries that help non-lawyers understand the result, reasoning, important terms, and caveats.
+EasyLaw는 판결의 결론, 판단 이유, 중요한 용어와 주의점을 쉬운 말로 나누어
+보여주는 법률 문서 이해 보조 서비스입니다. 법률 자문을 대체하지 않습니다.
 
-The product is not positioned as legal advice. It is a reading and comprehension aid, with source-grounded metadata and clear boundaries around private user documents.
+## 현재 구조
 
-## Product Principles
+- Next 16 App Router와 Node runtime
+- `better-sqlite3`, WAL, 코드 기반 migration
+- VPS/컨테이너 persistent volume
+- Resend 이메일 발송
+- 이메일 인증, 인증 앱 기반 2차 인증, 해시된 복구 코드
+- 개인, 조직, 서비스 운영 관리 화면
+- 생성 작업 중복 방지와 알림 발송 멱등성
 
-- External law data wins over LLM-generated metadata.
-- Public judgment catalog entries can exist before Easy-Read generation is complete.
-- Users can subscribe by email and receive a notification when generation finishes.
-- User-uploaded or pasted documents stay private to the user or organization.
-- OCR is not a Beta core feature; text paste and text PDF extraction come first.
-- TOTP is recommended for regular users and required for operations admins and organization owners.
+## 최초 설치와 보안
 
-## Architecture
+- 빈 DB에서는 OOBE를 완료하기 전 일반 페이지와 API가 잠깁니다.
+- 설치 코드는 암호화해 저장하고 서버 로그에서만 표시합니다.
+- 최초 계정은 이메일 확인과 2차 인증 후 `super_admin`이 됩니다.
+- 서비스 설정과 API 자격 증명은 DB에 암호화해 저장합니다.
+- DB 암호화용 마스터 키는 `data/.master-key`에 별도로 자동 생성합니다.
+- 설치 코드, 이메일 코드와 2차 인증 코드에는 시도 횟수 제한을 적용합니다.
 
-- Framework: Next 16 App Router, Node runtime.
-- Database: `better-sqlite3` with WAL mode and migration files in code.
-- Storage: local SQLite file on a VPS/container persistent volume.
-- Email: Resend, guarded so local development works without a key.
-- Auth: email magic link, TOTP step-up, hashed recovery codes, SQLite-backed rate limits.
-- External law integration: currently represented by a korean-law-mcp-compatible mock boundary in `src/lib/external-law.ts`.
+## 다음 작업
 
-## Implemented Areas
-
-- Public catalog and generation job records.
-- Email notification subscriptions with idempotent delivery records.
-- Admin, organization, and personal management surfaces.
-- TOTP setup, verification, recovery code use, management access policy tests.
-- Wanted-inspired UI tokens and reusable site chrome.
-- GitHub Actions CI for lint, unit tests, build, and browser smoke tests.
-
-## Next Product Work
-
-- Replace mock external law records with the real korean-law-mcp or other law API client.
-- Connect login/signup forms to production session handling.
-- Add text PDF extraction and private document upload boundaries.
-- Add prompt version review and result approval workflows.
-- Install Montage packages once GitHub Packages access is available and replace internal stand-ins with official components.
-
-## Key Files
-
-- `src/lib/db/schema.ts`: SQLite tables and migrations.
-- `src/lib/auth.ts`: magic link, TOTP, recovery code flows.
-- `src/lib/external-law.ts`: external-first law data boundary.
-- `src/lib/jobs.ts`: generation job and notification orchestration.
-- `src/app/page.tsx`: public landing portal.
-- `src/components/site-chrome.tsx`: shared navigation, footer, service shortcuts.
-- `.github/workflows/ci.yml`: GitHub Actions pipeline.
+- 로그인과 회원가입 폼을 실제 사용자 세션에 연결
+- 텍스트 PDF 추출과 비공개 문서 업로드 경계 구현
+- 결과 검토와 prompt version 승인 흐름 구현
+- 실제 판결문 제공자 연동
+- GitHub Packages 접근 후 Montage 컴포넌트 적용
