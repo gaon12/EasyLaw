@@ -1,8 +1,9 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { databasePath } from "../runtime-paths";
+import { ensureInstallationState } from "../setup";
 import { migrations } from "./schema";
-import { seedDatabase } from "./seed";
 
 export type SqliteDatabase = Database.Database;
 
@@ -23,11 +24,8 @@ export function createDatabase(filePath = ":memory:") {
 
 export function getDatabase() {
   if (!singleton) {
-    const dbPath =
-      process.env.EASYLAW_DB_PATH ??
-      path.join(process.cwd(), "data", "easylaw.sqlite");
-    singleton = createDatabase(dbPath);
-    seedDatabase(singleton);
+    singleton = createDatabase(databasePath());
+    ensureInstallationState(singleton);
   }
 
   return singleton;

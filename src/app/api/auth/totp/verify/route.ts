@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { verifyTotpEnrollment } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
+import { authenticatedUser } from "../../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const verifyRequest = z.object({
-  userId: z.string().min(1),
   code: z.string().min(6).max(12),
 });
 
@@ -18,10 +18,14 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  const user = await authenticatedUser();
+  if (!user) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
 
   const result = await verifyTotpEnrollment(
     getDatabase(),
-    body.data.userId,
+    user.id,
     body.data.code,
   );
 

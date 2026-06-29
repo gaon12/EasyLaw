@@ -1,26 +1,16 @@
-import { z } from "zod";
 import { createTotpEnrollment } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
+import { authenticatedUser } from "../../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const setupRequest = z.object({
-  userId: z.string().min(1),
-});
-
-export async function POST(request: Request) {
-  const body = setupRequest.safeParse(await request.json());
-  if (!body.success) {
-    return Response.json(
-      { error: "invalid_request", details: body.error.flatten() },
-      { status: 400 },
-    );
+export async function POST() {
+  const user = await authenticatedUser();
+  if (!user) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const enrollment = await createTotpEnrollment(
-    getDatabase(),
-    body.data.userId,
-  );
+  const enrollment = await createTotpEnrollment(getDatabase(), user.id);
   return Response.json(enrollment);
 }

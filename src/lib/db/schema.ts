@@ -218,4 +218,59 @@ export const migrations = [
       );
     `,
   },
+  {
+    id: 2,
+    name: "secure_first_run_setup",
+    sql: `
+      CREATE TABLE IF NOT EXISTS service_settings (
+        key TEXT PRIMARY KEY,
+        value_ciphertext TEXT NOT NULL,
+        is_secret INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS installation_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        status TEXT NOT NULL,
+        setup_code_hash TEXT,
+        setup_code_ciphertext TEXT,
+        setup_code_expires_at TEXT,
+        setup_session_hash TEXT,
+        setup_session_expires_at TEXT,
+        email_code_hash TEXT,
+        email_code_expires_at TEXT,
+        admin_user_id TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(admin_user_id) REFERENCES users(id)
+      );
+
+      DELETE FROM organization_members
+        WHERE user_id IN ('user_admin', 'user_owner');
+      DELETE FROM organizations
+        WHERE id = 'org_legal_aid';
+      DELETE FROM users
+        WHERE (id = 'user_admin' AND email = 'admin@easylaw.local')
+           OR (id = 'user_owner' AND email = 'owner@easylaw.local');
+    `,
+  },
+  {
+    id: 3,
+    name: "user_sessions",
+    sql: `
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS user_sessions_user_idx
+        ON user_sessions(user_id, expires_at);
+    `,
+  },
 ] as const;

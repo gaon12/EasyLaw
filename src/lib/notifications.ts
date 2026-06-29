@@ -1,22 +1,25 @@
 import { Resend } from "resend";
 import { auditLog } from "./audit";
 import type { SqliteDatabase } from "./db";
+import { getSetting } from "./settings";
 import { nowIso } from "./time";
 
 export type NotificationSender = {
   send(input: { to: string; subject: string; text: string }): Promise<void>;
 };
 
-export function createResendSender(): NotificationSender {
+export function createResendSender(db: SqliteDatabase): NotificationSender {
   return {
     async send(input) {
-      if (!process.env.RESEND_API_KEY) {
+      const apiKey = getSetting(db, "resend_api_key");
+      const from = getSetting(db, "email_from");
+      if (!apiKey || !from) {
         return;
       }
 
-      const resend = new Resend(process.env.RESEND_API_KEY);
+      const resend = new Resend(apiKey);
       await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ?? "EasyLaw <notify@easylaw.local>",
+        from,
         to: input.to,
         subject: input.subject,
         text: input.text,
@@ -28,7 +31,7 @@ export function createResendSender(): NotificationSender {
 export async function sendReadyNotifications(
   db: SqliteDatabase,
   jobId: string,
-  sender: NotificationSender = createResendSender(),
+  sender: NotificationSender = createResendSender(db),
 ) {
   const rows = db
     .prepare<

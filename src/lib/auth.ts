@@ -317,7 +317,11 @@ export function assertManagementAccess(
     return { ok: false as const, reason: "not_found" };
   }
 
-  if (input.scope === "admin" && user.role !== "admin") {
+  if (
+    input.scope === "admin" &&
+    user.role !== "admin" &&
+    user.role !== "super_admin"
+  ) {
     return { ok: false as const, reason: "not_admin" };
   }
 
@@ -338,7 +342,9 @@ export function assertManagementAccess(
   }
 
   if (
-    (user.totp_required === 1 || user.role === "admin") &&
+    (user.totp_required === 1 ||
+      user.role === "admin" ||
+      user.role === "super_admin") &&
     user.totp_enabled !== 1
   ) {
     return { ok: false as const, reason: "totp_required" };

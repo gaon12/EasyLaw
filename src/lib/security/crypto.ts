@@ -6,26 +6,88 @@ import {
   randomBytes,
   randomUUID,
 } from "node:crypto";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { masterKeyPath } from "../runtime-paths";
 
 const algorithm = "aes-256-gcm";
+let cachedMasterKey: Buffer | null = null;
 
-function encryptionKey() {
-  const configured = process.env.EASYLAW_ENCRYPTION_KEY;
-  if (configured) {
-    return createHash("sha256").update(configured).digest();
+function masterKey() {
+  if (cachedMasterKey) {
+    return cachedMasterKey;
   }
 
+  const keyPath = masterKeyPath();
+  mkdirSync(path.dirname(keyPath), { recursive: true });
+
+  try {
+    const stored = Buffer.from(
+      readFileSync(keyPath, "utf8").trim(),
+      "base64url",
+    );
+    if (stored.length !== 32) {
+      throw new Error("Invalid master key length");
+    }
+    cachedMasterKey = stored;
+    return stored;
+  } catch (error) {
+    const missing =
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT";
+    if (!missing) {
+      throw error;
+    }
+  }
+
+  const generated = randomBytes(32);
+  try {
+    writeFileSync(keyPath, generated.toString("base64url"), {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
+  } catch (error) {
+    const alreadyExists =
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "EEXIST";
+    if (!alreadyExists) {
+      throw error;
+    }
+    const stored = Buffer.from(
+      readFileSync(keyPath, "utf8").trim(),
+      "base64url",
+    );
+    if (stored.length !== 32) {
+      throw new Error("Invalid master key length");
+    }
+    cachedMasterKey = stored;
+    return stored;
+  }
+
+  try {
+    chmodSync(keyPath, 0o600);
+  } catch {
+    // Windows file access is controlled by the service account ACL.
+  }
+  cachedMasterKey = generated;
+  return generated;
+}
+
+function encryptionKey() {
   return createHash("sha256")
-    .update("easylaw-development-encryption-key")
+    .update(masterKey())
+    .update("easylaw:encryption:v1")
     .digest();
 }
 
 function hmacKey() {
-  return (
-    process.env.EASYLAW_HASH_KEY ??
-    process.env.EASYLAW_ENCRYPTION_KEY ??
-    "easylaw-development-hash-key"
-  );
+  return createHash("sha256")
+    .update(masterKey())
+    .update("easylaw:hmac:v1")
+    .digest();
 }
 
 export function encryptSecret(plainText: string) {
@@ -79,4 +141,18 @@ export function newUrlToken() {
 export function newRecoveryCode() {
   const raw = randomBytes(6).toString("base64url").toUpperCase();
   return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+}
+
+export function newNumericCode(length = 6) {
+  const upperBound = 10 ** length;
+  const value =
+    Number.parseInt(randomBytes(6).toString("hex"), 16) % upperBound;
+  return value.toString().padStart(length, "0");
+}
+
+export function resetCryptoForTests() {
+  if (process.env.EASYLAW_TEST_MODE !== "1") {
+    throw new Error("Crypto reset is only available in test mode");
+  }
+  cachedMasterKey = null;
 }
