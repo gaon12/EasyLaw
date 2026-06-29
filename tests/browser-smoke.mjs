@@ -135,6 +135,31 @@ try {
   for (const path of ["/login", "/signup", "/admin", "/org", "/me"]) {
     await page.goto(`${baseUrl}${path}`, { waitUntil: "networkidle" });
     await page.locator("main").waitFor();
+
+    if (path === "/login" || path === "/signup") {
+      if ((await page.getByText(/TOTP|매직링크|매직 링크/).count()) !== 0) {
+        throw new Error(`${path} exposes implementation-specific auth terms.`);
+      }
+
+      const footerLayout = await page.evaluate(() => {
+        const footer = document.querySelector("footer");
+        if (!footer) {
+          return null;
+        }
+
+        return {
+          documentHeight: document.documentElement.scrollHeight,
+          footerBottom: footer.getBoundingClientRect().bottom + window.scrollY,
+        };
+      });
+
+      if (
+        !footerLayout ||
+        Math.abs(footerLayout.documentHeight - footerLayout.footerBottom) > 1
+      ) {
+        throw new Error(`${path} leaves space below the footer.`);
+      }
+    }
   }
 
   await browser.close();
