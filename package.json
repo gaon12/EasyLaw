@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:browser": "node tests/browser-smoke.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",
