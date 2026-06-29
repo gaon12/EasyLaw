@@ -33,6 +33,8 @@ type InstallationRow = {
   setup_session_expires_at: string | null;
   email_code_hash: string | null;
   email_code_expires_at: string | null;
+  email_test_fingerprint: string | null;
+  email_tested_at: string | null;
   admin_user_id: string | null;
   completed_at: string | null;
 };
@@ -178,11 +180,11 @@ export async function configureSetup(
   sessionToken: string | undefined,
   input: {
     serviceName: string;
-    baseUrl: string;
     adminName: string;
     adminEmail: string;
     resendApiKey: string;
-    fromEmail: string;
+    fromName: string;
+    fromAddress: string;
   },
 ) {
   if (!isSetupSessionValid(db, sessionToken)) {
@@ -192,6 +194,14 @@ export async function configureSetup(
   const state = installationRow(db);
   if (!state || !["pending", "email_pending"].includes(state.status)) {
     return { ok: false as const, reason: "invalid_state" };
+  }
+  if (
+    !state.email_test_fingerprint ||
+    !state.email_tested_at ||
+    Date.now() - new Date(state.email_tested_at).getTime() > 15 * 60_000 ||
+    state.email_test_fingerprint !== emailConfigurationFingerprint(input)
+  ) {
+    return { ok: false as const, reason: "api_test_required" };
   }
 
   const email = input.adminEmail.trim().toLowerCase();
@@ -232,9 +242,13 @@ export async function configureSetup(
     }
 
     setSetting(db, "service_name", input.serviceName.trim());
-    setSetting(db, "base_url", input.baseUrl.replace(/\/+$/, ""));
     setSetting(db, "resend_api_key", input.resendApiKey.trim(), true);
-    setSetting(db, "email_from", input.fromEmail.trim());
+    setSetting(db, "email_from_name", input.fromName.trim());
+    setSetting(
+      db,
+      "email_from_address",
+      input.fromAddress.trim().toLowerCase(),
+    );
 
     const emailCode =
       process.env.EASYLAW_TEST_MODE === "1" &&
@@ -261,6 +275,71 @@ export async function configureSetup(
   return { ok: true as const };
 }
 
+type EmailConfiguration = {
+  adminEmail: string;
+  resendApiKey: string;
+  fromName: string;
+  fromAddress: string;
+};
+
+function emailConfigurationFingerprint(input: EmailConfiguration) {
+  return hashToken(
+    JSON.stringify({
+      adminEmail: input.adminEmail.trim().toLowerCase(),
+      resendApiKey: input.resendApiKey.trim(),
+      fromName: input.fromName.trim(),
+      fromAddress: input.fromAddress.trim().toLowerCase(),
+    }),
+  );
+}
+
+function formatSender(name: string, address: string) {
+  return `${name.trim()} <${address.trim().toLowerCase()}>`;
+}
+
+export async function testSetupEmailConfiguration(
+  db: SqliteDatabase,
+  sessionToken: string | undefined,
+  input: EmailConfiguration,
+) {
+  if (!isSetupSessionValid(db, sessionToken)) {
+    return { ok: false as const, reason: "unauthorized" };
+  }
+  const state = installationRow(db);
+  if (!state || !["pending", "email_pending"].includes(state.status)) {
+    return { ok: false as const, reason: "invalid_state" };
+  }
+
+  const rate = checkRateLimit(db, "setup-email-test", 5, 15 * 60_000);
+  if (!rate.allowed) {
+    return { ok: false as const, reason: "rate_limited" };
+  }
+
+  if (process.env.EASYLAW_TEST_MODE !== "1") {
+    const resend = new Resend(input.resendApiKey.trim());
+    const result = await resend.emails.send({
+      from: formatSender(input.fromName, input.fromAddress),
+      to: input.adminEmail.trim().toLowerCase(),
+      subject: "[EasyLaw] 이메일 발송 테스트",
+      text: "EasyLaw가 이 주소로 이메일을 보낼 수 있습니다. 설치 화면으로 돌아가 계속 진행해 주세요.",
+    });
+    if (result.error) {
+      return { ok: false as const, reason: "email_test_failed" };
+    }
+  }
+
+  db.prepare(
+    `UPDATE installation_state
+      SET email_test_fingerprint = ?, email_tested_at = ?, updated_at = ?
+      WHERE id = 1`,
+  ).run(emailConfigurationFingerprint(input), nowIso(), nowIso());
+  auditLog(db, {
+    action: "setup.email_delivery_tested",
+    targetType: "installation",
+  });
+  return { ok: true as const };
+}
+
 async function sendSetupVerificationEmail(
   db: SqliteDatabase,
   email: string,
@@ -271,15 +350,16 @@ async function sendSetupVerificationEmail(
   }
 
   const apiKey = getSetting(db, "resend_api_key");
-  const from = getSetting(db, "email_from");
+  const fromName = getSetting(db, "email_from_name");
+  const fromAddress = getSetting(db, "email_from_address");
   const serviceName = getSetting(db, "service_name") ?? "EasyLaw";
-  if (!apiKey || !from) {
+  if (!apiKey || !fromName || !fromAddress) {
     throw new Error("Email delivery is not configured");
   }
 
   const resend = new Resend(apiKey);
   const result = await resend.emails.send({
-    from,
+    from: formatSender(fromName, fromAddress),
     to: email,
     subject: `[${serviceName}] 최고 관리자 이메일 확인`,
     text: `설치를 계속하려면 확인 코드 ${code}를 입력하세요. 이 코드는 10분 동안 유효합니다.`,

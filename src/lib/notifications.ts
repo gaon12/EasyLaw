@@ -12,7 +12,11 @@ export function createResendSender(db: SqliteDatabase): NotificationSender {
   return {
     async send(input) {
       const apiKey = getSetting(db, "resend_api_key");
-      const from = getSetting(db, "email_from");
+      const fromName = getSetting(db, "email_from_name");
+      const fromAddress = getSetting(db, "email_from_address");
+      const legacyFrom = getSetting(db, "email_from");
+      const from =
+        fromName && fromAddress ? `${fromName} <${fromAddress}>` : legacyFrom;
       if (!apiKey || !from) {
         return;
       }

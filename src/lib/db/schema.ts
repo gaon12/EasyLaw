@@ -273,4 +273,16 @@ export const migrations = [
         ON user_sessions(user_id, expires_at);
     `,
   },
+  {
+    id: 4,
+    name: "setup_email_delivery_test",
+    sql: `
+      ALTER TABLE installation_state
+        ADD COLUMN email_test_fingerprint TEXT;
+      ALTER TABLE installation_state
+        ADD COLUMN email_tested_at TEXT;
+
+      DELETE FROM service_settings WHERE key = 'base_url';
+    `,
+  },
 ] as const;

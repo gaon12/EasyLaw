@@ -1,14 +1,12 @@
 import { z } from "zod";
 import { getDatabase } from "@/lib/db";
-import { configureSetup } from "@/lib/setup";
+import { testSetupEmailConfiguration } from "@/lib/setup";
 import { setupSessionToken } from "../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
-  serviceName: z.string().trim().min(2).max(60),
-  adminName: z.string().trim().min(2).max(60),
   adminEmail: z.email(),
   resendApiKey: z.string().trim().min(8).max(200),
   fromName: z.string().trim().min(1).max(60),
@@ -25,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await configureSetup(
+    const result = await testSetupEmailConfiguration(
       getDatabase(),
       await setupSessionToken(),
       input.data,
@@ -33,11 +31,20 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return Response.json(
         { error: result.reason },
-        { status: result.reason === "unauthorized" ? 401 : 409 },
+        {
+          status:
+            result.reason === "unauthorized"
+              ? 401
+              : result.reason === "rate_limited"
+                ? 429
+                : result.reason === "email_test_failed"
+                  ? 400
+                  : 409,
+        },
       );
     }
     return Response.json({ ok: true });
   } catch {
-    return Response.json({ error: "email_delivery_failed" }, { status: 502 });
+    return Response.json({ error: "email_test_failed" }, { status: 400 });
   }
 }
