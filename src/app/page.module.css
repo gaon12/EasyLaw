@@ -20,7 +20,7 @@
 .mainNav,
 .main,
 .footerInner {
-  width: min(1160px, calc(100% - 32px));
+  width: min(1160px, calc(100% - 48px));
   margin: 0 auto;
 }
 
@@ -42,11 +42,11 @@
 }
 
 .brandRow {
-  min-height: 68px;
+  min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 32px;
 }
 
 .brand,
@@ -92,7 +92,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   color: var(--fg-strong);
   font-size: 15px;
   font-weight: 700;
@@ -104,61 +104,6 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-}
-
-.readingControls {
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  background: var(--bg-muted);
-}
-
-.readingControls label,
-.readingControls fieldset {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  padding: 0;
-}
-
-.readingControls span,
-.readingControls legend {
-  width: 1px;
-  height: 1px;
-  position: absolute;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
-.readingControls select,
-.readingControls button {
-  min-height: 30px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--fg-strong);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.readingControls select {
-  padding: 0 8px;
-}
-
-.readingControls button {
-  min-width: 34px;
-  padding: 0 8px;
-}
-
-.readingControls button[aria-pressed="true"] {
-  background: var(--bg-surface);
-  color: var(--fg-brand);
-  box-shadow: 0 1px 4px oklch(0.2 0.02 270 / 0.08);
 }
 
 .iconButton {
@@ -177,12 +122,105 @@
   background: var(--bg-muted);
 }
 
+.preferenceMenu {
+  position: relative;
+}
+
+.preferenceMenu summary {
+  min-width: 70px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 13px;
+  font-weight: 850;
+  list-style: none;
+  cursor: pointer;
+}
+
+.preferenceMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.preferenceMenu summary:hover {
+  background: var(--bg-muted);
+}
+
+.preferencePanel {
+  width: 220px;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.preferencePanel label,
+.preferencePanel fieldset {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+}
+
+.preferenceLabel {
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.preferencePanel select {
+  min-height: 38px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-8);
+  padding: 0 10px;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.preferencePanel fieldset {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.preferencePanel legend {
+  grid-column: 1 / -1;
+}
+
+.preferencePanel button {
+  min-height: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.preferencePanel button[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--bg-brand);
+  color: white;
+}
+
 .mainNav {
-  min-height: 50px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 36px;
+  gap: 42px;
   color: var(--fg-strong);
   font-size: 16px;
   font-weight: 700;

@@ -2,12 +2,18 @@
 
 import { useEffect, useState } from "react";
 import styles from "@/app/page.module.css";
+import { SettingsIcon } from "@/components/icons";
 import type { SupportedLocale } from "@/lib/i18n";
 import { supportedLocales, translations } from "@/lib/i18n";
 
 const localeKey = "easylaw_locale";
 const textSizeKey = "easylaw_text_size";
-const textSizes = ["normal", "large", "larger"] as const;
+const textSizeOptions = [
+  { label: "기본", value: "normal" },
+  { label: "크게", value: "large" },
+  { label: "더 크게", value: "larger" },
+] as const;
+const textSizes = textSizeOptions.map((option) => option.value);
 
 type TextSize = (typeof textSizes)[number];
 
@@ -27,42 +33,48 @@ export function ReadingPreferences() {
   }, []);
 
   return (
-    <div className={styles.readingControls}>
-      <label>
-        <span>언어</span>
-        <select
-          aria-label="언어"
-          onChange={(event) => {
-            const nextLocale = event.target.value as SupportedLocale;
-            setLocale(nextLocale);
-            localStorage.setItem(localeKey, nextLocale);
-            applyLocale(nextLocale);
-          }}
-          value={locale}
-        >
-          <option value="ko">한국어</option>
-          <option value="en">English</option>
-          <option value="ja">日本語</option>
-        </select>
-      </label>
-      <fieldset>
-        <legend>글자 크기</legend>
-        {textSizes.map((size) => (
-          <button
-            aria-pressed={textSize === size}
-            key={size}
-            onClick={() => {
-              setTextSize(size);
-              localStorage.setItem(textSizeKey, size);
-              applyTextSize(size);
+    <details className={styles.preferenceMenu}>
+      <summary aria-label="언어와 글자 크기 설정" title="보기 설정">
+        <SettingsIcon size={18} />
+        <span>보기</span>
+      </summary>
+      <div className={styles.preferencePanel}>
+        <label>
+          <span className={styles.preferenceLabel}>언어</span>
+          <select
+            aria-label="언어"
+            onChange={(event) => {
+              const nextLocale = event.target.value as SupportedLocale;
+              setLocale(nextLocale);
+              localStorage.setItem(localeKey, nextLocale);
+              applyLocale(nextLocale);
             }}
-            type="button"
+            value={locale}
           >
-            {size === "normal" ? "가" : size === "large" ? "가+" : "가++"}
-          </button>
-        ))}
-      </fieldset>
-    </div>
+            <option value="ko">KO</option>
+            <option value="en">EN</option>
+            <option value="ja">JA</option>
+          </select>
+        </label>
+        <fieldset>
+          <legend className={styles.preferenceLabel}>글자</legend>
+          {textSizeOptions.map((option) => (
+            <button
+              aria-pressed={textSize === option.value}
+              key={option.value}
+              onClick={() => {
+                setTextSize(option.value);
+                localStorage.setItem(textSizeKey, option.value);
+                applyTextSize(option.value);
+              }}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </fieldset>
+      </div>
+    </details>
   );
 }
 

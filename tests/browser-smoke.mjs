@@ -342,6 +342,28 @@ try {
     throw new Error("Theme choice was not persisted.");
   }
 
+  await anonymousPage
+    .getByLabel("언어와 글자 크기 설정", { exact: true })
+    .click();
+  await anonymousPage
+    .getByRole("button", { exact: true, name: "크게" })
+    .click();
+  if (
+    (await anonymousPage.locator("html").getAttribute("data-text-size")) !==
+    "large"
+  ) {
+    throw new Error("Text size preference was not applied.");
+  }
+  const bodyZoom = await anonymousPage.evaluate(
+    () => getComputedStyle(document.body).zoom,
+  );
+  if (Number.parseFloat(bodyZoom) <= 1) {
+    throw new Error("Text size preference did not scale the page.");
+  }
+  await anonymousPage
+    .getByLabel("언어와 글자 크기 설정", { exact: true })
+    .click();
+
   await anonymousPage.setViewportSize({ width: 390, height: 844 });
   if (
     await anonymousPage.evaluate(

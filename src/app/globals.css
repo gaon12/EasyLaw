@@ -19,6 +19,7 @@
   --border-default: oklch(0.521 0.018 273 / 0.22);
   --border-strong: oklch(0.521 0.018 273 / 0.35);
   --shadow-soft: 0 18px 50px oklch(0.2 0.02 270 / 0.08);
+  --text-scale: 1;
   --radius-8: 8px;
   --radius-12: 12px;
   --radius-16: 16px;
@@ -94,11 +95,11 @@ html {
 }
 
 html[data-text-size="large"] {
-  font-size: 17px;
+  --text-scale: 1.06;
 }
 
 html[data-text-size="larger"] {
-  font-size: 18px;
+  --text-scale: 1.12;
 }
 
 html,
@@ -118,6 +119,7 @@ body {
   font-feature-settings: "ss20", "calt", "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  zoom: var(--text-scale);
 }
 
 * {
