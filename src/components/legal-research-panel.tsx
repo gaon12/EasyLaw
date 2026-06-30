@@ -119,15 +119,13 @@ export function LegalResearchPanel({
   );
 
   return (
-    <div className={styles.researchLayout}>
-      <section className={styles.workspace}>
+    <div className={styles.researchShell}>
+      <section className={styles.researchSearchPanel}>
+        <span className={styles.previewLabel}>EasyLaw AI</span>
         <h1>AI 법률 질문</h1>
-        <p>
-          상황을 자연어로 적으면 리서치 하네스가 확인 범위, 근거 후보, 쉬운 답변
-          초안을 순서대로 구성해요.
-        </p>
+        <p>궁금한 상황을 검색하듯 입력하면 답변과 근거 후보를 함께 보여줘요.</p>
         <form
-          className={styles.authForm}
+          className={styles.researchSearchForm}
           onSubmit={(event) => {
             event.preventDefault();
             if (query.trim()) {
@@ -135,11 +133,8 @@ export function LegalResearchPanel({
             }
           }}
         >
-          <label className={styles.label} htmlFor="research-query">
-            질문
-          </label>
           <textarea
-            className={styles.textarea}
+            aria-label="AI 법률 질문"
             id="research-query"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="예: 중고거래 사기를 당했는데 신고와 배상 절차가 궁금합니다."
@@ -155,11 +150,13 @@ export function LegalResearchPanel({
         </form>
       </section>
 
-      <section className={styles.researchResult} aria-live="polite">
+      <section className={styles.aiOverview} aria-live="polite">
         {status === "idle" && (
-          <div className={styles.notice}>
-            질문을 입력하면 Skeleton 상태에서 근거 후보와 답변 초안이 차례대로
-            나타납니다.
+          <div className={styles.aiOverviewEmpty}>
+            <strong>질문을 입력하면 AI 오버뷰가 열립니다.</strong>
+            <span>
+              확인 범위, 근거 후보, 쉬운 답변 초안이 순서대로 나타나요.
+            </span>
           </div>
         )}
 
@@ -172,44 +169,74 @@ export function LegalResearchPanel({
         )}
 
         {plan && (
-          <div className={styles.contentCard}>
-            <span className={styles.badge}>Level {plan.coverageLevel}</span>
-            <h2>{plan.coverageLabel}</h2>
-            <p>{plan.intent}</p>
-            <p>모델: {plan.modelLabel}</p>
-            <div className={styles.harnessSteps}>
-              {plan.steps.map((step) => (
-                <article key={step.id}>
-                  <strong>{step.label}</strong>
-                  <span>{step.description}</span>
-                </article>
-              ))}
+          <article className={styles.aiOverviewCard}>
+            <header className={styles.aiOverviewHeader}>
+              <div>
+                <span className={styles.badge}>AI 오버뷰</span>
+                <h2>{plan.coverageLabel}</h2>
+              </div>
+              <span className={styles.aiLevel}>Level {plan.coverageLevel}</span>
+            </header>
+            <div className={styles.aiOverviewMeta}>
+              <span>{plan.intent}</span>
+              <span>모델 {plan.modelLabel}</span>
             </div>
-          </div>
-        )}
 
-        {evidence.length > 0 && (
-          <div className={styles.contentCard}>
-            <h2>근거 후보</h2>
-            <div className={styles.evidenceList}>
-              {evidence.map((item) => (
-                <article key={`${item.source}-${item.title}`}>
-                  <strong>{item.title}</strong>
-                  <span>
-                    {item.source} · 신뢰도 {item.confidence}
-                  </span>
-                  <p>{item.summary}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
+            {answer && (
+              <section className={styles.aiAnswerBlock}>
+                <h3>답변 초안</h3>
+                <p>{answer}</p>
+              </section>
+            )}
 
-        {answer && (
-          <article className={styles.researchAnswer}>
-            <h2>답변 초안</h2>
-            <p>{answer}</p>
+            {evidence.length > 0 && (
+              <section className={styles.aiSources}>
+                <h3>근거 후보</h3>
+                <div>
+                  {evidence.map((item, index) => (
+                    <article key={`${item.source}-${item.title}`}>
+                      <span>{index + 1}</span>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <small>
+                          {item.source} · 신뢰도 {item.confidence}
+                        </small>
+                        <p>{item.summary}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <details className={styles.aiHarnessDetails}>
+              <summary>하네스 확인 흐름</summary>
+              <div className={styles.harnessSteps}>
+                {plan.steps.map((step) => (
+                  <article key={step.id}>
+                    <strong>{step.label}</strong>
+                    <span>{step.description}</span>
+                  </article>
+                ))}
+              </div>
+            </details>
           </article>
+        )}
+
+        {!plan && answer && (
+          <article className={styles.aiOverviewCard}>
+            <section className={styles.aiAnswerBlock}>
+              <h3>답변 초안</h3>
+              <p>{answer}</p>
+            </section>
+          </article>
+        )}
+
+        {status === "loading" && answer && (
+          <div className={styles.aiStreamingNotice}>
+            <span />
+            답변을 이어 쓰는 중이에요.
+          </div>
         )}
 
         {status === "error" && (

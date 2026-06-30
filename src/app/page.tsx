@@ -115,7 +115,7 @@ export default async function Home() {
                         <span className={styles.shortcutIcon}>
                           <Icon size={20} />
                         </span>
-                        <span>
+                        <span className={styles.shortcutText}>
                           <strong>{shortcut.label}</strong>
                           <span>{shortcut.description}</span>
                         </span>

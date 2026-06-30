@@ -21,14 +21,16 @@ export function AdminSettingsForm({
   scope: "llm" | "mcp";
 }) {
   const [message, setMessage] = useState(description);
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [isSaving, setIsSaving] = useState(false);
 
   return (
     <form
-      className={styles.authForm}
+      className={styles.settingsForm}
       onSubmit={async (event) => {
         event.preventDefault();
         setIsSaving(true);
+        setStatus("idle");
         const formData = new FormData(event.currentTarget);
         const settings = Object.fromEntries(formData.entries());
         const response = await fetch("/api/admin/settings", {
@@ -37,6 +39,7 @@ export function AdminSettingsForm({
           method: "POST",
         });
         setIsSaving(false);
+        setStatus(response.ok ? "success" : "error");
         setMessage(
           response.ok
             ? "설정을 저장했어요. 다음 질문부터 하네스가 이 값을 참조합니다."
@@ -45,7 +48,7 @@ export function AdminSettingsForm({
       }}
     >
       {fields.map((field) => (
-        <label className={styles.authForm} key={field.key}>
+        <label className={styles.settingsField} key={field.key}>
           <span className={styles.label}>{field.label}</span>
           <input
             className={styles.input}
@@ -56,14 +59,26 @@ export function AdminSettingsForm({
           />
         </label>
       ))}
-      <button
-        className={styles.primaryButton}
-        disabled={isSaving}
-        type="submit"
-      >
-        {isSaving ? "저장 중" : "설정 저장"}
-      </button>
-      <p className={styles.notice}>{message}</p>
+      <div className={styles.settingsActions}>
+        <button
+          className={styles.primaryButton}
+          disabled={isSaving}
+          type="submit"
+        >
+          {isSaving ? "저장 중" : "설정 저장"}
+        </button>
+        <output
+          className={
+            status === "success"
+              ? styles.settingsNoticeSuccess
+              : status === "error"
+                ? styles.settingsNoticeError
+                : styles.settingsNotice
+          }
+        >
+          {message}
+        </output>
+      </div>
     </form>
   );
 }
