@@ -138,6 +138,11 @@ try {
   await page.getByRole("link", { name: "EasyLaw 시작하기" }).click();
   await page.waitForURL(baseUrl);
   await page.getByRole("link", { name: "최고 관리자" }).waitFor();
+  await page
+    .getByRole("heading", {
+      name: "최고 관리자님, 무엇을 이해해볼까요?",
+    })
+    .waitFor();
   if ((await page.locator('a[href="/login"]').count()) !== 0) {
     throw new Error("Installed administrator was not shown as signed in.");
   }
@@ -164,58 +169,77 @@ try {
   ) {
     throw new Error("Second-factor setup API accepted an anonymous request.");
   }
-  await anonymousContext.close();
 
-  await page.getByRole("heading", { level: 1, name: "EasyLaw" }).waitFor();
-  await page.getByRole("region", { name: "EasyLaw 결과 예시" }).waitFor();
-  await page.getByLabel("판결문 검색").waitFor();
+  await anonymousPage.goto(baseUrl, { waitUntil: "networkidle" });
+  await anonymousPage
+    .getByRole("heading", { level: 1, name: "EasyLaw" })
+    .waitFor();
+  await anonymousPage
+    .getByRole("region", { name: "EasyLaw 결과 예시" })
+    .waitFor();
+  await anonymousPage.getByLabel("판결문 검색").waitFor();
   if (
-    (await page
+    (await anonymousPage.getByText("관리센터", { exact: true }).count()) !== 0
+  ) {
+    throw new Error("Anonymous landing page exposed the management center.");
+  }
+  if (
+    (await anonymousPage
       .getByText("판결문 이해 보조 서비스", { exact: true })
       .count()) !== 0
   ) {
     throw new Error("Removed hero eyebrow is still visible.");
   }
-  const questionMode = page.getByRole("switch", {
+  const questionMode = anonymousPage.getByRole("switch", {
     name: "자연어 질문 모드",
   });
   await questionMode.click();
-  await page.getByLabel("법률 상황 질문").waitFor();
-  await page.getByText("이런 질문을 할 수 있어요", { exact: true }).waitFor();
+  await anonymousPage.getByLabel("법률 상황 질문").waitFor();
+  await anonymousPage
+    .getByText("이런 질문을 할 수 있어요", { exact: true })
+    .waitFor();
   const exampleQuestion =
     "고블린이 편의점에서 현금 대신 포션으로 거래하자는데 가능한가요?";
-  await page.getByRole("button", { name: exampleQuestion }).click();
+  await anonymousPage.getByRole("button", { name: exampleQuestion }).click();
   if (
-    (await page.getByLabel("법률 상황 질문").inputValue()) !== exampleQuestion
+    (await anonymousPage.getByLabel("법률 상황 질문").inputValue()) !==
+    exampleQuestion
   ) {
     throw new Error(
       "Example question did not populate the natural-language input.",
     );
   }
-  if ((await page.getByText("공개 판결문", { exact: true }).count()) !== 0) {
+  if (
+    (await anonymousPage.getByText("공개 판결문", { exact: true }).count()) !==
+    0
+  ) {
     throw new Error(
       "Landing page still exposes the removed public catalog section.",
     );
   }
-  if ((await page.getByText(/외부 API/).count()) !== 0) {
+  if ((await anonymousPage.getByText(/외부 API/).count()) !== 0) {
     throw new Error("Landing page still exposes implementation terminology.");
   }
 
-  const themeToggle = page.getByRole("button", {
+  const themeToggle = anonymousPage.getByRole("button", {
     name: "다크 모드로 전환",
   });
   await themeToggle.click();
-  if ((await page.locator("html").getAttribute("data-theme")) !== "dark") {
+  if (
+    (await anonymousPage.locator("html").getAttribute("data-theme")) !== "dark"
+  ) {
     throw new Error("Theme toggle did not apply dark mode.");
   }
-  await page.reload({ waitUntil: "networkidle" });
-  if ((await page.locator("html").getAttribute("data-theme")) !== "dark") {
+  await anonymousPage.reload({ waitUntil: "networkidle" });
+  if (
+    (await anonymousPage.locator("html").getAttribute("data-theme")) !== "dark"
+  ) {
     throw new Error("Theme choice was not persisted.");
   }
 
-  await page.setViewportSize({ width: 390, height: 844 });
+  await anonymousPage.setViewportSize({ width: 390, height: 844 });
   if (
-    await page.evaluate(
+    await anonymousPage.evaluate(
       () =>
         document.documentElement.scrollWidth >
         document.documentElement.clientWidth,
@@ -223,7 +247,7 @@ try {
   ) {
     throw new Error("Landing page has horizontal overflow on mobile.");
   }
-  const navItems = page.locator("nav a");
+  const navItems = anonymousPage.locator("nav a");
   for (let index = 0; index < (await navItems.count()); index += 1) {
     const lineHeight = await navItems.nth(index).evaluate((item) => {
       const style = getComputedStyle(item);
@@ -236,8 +260,36 @@ try {
       throw new Error("A mobile navigation item wrapped onto multiple lines.");
     }
   }
+  await anonymousContext.close();
 
   await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto(
+    `${baseUrl}/research?q=${encodeURIComponent(exampleQuestion)}`,
+    {
+      waitUntil: "networkidle",
+    },
+  );
+  await page.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
+  await page
+    .getByRole("heading", { name: "답변 초안" })
+    .waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "근거 후보" }).waitFor();
+
+  await page.goto(
+    `${baseUrl}/catalog?q=${encodeURIComponent("서울중앙지방법원")}`,
+    {
+      waitUntil: "networkidle",
+    },
+  );
+  await page.getByRole("heading", { name: "판결문 검색 결과" }).waitFor();
+  if (
+    (await page
+      .getByRole("heading", { name: "판결문 이해 작업대" })
+      .count()) !== 0
+  ) {
+    throw new Error("Catalog search results still showed the workspace first.");
+  }
+
   await page.locator('a[href="/catalog"]').first().click();
   await page.locator("main article").first().waitFor();
 
