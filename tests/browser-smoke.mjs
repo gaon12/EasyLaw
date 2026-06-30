@@ -179,6 +179,13 @@ try {
 
   await page.goto(`${baseUrl}/admin/captcha`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "CAPTCHA 설정" }).waitFor();
+  if (
+    (await page
+      .locator('nav a[aria-current="page"][href="/admin/captcha"]')
+      .count()) !== 1
+  ) {
+    throw new Error("Administration navigation did not highlight CAPTCHA.");
+  }
   await page.getByLabel("캡챠 수준").selectOption("strict");
   await page.getByRole("button", { name: "설정 저장" }).click();
   await page.getByText("설정을 저장했어요", { exact: false }).waitFor();
@@ -186,6 +193,11 @@ try {
     throw new Error(
       "Administration navigation did not expose CAPTCHA settings.",
     );
+  }
+  await page.goto(`${baseUrl}/admin/open-law`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "공개법령 API 설정" }).waitFor();
+  if ((await page.getByLabel("OC 키").count()) !== 1) {
+    throw new Error("Open Law administration page did not expose the OC key.");
   }
   await page.goto(`${baseUrl}/admin/dictionary`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "용어 사전 관리" }).waitFor();
@@ -240,6 +252,9 @@ try {
   await anonymousPage
     .getByRole("heading", { level: 1, name: "EasyLaw" })
     .waitFor();
+  if ((await anonymousPage.title()) !== "판결문을 이해하기 쉽게 | EasyLaw") {
+    throw new Error("Root document title did not include the service name.");
+  }
   await anonymousPage
     .getByRole("region", { name: "EasyLaw 결과 예시" })
     .waitFor();
@@ -307,6 +322,13 @@ try {
   await anonymousPage
     .getByRole("heading", { name: "쉬운 판결문 위키" })
     .waitFor();
+  if (
+    (await anonymousPage
+      .locator('nav a[aria-current="page"][href="/guide"]')
+      .count()) !== 1
+  ) {
+    throw new Error("Service navigation did not highlight the current page.");
+  }
   await anonymousPage.getByRole("heading", { name: "대문" }).waitFor();
   await anonymousPage.getByLabel("위키 분류").waitFor();
   await anonymousPage.getByLabel("최근 변경").waitFor();
@@ -357,6 +379,12 @@ try {
   await anonymousPage
     .getByLabel("언어와 글자 크기 설정", { exact: true })
     .click();
+  await anonymousPage.getByLabel("언어", { exact: true }).selectOption("en");
+  if (
+    (await anonymousPage.title()) !== "Understand Judgments Clearly | EasyLaw"
+  ) {
+    throw new Error("Locale change did not update the document title.");
+  }
   await anonymousPage
     .getByRole("button", { exact: true, name: "크게" })
     .click();
@@ -413,6 +441,9 @@ try {
     .getByRole("heading", { name: "답변 초안" })
     .waitFor({ timeout: 15_000 });
   await page.getByRole("heading", { name: "근거 후보" }).waitFor();
+  if ((await page.getByText(/^모델 /).count()) !== 0) {
+    throw new Error("Research overview exposed the internal model name.");
+  }
 
   await page.goto(
     `${baseUrl}/catalog?q=${encodeURIComponent("서울중앙지방법원")}`,

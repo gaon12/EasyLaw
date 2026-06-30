@@ -24,6 +24,7 @@ import {
 } from "../src/lib/dictionary";
 import {
   mergeExternalFirst,
+  parseOpenLawSearchResponse,
   syncSampleExternalCatalog,
 } from "../src/lib/external-law";
 import {
@@ -33,6 +34,7 @@ import {
 import { buildResearchPlan } from "../src/lib/legal-research";
 import { sendReadyNotifications } from "../src/lib/notifications";
 import { getPublicJudgments } from "../src/lib/queries";
+import { getPublicRequestOrigin } from "../src/lib/request-origin";
 import { checkAnonymousAccess } from "../src/lib/security/anonymous-access";
 import { decryptSecret } from "../src/lib/security/crypto";
 import { getSessionUser } from "../src/lib/session";
@@ -267,17 +269,67 @@ test("external values win over generated metadata conflicts", () => {
   assert.equal(conflicts[0].field, "caseNumber");
 });
 
-test("legal research harness assigns coverage and evidence", () => {
+test("open law parser normalizes public case records", () => {
+  const records = parseOpenLawSearchResponse({
+    PrecSearch: {
+      prec: [
+        {
+          사건명: "손해배상",
+          사건번호: "2024가단1234",
+          법원명: "서울중앙지방법원",
+          선고일자: "20240501",
+          판례상세링크: "/DRF/lawService.do?OC=test&target=prec&ID=1",
+          판례일련번호: "123456",
+        },
+      ],
+    },
+  });
+
+  assert.equal(records.length, 1);
+  assert.deepEqual(
+    {
+      caseNumber: records[0].caseNumber,
+      courtName: records[0].courtName,
+      decidedOn: records[0].decidedOn,
+      sourceProvider: records[0].sourceProvider,
+    },
+    {
+      caseNumber: "2024가단1234",
+      courtName: "서울중앙지방법원",
+      decidedOn: "2024-05-01",
+      sourceProvider: "open-law",
+    },
+  );
+  assert.ok(records[0].sourceUrl?.startsWith("https://www.law.go.kr/"));
+});
+
+test("public request origin respects reverse proxy headers", () => {
+  const request = new Request("http://127.0.0.1:3000/api/auth/magic-link", {
+    headers: {
+      "x-forwarded-host": "easylaw.example.com",
+      "x-forwarded-proto": "https",
+    },
+  });
+
+  assert.equal(
+    getPublicRequestOrigin(request).toString(),
+    "https://easylaw.example.com/",
+  );
+});
+
+test("legal research harness assigns coverage and evidence", async () => {
   const { db, cleanup } = withDb();
   try {
-    const plan = buildResearchPlan(
+    const plan = await buildResearchPlan(
       db,
       "중고나라에서 물건값을 입금했는데 판매자가 잠적했습니다. 돈은 찾을 수 있나요?",
     );
 
     assert.equal(plan.coverageLevel, 2);
     assert.equal(plan.intent, "피해 회복과 민사 청구 가능성 확인");
-    assert.ok(plan.evidence.some((item) => item.source === "Case Law API"));
+    assert.ok(
+      plan.evidence.some((item) => item.source === "공개법령 판례 API"),
+    );
     assert.match(plan.answer, /하네스 미리보기/);
   } finally {
     cleanup();
