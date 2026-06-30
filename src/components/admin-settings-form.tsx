@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 
 type Field = {
@@ -23,28 +23,40 @@ export function AdminSettingsForm({
   const [message, setMessage] = useState(description);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
 
   return (
     <form
       className={styles.settingsForm}
       onSubmit={async (event) => {
         event.preventDefault();
+        if (isSavingRef.current) {
+          return;
+        }
+        isSavingRef.current = true;
         setIsSaving(true);
         setStatus("idle");
-        const formData = new FormData(event.currentTarget);
-        const settings = Object.fromEntries(formData.entries());
-        const response = await fetch("/api/admin/settings", {
-          body: JSON.stringify({ scope, settings }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-        setIsSaving(false);
-        setStatus(response.ok ? "success" : "error");
-        setMessage(
-          response.ok
-            ? "설정을 저장했어요. 다음 질문부터 하네스가 이 값을 참조합니다."
-            : "설정을 저장하지 못했어요. 권한과 입력값을 확인해 주세요.",
-        );
+        try {
+          const formData = new FormData(event.currentTarget);
+          const settings = Object.fromEntries(formData.entries());
+          const response = await fetch("/api/admin/settings", {
+            body: JSON.stringify({ scope, settings }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          });
+          setStatus(response.ok ? "success" : "error");
+          setMessage(
+            response.ok
+              ? "설정을 저장했어요. 다음 질문부터 하네스가 이 값을 참조합니다."
+              : "설정을 저장하지 못했어요. 권한과 입력값을 확인해 주세요.",
+          );
+        } catch (_error) {
+          setStatus("error");
+          setMessage("저장 요청이 끊겼어요. 잠시 뒤 다시 시도해 주세요.");
+        } finally {
+          isSavingRef.current = false;
+          setIsSaving(false);
+        }
       }}
     >
       {fields.map((field) => (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 
 type ResearchStep = {
@@ -37,6 +37,7 @@ export function LegalResearchPanel({
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
     initialQuery ? "loading" : "idle",
   );
+  const submitGuardRef = useRef(false);
 
   const applyServerEvent = useCallback((eventText: string) => {
     const event = eventText.match(/^event: (.+)$/m)?.[1];
@@ -128,8 +129,15 @@ export function LegalResearchPanel({
           className={styles.researchSearchForm}
           onSubmit={(event) => {
             event.preventDefault();
+            if (submitGuardRef.current || status === "loading") {
+              return;
+            }
             if (query.trim()) {
+              submitGuardRef.current = true;
               setActiveQuery(query.trim());
+              queueMicrotask(() => {
+                submitGuardRef.current = false;
+              });
             }
           }}
         >

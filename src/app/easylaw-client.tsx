@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import styles from "./page.module.css";
 
 type Judgment = {
@@ -37,76 +37,114 @@ export function JudgmentExplorer({
       : "확인된 판결문 정보를 기준으로 검색해요.",
   );
   const [isLoading, setIsLoading] = useState(false);
+  const isLoadingRef = useRef(false);
+  const notificationRef = useRef<string | null>(null);
+  const [pendingNotificationId, setPendingNotificationId] = useState<
+    string | null
+  >(null);
   const [customTitle, setCustomTitle] = useState("");
   const [customText, setCustomText] = useState("");
 
-  async function search() {
+  async function withLoading(action: () => Promise<void>) {
+    if (isLoadingRef.current) {
+      return;
+    }
+    isLoadingRef.current = true;
     setIsLoading(true);
-    setMessage("판결문 정보를 확인하고 있어요.");
-    const response = await fetch("/api/judgments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, email: email || undefined }),
-    });
-    const data = await response.json();
-    setIsLoading(false);
+    try {
+      await action();
+    } catch (_error) {
+      setMessage("요청을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      isLoadingRef.current = false;
+      setIsLoading(false);
+    }
+  }
 
-    if (!response.ok) {
-      setMessage("검색 요청을 처리하지 못했어요. 입력값을 확인해 주세요.");
+  async function search() {
+    if (!query.trim()) {
+      setMessage("검색어를 입력해 주세요.");
       return;
     }
 
-    setJudgments(data.judgments);
-    setMessage(
-      data.count > 0
-        ? `${data.count}개의 판결문을 찾았어요.`
-        : "검색 조건에 맞는 판결문이 없어요.",
-    );
+    await withLoading(async () => {
+      setMessage("판결문 정보를 확인하고 있어요.");
+      const response = await fetch("/api/judgments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, email: email || undefined }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage("검색 요청을 처리하지 못했어요. 입력값을 확인해 주세요.");
+        return;
+      }
+
+      setJudgments(data.judgments);
+      setMessage(
+        data.count > 0
+          ? `${data.count}개의 판결문을 찾았어요.`
+          : "검색 조건에 맞는 판결문이 없어요.",
+      );
+    });
   }
 
   async function subscribe(judgmentId: string) {
+    if (notificationRef.current) {
+      return;
+    }
     if (!email) {
       setMessage("알림을 받을 이메일 주소를 먼저 입력해 주세요.");
       return;
     }
 
-    const response = await fetch(`/api/judgments/${judgmentId}/notify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await response.json();
+    notificationRef.current = judgmentId;
+    setPendingNotificationId(judgmentId);
+    try {
+      const response = await fetch(`/api/judgments/${judgmentId}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
 
-    if (!response.ok) {
-      setMessage("알림 등록에 실패했어요. 이메일 주소를 확인해 주세요.");
-      return;
+      if (!response.ok) {
+        setMessage("알림 등록에 실패했어요. 이메일 주소를 확인해 주세요.");
+        return;
+      }
+
+      setMessage(`생성 작업에 연결했어요. 작업 ID: ${data.jobId}`);
+    } catch (_error) {
+      setMessage("알림 등록 요청이 끊겼어요. 잠시 뒤 다시 시도해 주세요.");
+    } finally {
+      notificationRef.current = null;
+      setPendingNotificationId(null);
     }
-
-    setMessage(`생성 작업에 연결했어요. 작업 ID: ${data.jobId}`);
   }
 
   async function createCustomJudgment() {
-    setIsLoading(true);
-    setMessage("비공개 판결문을 저장하고 있어요.");
-    const response = await fetch("/api/custom-judgments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: customTitle, text: customText }),
-    });
-    const data = await response.json();
-    setIsLoading(false);
+    await withLoading(async () => {
+      setMessage("비공개 판결문을 저장하고 있어요.");
+      const response = await fetch("/api/custom-judgments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: customTitle, text: customText }),
+      });
+      const data = await response.json();
 
-    if (response.status === 401) {
-      window.location.assign(
-        `/login?next=${encodeURIComponent("/catalog#custom-judgment")}`,
-      );
-      return;
-    }
-    if (!response.ok) {
-      setMessage("제목과 판결문 내용을 확인해 주세요.");
-      return;
-    }
-    window.location.assign(data.href);
+      if (response.status === 401) {
+        window.location.assign(
+          `/login?next=${encodeURIComponent("/catalog#custom-judgment")}`,
+        );
+        return;
+      }
+      if (!response.ok) {
+        setMessage("제목과 판결문 내용을 확인해 주세요.");
+        return;
+      }
+      window.location.assign(data.href);
+    });
   }
 
   const visibleJudgments = compact ? judgments.slice(0, 3) : judgments;
@@ -232,10 +270,13 @@ export function JudgmentExplorer({
                 </a>
                 <button
                   className={styles.secondaryButton}
+                  disabled={pendingNotificationId !== null}
                   onClick={() => subscribe(judgment.id)}
                   type="button"
                 >
-                  완료 알림 받기
+                  {pendingNotificationId === judgment.id
+                    ? "알림 등록 중"
+                    : "완료 알림 받기"}
                 </button>
               </div>
             </div>

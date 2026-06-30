@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
   ChevronRightIcon,
   FileTextIcon,
@@ -82,6 +82,7 @@ async function postJson(path: string, body?: unknown) {
 export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   const [stage, setStage] = useState<Stage>(() => initialStage(initialStatus));
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [message, setMessage] = useState("");
   const [setupCode, setSetupCode] = useState("");
   const [emailCode, setEmailCode] = useState("");
@@ -115,6 +116,10 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   }, [stage, enrollment]);
 
   async function submit(action: () => Promise<void>, pendingMessage = "") {
+    if (busyRef.current) {
+      return;
+    }
+    busyRef.current = true;
     setBusy(true);
     setMessage(pendingMessage);
     try {
@@ -122,6 +127,7 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
     } catch (error) {
       setMessage(errorMessage(error instanceof Error ? error.message : ""));
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -253,8 +259,8 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                   disabled={busy}
                   type="submit"
                 >
-                  계속
-                  <ChevronRightIcon size={19} />
+                  {busy ? "확인 중..." : "계속"}
+                  {!busy && <ChevronRightIcon size={19} />}
                 </button>
               </form>
             </>
@@ -435,8 +441,8 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                   disabled={busy}
                   type="submit"
                 >
-                  이메일 확인
-                  <ChevronRightIcon size={19} />
+                  {busy ? "확인 중..." : "이메일 확인"}
+                  {!busy && <ChevronRightIcon size={19} />}
                 </button>
                 <button
                   className={styles.textButton}
@@ -449,7 +455,7 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                   }
                   type="button"
                 >
-                  인증 코드 다시 보내기
+                  {busy ? "전송 중..." : "인증 코드 다시 보내기"}
                 </button>
               </form>
             </>
@@ -506,8 +512,8 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                       disabled={busy}
                       type="submit"
                     >
-                      설치 완료
-                      <ChevronRightIcon size={19} />
+                      {busy ? "완료 중..." : "설치 완료"}
+                      {!busy && <ChevronRightIcon size={19} />}
                     </button>
                   </form>
                 </div>
