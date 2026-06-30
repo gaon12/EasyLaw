@@ -6,9 +6,9 @@ import {
   FileTextIcon,
   SearchIcon,
   ShieldIcon,
-  SparklesIcon,
   UploadIcon,
 } from "@/components/icons";
+import { LandingSearch } from "@/components/landing-search";
 import { AppShell } from "@/components/site-chrome";
 import styles from "./page.module.css";
 
@@ -71,25 +71,13 @@ export default function Home() {
               src="/brand-character.svg"
               width={170}
             />
-            <span className={styles.heroEyebrow}>
-              <SparklesIcon size={16} />
-              판결문 이해 보조 서비스
-            </span>
             <h1 id="home-title">EasyLaw</h1>
             <p className={styles.heroLead}>
               어려운 판결문을 결론부터 차근차근.
               <br />
               필요한 내용을 쉬운 말로 나눠 읽어보세요.
             </p>
-            <form className={styles.heroSearch} action="/catalog">
-              <SearchIcon size={22} />
-              <input
-                aria-label="판결문 검색"
-                name="q"
-                placeholder="사건번호, 법원명, 판결문 제목을 입력하세요"
-              />
-              <button type="submit">찾기</button>
-            </form>
+            <LandingSearch />
             <div className={styles.heroActions}>
               <a className={styles.primaryButton} href="/catalog">
                 <SearchIcon size={18} />

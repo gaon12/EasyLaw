@@ -981,24 +981,16 @@
 .heroCharacter {
   width: auto;
   height: 146px;
-  margin-bottom: 12px;
+  margin-bottom: 20px;
   object-fit: contain;
 }
 
-.heroEyebrow,
 .previewLabel,
 .sectionIntro > span,
 .securityBand > div > span {
   color: var(--fg-brand);
   font-size: 14px;
   font-weight: 800;
-}
-
-.heroEyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 20px;
 }
 
 .hero h1 {
@@ -1018,13 +1010,69 @@
   line-height: 1.55;
 }
 
+.searchExperience {
+  margin-top: 38px;
+}
+
+.searchModeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  text-align: left;
+}
+
+.searchModeRow > div {
+  display: grid;
+  gap: 4px;
+}
+
+.searchModeRow strong {
+  color: var(--fg-strong);
+  font-size: 15px;
+}
+
+.searchModeRow span {
+  color: var(--fg-secondary);
+  font-size: 13px;
+}
+
+.searchModeToggle {
+  width: 44px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: 3px;
+  background: var(--border-default);
+  transition: background 160ms ease;
+}
+
+.searchModeToggle > span {
+  width: 18px;
+  height: 18px;
+  display: block;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px oklch(0.2 0.02 270 / 0.2);
+  transition: translate 160ms ease;
+}
+
+.searchModeToggle[aria-checked="true"] {
+  background: var(--bg-brand);
+}
+
+.searchModeToggle[aria-checked="true"] > span {
+  translate: 20px 0;
+}
+
 .heroSearch {
   min-height: 68px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  margin: 38px auto 0;
+  margin: 12px auto 0;
   padding: 7px 7px 7px 22px;
   border: 2px solid var(--bg-brand);
   border-radius: var(--radius-16);
@@ -1032,6 +1080,56 @@
   color: var(--fg-tertiary);
   box-shadow: var(--shadow-soft);
   text-align: left;
+}
+
+.exampleQuestions {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.exampleQuestions > span {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.exampleQuestions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.exampleQuestions button {
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 9px 13px;
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exampleQuestions button:hover {
+  border-color: var(--border-default);
+  color: var(--fg-brand);
+}
+
+.accountLink > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-brand);
+  color: white;
+  font-size: 12px;
 }
 
 .heroSearch input {
@@ -1488,6 +1586,18 @@
     min-height: 60px;
     margin-top: 30px;
     padding-left: 16px;
+  }
+
+  .searchExperience {
+    margin-top: 30px;
+  }
+
+  .searchModeRow {
+    align-items: flex-start;
+  }
+
+  .exampleQuestions > div {
+    display: grid;
   }
 
   .heroSearch input {

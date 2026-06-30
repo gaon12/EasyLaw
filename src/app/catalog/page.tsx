@@ -7,7 +7,12 @@ import styles from "../page.module.css";
 
 export const dynamic = "force-dynamic";
 
-export default async function CatalogPage() {
+export default async function CatalogPage({
+  searchParams,
+}: PageProps<"/catalog">) {
+  const { mode, q } = await searchParams;
+  const initialQuery = typeof q === "string" ? q : "";
+  const isQuestionMode = mode === "question";
   const db = getDatabase();
   await syncSampleExternalCatalog(db);
   const judgments = getPublicJudgments(db);
@@ -26,7 +31,11 @@ export default async function CatalogPage() {
             </div>
             <span className={styles.badge}>확인된 정보 우선</span>
           </div>
-          <JudgmentExplorer initialJudgments={judgments} />
+          <JudgmentExplorer
+            initialJudgments={judgments}
+            initialQuery={initialQuery}
+            questionMode={isQuestionMode}
+          />
         </section>
       </main>
     </AppShell>

@@ -18,15 +18,21 @@ type Judgment = {
 export function JudgmentExplorer({
   compact = false,
   initialJudgments,
+  initialQuery = "",
+  questionMode = false,
 }: {
   compact?: boolean;
   initialJudgments: Judgment[];
+  initialQuery?: string;
+  questionMode?: boolean;
 }) {
-  const [query, setQuery] = useState("2023구합54112");
+  const [query, setQuery] = useState(initialQuery || "2023구합54112");
   const [email, setEmail] = useState("");
   const [judgments, setJudgments] = useState(initialJudgments);
   const [message, setMessage] = useState(
-    "확인된 판결문 정보를 기준으로 검색해요.",
+    questionMode
+      ? "질문과 관련된 공개 판결문을 찾아볼 수 있어요."
+      : "확인된 판결문 정보를 기준으로 검색해요.",
   );
   const [isLoading, setIsLoading] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
@@ -114,13 +120,19 @@ export function JudgmentExplorer({
           </p>
           <div className={styles.workspaceBody}>
             <label className={styles.label} htmlFor="judgment-query">
-              사건번호, 법원명, 판결문 제목
+              {questionMode
+                ? "궁금한 법률 상황"
+                : "사건번호, 법원명, 판결문 제목"}
             </label>
             <input
               className={styles.input}
               id="judgment-query"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="예: 2023구합54112"
+              placeholder={
+                questionMode
+                  ? "어떤 일이 있었고 무엇이 궁금한지 적어보세요"
+                  : "예: 2023구합54112"
+              }
               value={query}
             />
             <label className={styles.label} htmlFor="notify-email">
