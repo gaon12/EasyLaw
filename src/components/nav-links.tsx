@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import styles from "@/app/page.module.css";
 
 type NavItem = {
@@ -17,11 +18,16 @@ export function NavLinks({
   label: string;
 }) {
   const pathname = usePathname();
+  const [activePathname, setActivePathname] = useState("");
+
+  useEffect(() => {
+    setActivePathname(pathname);
+  }, [pathname]);
 
   return (
     <nav className={styles.mainNav} aria-label={label}>
       {items.map((item) => {
-        const active = isActivePath(pathname, item.href);
+        const active = isActivePath(activePathname, item.href);
         return (
           <a
             aria-current={active ? "page" : undefined}

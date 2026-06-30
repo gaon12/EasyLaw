@@ -216,34 +216,50 @@
 }
 
 .mainNav {
-  min-height: 56px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 42px;
   color: var(--fg-strong);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.002em;
+  font-size: 18px;
+  font-weight: 850;
+  letter-spacing: 0;
 }
 
 .mainNav a {
-  min-height: 38px;
+  position: relative;
+  min-height: 64px;
   display: inline-flex;
   align-items: center;
-  border-radius: var(--radius-full);
-  padding: 0 12px;
+  border-radius: 0;
+  padding: 0 2px;
   flex: 0 0 auto;
   white-space: nowrap;
 }
 
-.mainNav a:hover,
-.navActive {
-  background: var(--bg-brand-subtle);
+.mainNav a::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: transparent;
+  content: "";
+}
+
+.mainNav a:hover {
+  background: transparent;
+  color: var(--fg-brand);
 }
 
 .navActive {
+  background: transparent;
   color: var(--fg-brand);
+}
+
+.mainNav a.navActive::after {
+  background: var(--bg-brand);
 }
 
 .main {
