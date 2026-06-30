@@ -9,7 +9,7 @@ export type JudgmentVisibility = "public" | "private" | "organization";
 
 export type JudgmentStatus = "pending" | "ready" | "needs_review";
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "super_admin";
 
 export type OrganizationRole = "owner" | "member";
 

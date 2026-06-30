@@ -566,6 +566,121 @@
   padding: 24px;
 }
 
+.researchLayout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.researchResult {
+  display: grid;
+  gap: 14px;
+}
+
+.skeletonStack {
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  background: var(--bg-surface);
+}
+
+.skeletonStack span {
+  height: 18px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-muted);
+}
+
+.skeletonStack span:nth-child(1) {
+  width: 68%;
+}
+
+.skeletonStack span:nth-child(2) {
+  width: 94%;
+}
+
+.skeletonStack span:nth-child(3) {
+  width: 86%;
+}
+
+.skeletonStack span:nth-child(4) {
+  width: 52%;
+}
+
+.evidenceList {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.harnessSteps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.harnessSteps article {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-muted);
+}
+
+.harnessSteps strong,
+.harnessSteps span {
+  display: block;
+}
+
+.harnessSteps span {
+  margin-top: 5px;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.evidenceList article {
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-muted);
+}
+
+.evidenceList strong,
+.evidenceList span {
+  display: block;
+}
+
+.evidenceList span {
+  margin-top: 4px;
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.researchAnswer {
+  padding: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  background: var(--bg-surface);
+}
+
+.researchAnswer h2 {
+  margin-bottom: 14px;
+  color: var(--fg-strong);
+  font-size: 22px;
+}
+
+.researchAnswer p {
+  white-space: pre-wrap;
+  color: var(--fg-default);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
 .workspaceBody {
   display: grid;
   gap: 12px;
@@ -1481,7 +1596,8 @@
   .portalGrid,
   .contentGrid,
   .resultGrid,
-  .authGrid {
+  .authGrid,
+  .researchLayout {
     grid-template-columns: 1fr;
   }
 
@@ -1553,7 +1669,8 @@
   .serviceCards,
   .guideTabs,
   .catalog,
-  .adminGrid {
+  .adminGrid,
+  .harnessSteps {
     grid-template-columns: 1fr;
   }
 

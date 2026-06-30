@@ -20,6 +20,7 @@ import {
   completeGenerationJob,
   createOrAttachGenerationJob,
 } from "../src/lib/jobs";
+import { buildResearchPlan } from "../src/lib/legal-research";
 import { sendReadyNotifications } from "../src/lib/notifications";
 import { getPublicJudgments } from "../src/lib/queries";
 import { decryptSecret } from "../src/lib/security/crypto";
@@ -253,6 +254,23 @@ test("external values win over generated metadata conflicts", () => {
   assert.equal(merged.caseNumber, "2023구합54112");
   assert.equal(conflicts.length, 1);
   assert.equal(conflicts[0].field, "caseNumber");
+});
+
+test("legal research harness assigns coverage and evidence", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const plan = buildResearchPlan(
+      db,
+      "중고나라에서 물건값을 입금했는데 판매자가 잠적했습니다. 돈은 찾을 수 있나요?",
+    );
+
+    assert.equal(plan.coverageLevel, 2);
+    assert.equal(plan.intent, "피해 회복과 민사 청구 가능성 확인");
+    assert.ok(plan.evidence.some((item) => item.source === "Case Law API"));
+    assert.match(plan.answer, /하네스 미리보기/);
+  } finally {
+    cleanup();
+  }
 });
 
 test("TOTP enrollment, recovery code, and management access policy", async () => {
