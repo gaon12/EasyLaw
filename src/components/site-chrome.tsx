@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
 import styles from "@/app/page.module.css";
 import {
@@ -15,6 +16,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const mainNav = [
   { href: "/catalog", label: "판결문 찾기" },
   { href: "/guide", label: "쉬운 판결문" },
+  { href: "/notice", label: "공지사항" },
   { href: "/me", label: "내 문서함" },
   { href: "/org", label: "조직" },
   { href: "/support", label: "고객센터" },
@@ -33,7 +35,14 @@ export function AppHeader() {
       </div>
       <div className={styles.brandRow}>
         <a className={styles.brand} href="/" aria-label="EasyLaw 홈">
-          <span className={styles.symbol} aria-hidden="true" />
+          <Image
+            alt=""
+            aria-hidden="true"
+            className={styles.brandCharacter}
+            height={48}
+            src="/brand-character.svg"
+            width={46}
+          />
           <span className={styles.brandText}>EasyLaw</span>
         </a>
         <div className={styles.headerActions}>
@@ -68,7 +77,14 @@ export function AppFooter() {
     <footer className={styles.footer}>
       <div className={styles.footerInner}>
         <a className={styles.footerBrand} href="/">
-          <span className={styles.symbol} aria-hidden="true" />
+          <Image
+            alt=""
+            aria-hidden="true"
+            className={styles.footerCharacter}
+            height={42}
+            src="/brand-character.svg"
+            width={40}
+          />
           <span>EasyLaw</span>
         </a>
         <p>

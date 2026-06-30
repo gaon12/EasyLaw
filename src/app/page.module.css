@@ -65,6 +65,20 @@
   translate: 0 1px;
 }
 
+.brandCharacter,
+.footerCharacter {
+  width: auto;
+  object-fit: contain;
+}
+
+.brandCharacter {
+  height: 48px;
+}
+
+.footerCharacter {
+  height: 42px;
+}
+
 .symbol {
   width: 36px;
   height: 36px;
@@ -574,6 +588,24 @@
   outline: none;
 }
 
+.customDocumentHeading {
+  display: grid;
+  gap: 3px;
+  margin-top: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.customDocumentHeading strong {
+  color: var(--fg-strong);
+  font-size: 16px;
+}
+
+.customDocumentHeading span {
+  color: var(--fg-secondary);
+  font-size: 13px;
+}
+
 .input {
   min-height: 44px;
   padding: 0 14px;
@@ -668,6 +700,149 @@
   display: grid;
   gap: 8px;
   padding-left: 20px;
+}
+
+.documentText {
+  margin-bottom: 16px;
+}
+
+.documentText h2,
+.resultBlock h2 {
+  margin-bottom: 12px;
+  color: var(--fg-strong);
+  font-size: 20px;
+}
+
+.documentText p {
+  white-space: pre-wrap;
+}
+
+.sourceLink {
+  margin-top: 18px;
+  color: var(--fg-brand);
+  font-weight: 750;
+}
+
+.wikiList,
+.boardList {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  background: var(--bg-surface);
+}
+
+.wikiList > a,
+.boardList > a {
+  display: grid;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 22px;
+}
+
+.wikiList > a {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.wikiList > a + a,
+.boardList > a + a {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.wikiList strong,
+.boardList strong {
+  color: var(--fg-strong);
+  font-size: 16px;
+}
+
+.wikiList p {
+  margin-top: 5px;
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.wikiList time,
+.boardList time,
+.noticeArticle time {
+  color: var(--fg-tertiary);
+  font-size: 13px;
+}
+
+.wikiArticle,
+.noticeArticle {
+  max-width: 860px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.wikiToc {
+  display: grid;
+  gap: 8px;
+  margin: 28px 0 38px;
+  padding: 20px;
+  border-radius: var(--radius-12);
+  background: var(--bg-muted);
+}
+
+.wikiToc a {
+  color: var(--fg-brand);
+  font-size: 14px;
+}
+
+.wikiArticle > section {
+  padding: 28px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.wikiArticle h2 {
+  margin-bottom: 14px;
+  color: var(--fg-strong);
+  font-size: 24px;
+}
+
+.wikiArticle p,
+.noticeArticle > p {
+  color: var(--fg-default);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.wikiArticle p + p,
+.noticeArticle > p + p {
+  margin-top: 12px;
+}
+
+.boardList > a {
+  grid-template-columns: 90px minmax(0, 1fr) auto;
+}
+
+.boardList > a > span {
+  color: var(--fg-tertiary);
+  font-size: 13px;
+}
+
+.noticeArticle {
+  padding: 28px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  background: var(--bg-surface);
+}
+
+.noticeArticle header {
+  margin-bottom: 30px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.noticeArticle h1 {
+  margin: 12px 0 8px;
+  color: var(--fg-strong);
+  font-size: 30px;
+}
+
+.noticeArticle > .secondaryButton {
+  margin-top: 32px;
 }
 
 .termList {
@@ -801,6 +976,13 @@
   width: min(850px, 100%);
   margin: 0 auto;
   text-align: center;
+}
+
+.heroCharacter {
+  width: auto;
+  height: 146px;
+  margin-bottom: 12px;
+  object-fit: contain;
 }
 
 .heroEyebrow,
@@ -1275,6 +1457,14 @@
   .catalog,
   .adminGrid {
     grid-template-columns: 1fr;
+  }
+
+  .boardList > a {
+    grid-template-columns: 1fr auto;
+  }
+
+  .boardList > a > span {
+    display: none;
   }
 
   .sectionTitle {

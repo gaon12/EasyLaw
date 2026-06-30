@@ -1,3 +1,4 @@
+import Image from "next/image";
 import {
   BellIcon,
   BuildingIcon,
@@ -62,6 +63,14 @@ export default function Home() {
       <main>
         <section className={styles.hero} aria-labelledby="home-title">
           <div className={styles.heroInner}>
+            <Image
+              alt="EasyLaw 대표 캐릭터"
+              className={styles.heroCharacter}
+              height={177}
+              priority
+              src="/brand-character.svg"
+              width={170}
+            />
             <span className={styles.heroEyebrow}>
               <SparklesIcon size={16} />
               판결문 이해 보조 서비스
@@ -86,7 +95,10 @@ export default function Home() {
                 <SearchIcon size={18} />
                 판결문 찾기
               </a>
-              <a className={styles.secondaryButton} href="/catalog">
+              <a
+                className={styles.secondaryButton}
+                href="/catalog#custom-judgment"
+              >
                 <UploadIcon size={18} />내 문서로 시작하기
               </a>
             </div>
