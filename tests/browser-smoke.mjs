@@ -186,6 +186,9 @@ try {
       "Administration navigation did not expose CAPTCHA settings.",
     );
   }
+  await page.goto(`${baseUrl}/admin/dictionary`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "용어 사전 관리" }).waitFor();
+  await page.getByRole("button", { name: "표준국어대사전 업데이트" }).waitFor();
 
   const anonymousContext = await browser.newContext();
   const anonymousPage = await anonymousContext.newPage();
@@ -203,6 +206,15 @@ try {
   ) {
     throw new Error("Second-factor setup API accepted an anonymous request.");
   }
+
+  await anonymousPage.goto(`${baseUrl}/login`, { waitUntil: "networkidle" });
+  await anonymousPage.getByLabel("이메일").fill("browser-login@example.com");
+  await anonymousPage
+    .getByRole("button", { name: "이메일로 인증하기" })
+    .click();
+  await anonymousPage
+    .getByRole("link", { name: "개발용 로그인 링크 열기" })
+    .waitFor();
 
   await anonymousPage.goto(baseUrl, { waitUntil: "networkidle" });
   await anonymousPage

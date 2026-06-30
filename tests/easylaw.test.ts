@@ -8,13 +8,16 @@ import { NextRequest } from "next/server";
 import { generate } from "otplib";
 import {
   assertManagementAccess,
+  consumeMagicLink,
   consumeRecoveryCode,
+  createMagicLink,
   createTotpEnrollment,
   verifyTotpEnrollment,
 } from "../src/lib/auth";
 import { createAltchaChallenge, verifyAltchaPayload } from "../src/lib/captcha";
 import { createDatabase } from "../src/lib/db";
 import { seedDatabase } from "../src/lib/db/seed";
+import { extractDictionaryTerms } from "../src/lib/dictionary";
 import {
   mergeExternalFirst,
   syncSampleExternalCatalog,
@@ -338,6 +341,74 @@ test("ALTCHA payloads verify against the service captcha secret", async () => {
   } finally {
     cleanup();
   }
+});
+
+test("magic links can be consumed into a user identity", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const created = createMagicLink(db, "reader@example.com");
+    assert.equal(created.ok, true);
+    assert.ok(created.ok);
+
+    const consumed = consumeMagicLink(db, created.token);
+    assert.deepEqual(consumed, {
+      ok: true,
+      requiresTotp: false,
+      userId: created.userId,
+    });
+    assert.deepEqual(consumeMagicLink(db, created.token), {
+      ok: false,
+      reason: "invalid_or_expired",
+    });
+  } finally {
+    cleanup();
+  }
+});
+
+test("standard dictionary JSON entries are normalized for lookup", () => {
+  const terms = extractDictionaryTerms({
+    channel: {
+      item: [
+        {
+          word: "판결",
+          sense: {
+            definition: "시비나 선악을 판단하여 결정함.",
+            pos: "명사",
+            sense_no: "1",
+          },
+        },
+        {
+          word: "판결",
+          sense_def: "법원이 소송 사건에 대하여 내리는 판단.",
+          품사: "명사",
+          뜻풀이번호: 2,
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(
+    terms.map((term) => ({
+      definition: term.definition,
+      partOfSpeech: term.partOfSpeech,
+      senseNo: term.senseNo,
+      word: term.word,
+    })),
+    [
+      {
+        definition: "시비나 선악을 판단하여 결정함.",
+        partOfSpeech: "명사",
+        senseNo: "1",
+        word: "판결",
+      },
+      {
+        definition: "법원이 소송 사건에 대하여 내리는 판단.",
+        partOfSpeech: "명사",
+        senseNo: "2",
+        word: "판결",
+      },
+    ],
+  );
 });
 
 test("TOTP enrollment, recovery code, and management access policy", async () => {
