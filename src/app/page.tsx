@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Image from "next/image";
+import { AuthRequiredLink } from "@/components/auth-required-link";
 import {
   BellIcon,
   BuildingIcon,
@@ -13,6 +14,7 @@ import { LandingSearch } from "@/components/landing-search";
 import { AppShell, serviceShortcuts } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getPublicJudgments } from "@/lib/queries";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
@@ -63,6 +65,8 @@ const paths = [
   },
 ];
 
+const loginRequiredPaths = new Set(["/me", "/org"]);
+
 export const dynamic = "force-dynamic";
 
 export const metadata = pageMetadata({
@@ -100,6 +104,7 @@ export default async function Home() {
                 <form action="/research" className={styles.searchForm}>
                   <input
                     aria-label="법률 상황 질문"
+                    maxLength={LEGAL_RESEARCH_QUERY_MAX_LENGTH}
                     name="q"
                     placeholder="예: 중고거래 사기를 당했는데 돈을 돌려받을 수 있나요?"
                   />
@@ -206,16 +211,16 @@ export default async function Home() {
             </p>
             <LandingSearch />
             <div className={styles.heroActions}>
-              <a className={styles.primaryButton} href="/login?next=%2Fcatalog">
+              <a className={styles.primaryButton} href="/catalog">
                 <SearchIcon size={18} />
                 판결문 찾기
               </a>
-              <a
+              <AuthRequiredLink
                 className={styles.secondaryButton}
-                href="/login?next=%2Fcatalog%23custom-judgment&reason=login_required"
+                nextPath="/catalog#custom-judgment"
               >
                 <UploadIcon size={18} />내 문서로 시작하기
-              </a>
+              </AuthRequiredLink>
             </div>
           </div>
         </section>
@@ -296,8 +301,8 @@ export default async function Home() {
           <div className={styles.pathGrid}>
             {paths.map((path) => {
               const Icon = path.icon;
-              return (
-                <a className={styles.pathItem} href={path.href} key={path.href}>
+              const content = (
+                <>
                   <span className={styles.pathIcon}>
                     <Icon size={22} />
                   </span>
@@ -306,6 +311,20 @@ export default async function Home() {
                     <p>{path.description}</p>
                   </div>
                   <ChevronRightIcon size={19} />
+                </>
+              );
+
+              return loginRequiredPaths.has(path.href) ? (
+                <AuthRequiredLink
+                  className={styles.pathItem}
+                  key={path.href}
+                  nextPath={path.href}
+                >
+                  {content}
+                </AuthRequiredLink>
+              ) : (
+                <a className={styles.pathItem} href={path.href} key={path.href}>
+                  {content}
                 </a>
               );
             })}

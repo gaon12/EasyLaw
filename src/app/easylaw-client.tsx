@@ -1,6 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { LoginRequiredModal } from "@/components/auth-required-link";
+import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
+import {
+  CUSTOM_JUDGMENT_TEXT_MAX_LENGTH,
+  CUSTOM_JUDGMENT_TITLE_MAX_LENGTH,
+  JUDGMENT_SEARCH_QUERY_MAX_LENGTH,
+} from "@/lib/input-limits";
 import styles from "./page.module.css";
 
 type Judgment = {
@@ -43,6 +50,7 @@ export function JudgmentExplorer({
   const [pendingNotificationId, setPendingNotificationId] = useState<
     string | null
   >(null);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [customText, setCustomText] = useState("");
 
@@ -74,11 +82,21 @@ export function JudgmentExplorer({
       setMessage("판결문 정보를 확인하고 있어요.");
       const response = await fetch("/api/judgments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...clientFingerprintHeaders(),
+        },
         body: JSON.stringify({ query, email: email || undefined }),
       });
       const data = await response.json();
 
+      if (response.status === 429 || response.status === 401) {
+        setMessage(
+          data.message ??
+            "비회원 이용 한도를 넘었어요. 잠시 후 다시 시도하거나 로그인해 주세요.",
+        );
+        return;
+      }
       if (!response.ok) {
         setMessage("검색 요청을 처리하지 못했어요. 입력값을 확인해 주세요.");
         return;
@@ -138,16 +156,7 @@ export function JudgmentExplorer({
 
       if (response.status === 401) {
         authRedirectRef.current = true;
-        setMessage(
-          "로그인이 필요한 기능이에요. 잠시 후 로그인 페이지로 이동합니다.",
-        );
-        window.setTimeout(() => {
-          window.location.assign(
-            `/login?next=${encodeURIComponent(
-              "/catalog#custom-judgment",
-            )}&reason=login_required`,
-          );
-        }, 900);
+        setLoginModalOpen(true);
         return;
       }
       if (!response.ok) {
@@ -162,6 +171,15 @@ export function JudgmentExplorer({
 
   return (
     <>
+      <LoginRequiredModal
+        nextPath="/catalog#custom-judgment"
+        onClose={() => {
+          authRedirectRef.current = false;
+          setIsLoading(false);
+          setLoginModalOpen(false);
+        }}
+        open={loginModalOpen}
+      />
       {!compact && showWorkspace && (
         <div className={styles.workspace}>
           <h2>판결문 이해 작업대</h2>
@@ -178,6 +196,7 @@ export function JudgmentExplorer({
             <input
               className={styles.input}
               id="judgment-query"
+              maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={
                 questionMode
@@ -203,6 +222,7 @@ export function JudgmentExplorer({
             </div>
             <input
               className={styles.input}
+              maxLength={CUSTOM_JUDGMENT_TITLE_MAX_LENGTH}
               onChange={(event) => setCustomTitle(event.target.value)}
               placeholder="문서 제목"
               value={customTitle}
@@ -210,6 +230,7 @@ export function JudgmentExplorer({
             <textarea
               aria-label="커스텀 판결문 내용"
               className={styles.textarea}
+              maxLength={CUSTOM_JUDGMENT_TEXT_MAX_LENGTH}
               onChange={(event) => setCustomText(event.target.value)}
               placeholder="판결문 내용을 복사해 붙여넣으세요."
               value={customText}
