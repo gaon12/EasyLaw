@@ -9,9 +9,7 @@ export default function SupportPage() {
           <div className={styles.sectionTitle}>
             <div>
               <h1>고객센터</h1>
-              <p>
-                판결문 검색, 생성 알림, 계정 보안, 조직 문서함 이용을 도와요.
-              </p>
+              <p>판결문 검색, AI 질문, 생성 알림, 조직 문서함 이용을 도와요.</p>
             </div>
           </div>
           <div className={styles.contentGrid}>
@@ -22,7 +20,7 @@ export default function SupportPage() {
                   생성되지 않은 판결문도 알림을 받을 수 있나요?
                 </a>
                 <a className={styles.listLink} href="/security">
-                  2차 인증을 꼭 설정해야 하나요?
+                  계정 보호 설정은 어디서 바꾸나요?
                 </a>
                 <a className={styles.listLink} href="/org">
                   조직에서 결과를 공유할 수 있나요?

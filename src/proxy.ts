@@ -42,8 +42,12 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/org/") ||
     pathname === "/me" ||
     pathname.startsWith("/me/") ||
+    pathname === "/research" ||
+    pathname.startsWith("/research/") ||
     pathname === "/cp" ||
-    pathname.startsWith("/cp/");
+    pathname.startsWith("/cp/") ||
+    pathname === "/api/research/stream" ||
+    pathname.startsWith("/api/admin/");
   if (complete && managementPath) {
     const user = getSessionUser(
       getDatabase(),
@@ -51,16 +55,18 @@ export function proxy(request: NextRequest) {
     );
     if (!user) {
       const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("next", pathname);
+      loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+      }
       return NextResponse.redirect(loginUrl);
     }
-    if (
-      pathname.startsWith("/admin") &&
-      !["admin", "super_admin"].includes(user.role)
-    ) {
+    const adminPath =
+      pathname.startsWith("/admin") || pathname.startsWith("/api/admin/");
+    if (adminPath && !["admin", "super_admin"].includes(user.role)) {
       return new NextResponse("Forbidden", { status: 403 });
     }
-    if (pathname.startsWith("/admin") && !user.totpEnabled) {
+    if (adminPath && !user.totpEnabled) {
       return NextResponse.redirect(new URL("/security", request.url));
     }
   }

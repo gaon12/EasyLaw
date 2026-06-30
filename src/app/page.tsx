@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Image from "next/image";
 import {
   BellIcon,
@@ -9,7 +10,11 @@ import {
   UploadIcon,
 } from "@/components/icons";
 import { LandingSearch } from "@/components/landing-search";
-import { AppShell } from "@/components/site-chrome";
+import { AppShell, serviceShortcuts } from "@/components/site-chrome";
+import { getDatabase } from "@/lib/db";
+import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { getDashboardSnapshot, getPublicJudgments } from "@/lib/queries";
+import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import styles from "./page.module.css";
 
 const steps = [
@@ -57,7 +62,121 @@ const paths = [
   },
 ];
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const db = getDatabase();
+  const sessionUser = getSessionUser(
+    db,
+    (await cookies()).get(SESSION_COOKIE)?.value,
+  );
+
+  if (sessionUser) {
+    await syncSampleExternalCatalog(db);
+    const snapshot = getDashboardSnapshot(db);
+    const judgments = getPublicJudgments(db).slice(0, 3);
+
+    return (
+      <AppShell>
+        <main className={styles.main}>
+          <section
+            className={styles.portalGrid}
+            aria-labelledby="dashboard-title"
+          >
+            <div className={styles.searchHero}>
+              <div className={styles.searchBlock}>
+                <p className={styles.previewLabel}>오늘의 작업대</p>
+                <h1 className={styles.searchTitle} id="dashboard-title">
+                  {sessionUser.displayName}님, 무엇을 이해해볼까요?
+                </h1>
+                <form action="/research" className={styles.searchForm}>
+                  <input
+                    aria-label="법률 상황 질문"
+                    name="q"
+                    placeholder="예: 중고거래 사기를 당했는데 돈을 돌려받을 수 있나요?"
+                  />
+                  <button className={styles.searchButton} type="submit">
+                    <SearchIcon size={22} />
+                  </button>
+                </form>
+              </div>
+
+              <section className={styles.servicePanel} aria-label="빠른 시작">
+                <h2 className={styles.panelTitle}>빠른 시작</h2>
+                <div className={styles.shortcutGrid}>
+                  {serviceShortcuts.slice(0, 4).map((shortcut) => {
+                    const Icon = shortcut.icon;
+                    return (
+                      <a
+                        className={styles.shortcut}
+                        href={shortcut.href}
+                        key={shortcut.href}
+                      >
+                        <span className={styles.shortcutIcon}>
+                          <Icon size={20} />
+                        </span>
+                        <span>
+                          <strong>{shortcut.label}</strong>
+                          <span>{shortcut.description}</span>
+                        </span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </section>
+            </div>
+
+            <aside className={styles.loginPanel} aria-label="서비스 현황">
+              <h2>내가 바로 확인할 수 있는 정보</h2>
+              <div className={styles.loginServices}>
+                <span>공개 판결문 {snapshot.publicJudgmentCount}건</span>
+                <span>생성 대기 {snapshot.queuedJobCount}건</span>
+                <span>알림 대기 {snapshot.pendingNotificationCount}건</span>
+                <span>조직 {snapshot.organizationCount}개</span>
+              </div>
+              <a className={styles.primaryButton} href="/catalog">
+                판결문 검색으로 이동
+              </a>
+            </aside>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionTitle}>
+              <div>
+                <h2>최근 공개 판결문</h2>
+                <p>사건번호나 법원명으로 바로 열람할 수 있는 판결문이에요.</p>
+              </div>
+              <a className={styles.secondaryButton} href="/catalog">
+                전체 보기
+              </a>
+            </div>
+            <div className={styles.catalog}>
+              {judgments.map((judgment) => (
+                <article className={styles.judgmentCard} key={judgment.id}>
+                  <div>
+                    <span className={styles.statusPending}>공개</span>
+                    <h3>{judgment.title}</h3>
+                    <div className={styles.meta}>
+                      <span>{judgment.caseNumber}</span>
+                      <span>{judgment.courtName}</span>
+                      <span>{judgment.decidedOn}</span>
+                    </div>
+                  </div>
+                  <a
+                    className={styles.primaryButton}
+                    href={`/p/${encodeURIComponent(judgment.caseNumber)}`}
+                  >
+                    판결문 보기
+                  </a>
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <main>
@@ -79,13 +198,13 @@ export default function Home() {
             </p>
             <LandingSearch />
             <div className={styles.heroActions}>
-              <a className={styles.primaryButton} href="/catalog">
+              <a className={styles.primaryButton} href="/login?next=%2Fcatalog">
                 <SearchIcon size={18} />
                 판결문 찾기
               </a>
               <a
                 className={styles.secondaryButton}
-                href="/catalog#custom-judgment"
+                href="/login?next=%2Fcatalog%23custom-judgment"
               >
                 <UploadIcon size={18} />내 문서로 시작하기
               </a>
@@ -190,15 +309,15 @@ export default function Home() {
             <ShieldIcon size={26} />
           </div>
           <div>
-            <span>계정 보안</span>
-            <h2>중요한 문서일수록 한 단계 더 안전하게</h2>
+            <span>개인정보 보호</span>
+            <h2>민감한 내용은 필요한 만큼만 다뤄요</h2>
             <p>
-              이메일 로그인에 2차 인증을 더할 수 있어요. 조직 소유자와 운영
-              관리자는 필수로 사용합니다.
+              공개 판결문은 출처를 남기고, 사용자가 붙여넣은 문서는 로그인한
+              본인만 볼 수 있는 비공개 주소로 관리합니다.
             </p>
           </div>
-          <a className={styles.secondaryButton} href="/security">
-            보안 설정 보기
+          <a className={styles.secondaryButton} href="/privacy">
+            개인정보처리방침 보기
             <ChevronRightIcon size={18} />
           </a>
         </section>
