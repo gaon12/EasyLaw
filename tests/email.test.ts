@@ -4,6 +4,7 @@ import { chromium } from "playwright";
 import {
   renderEmailTest,
   renderJudgmentReadyEmail,
+  renderMagicLinkEmail,
   renderSetupVerificationEmail,
 } from "../src/lib/email";
 
@@ -24,6 +25,18 @@ test("transactional emails include compatible HTML and plain text", () => {
     assert.ok(email.text.length > 40);
     assert.doesNotMatch(email.text, /<[^>]+>/);
   }
+});
+
+test("magic link email includes a visible fallback URL", () => {
+  const loginUrl = "https://easylaw.example/api/auth/magic-link/consume?t=abc";
+  const email = renderMagicLinkEmail({ loginUrl });
+
+  assert.match(email.html, /버튼이 열리지 않으면/);
+  assert.match(
+    email.html,
+    /https:\/\/easylaw\.example\/api\/auth\/magic-link\/consume\?t=abc/,
+  );
+  assert.match(email.text, /EasyLaw 로그인: https:\/\/easylaw\.example/);
 });
 
 test("email HTML escapes dynamic values", () => {

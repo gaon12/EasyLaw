@@ -213,8 +213,15 @@ try {
     .getByRole("button", { name: "이메일로 인증하기" })
     .click();
   await anonymousPage
-    .getByRole("link", { name: "개발용 로그인 링크 열기" })
+    .getByText("인증 링크를 이메일로 보냈어요", { exact: false })
     .waitFor();
+  if (
+    (await anonymousPage
+      .getByRole("link", { name: "개발용 로그인 링크 열기" })
+      .count()) !== 0
+  ) {
+    throw new Error("Login page exposed a developer-only magic link.");
+  }
 
   await anonymousPage.goto(baseUrl, { waitUntil: "networkidle" });
   await anonymousPage
