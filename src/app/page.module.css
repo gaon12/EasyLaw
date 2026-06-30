@@ -976,6 +976,21 @@
   outline: none;
 }
 
+.input:where(select) {
+  appearance: none;
+  padding-right: 40px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--fg-secondary) 50%),
+    linear-gradient(135deg, var(--fg-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) 50%,
+    calc(100% - 14px) 50%;
+  background-repeat: no-repeat;
+  background-size:
+    6px 6px,
+    6px 6px;
+}
+
 .customDocumentHeading {
   display: grid;
   gap: 3px;
@@ -1020,6 +1035,89 @@
   color: var(--fg-brand);
   font-size: 14px;
   line-height: 1.6;
+}
+
+.captchaCard {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+  border: 1px solid color-mix(in oklch, var(--bg-brand) 24%, transparent);
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at 24px 16px,
+      color-mix(in oklch, var(--bg-brand) 16%, transparent),
+      transparent 88px
+    ), var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.captchaCard > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.captchaCard > div:first-child > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-brand-subtle);
+  font-size: 22px;
+}
+
+.captchaCard strong {
+  display: block;
+  color: var(--fg-strong);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.captchaCard p,
+.captchaCard small {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.captchaCard small {
+  font-weight: 700;
+}
+
+.altchaMount {
+  --altcha-border-color: var(--border-default);
+  --altcha-border-radius: 16px;
+  --altcha-border-width: 1px;
+  --altcha-checkbox-border-color: var(--bg-brand);
+  --altcha-checkbox-border-radius: 8px;
+  --altcha-checkbox-border-width: 2px;
+  --altcha-checkbox-size: 24px;
+  --altcha-color-base: var(--bg-muted);
+  --altcha-color-base-content: var(--fg-strong);
+  --altcha-color-error: color-mix(
+    in oklch,
+    var(--fg-danger) 12%,
+    var(--bg-surface)
+  );
+  --altcha-color-error-content: var(--fg-danger);
+  --altcha-color-neutral: var(--bg-muted);
+  --altcha-color-neutral-content: var(--fg-secondary);
+  --altcha-color-primary: var(--bg-brand);
+  --altcha-color-primary-content: white;
+  --altcha-color-success: var(--bg-success-subtle);
+  --altcha-color-success-content: var(--fg-success);
+  --altcha-input-background-color: var(--bg-surface);
+  --altcha-max-width: 100%;
+  --altcha-padding: 12px;
+  --altcha-shadow: none;
+  --altcha-spinner-color: var(--fg-brand);
+}
+
+.altchaMount altcha-widget {
+  width: 100%;
 }
 
 .catalog {

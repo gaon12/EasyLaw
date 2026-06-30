@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
+import { AltchaCaptcha } from "@/components/altcha-captcha";
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 
@@ -26,22 +27,30 @@ type Plan = {
   steps: ResearchStep[];
 };
 
+type ResearchRequest = {
+  captchaPayload?: string;
+  nonce: number;
+  query: string;
+};
+
 export function LegalResearchPanel({
   initialQuery = "",
 }: {
   initialQuery?: string;
 }) {
   const [query, setQuery] = useState(initialQuery);
-  const [activeQuery, setActiveQuery] = useState(initialQuery);
+  const [activeRequest, setActiveRequest] = useState<ResearchRequest | null>(
+    initialQuery ? { nonce: 0, query: initialQuery } : null,
+  );
   const [plan, setPlan] = useState<Plan | null>(null);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [answer, setAnswer] = useState("");
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
   );
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
-    initialQuery ? "loading" : "idle",
-  );
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "done" | "error" | "captcha"
+  >(initialQuery ? "loading" : "idle");
   const submitGuardRef = useRef(false);
 
   const applyServerEvent = useCallback((eventText: string) => {
@@ -64,7 +73,7 @@ export function LegalResearchPanel({
   }, []);
 
   const runResearch = useCallback(
-    async (nextQuery: string, signal: AbortSignal) => {
+    async (nextQuery: string, signal: AbortSignal, captchaPayload?: string) => {
       setStatus("loading");
       setPlan(null);
       setEvidence([]);
@@ -72,7 +81,7 @@ export function LegalResearchPanel({
 
       try {
         const response = await fetch("/api/research/stream", {
-          body: JSON.stringify({ query: nextQuery }),
+          body: JSON.stringify({ captchaPayload, query: nextQuery }),
           headers: {
             "Content-Type": "application/json",
             ...clientFingerprintHeaders(),
@@ -82,6 +91,17 @@ export function LegalResearchPanel({
         });
 
         if (!response.ok || !response.body) {
+          if (response.status === 403) {
+            const data = await response.json().catch(() => null);
+            if (data?.error === "captcha_required") {
+              setErrorMessage(
+                data.message ??
+                  "보안 확인을 완료하면 질문을 계속 처리할 수 있어요.",
+              );
+              setStatus("captcha");
+              return;
+            }
+          }
           if (response.status === 429 || response.status === 401) {
             const data = await response.json().catch(() => null);
             setErrorMessage(
@@ -128,14 +148,33 @@ export function LegalResearchPanel({
   );
 
   useEffect(() => {
-    if (!activeQuery) {
+    if (!activeRequest) {
       return;
     }
 
     const abortController = new AbortController();
-    void runResearch(activeQuery, abortController.signal);
+    void runResearch(
+      activeRequest.query,
+      abortController.signal,
+      activeRequest.captchaPayload,
+    );
     return () => abortController.abort();
-  }, [activeQuery, runResearch]);
+  }, [activeRequest, runResearch]);
+
+  const handleCaptchaVerified = useCallback(
+    (payload: string) => {
+      const nextQuery = activeRequest?.query ?? query.trim();
+      if (!nextQuery) {
+        return;
+      }
+      setActiveRequest({
+        captchaPayload: payload,
+        nonce: Date.now(),
+        query: nextQuery,
+      });
+    },
+    [activeRequest?.query, query],
+  );
 
   const skeletonRows = useMemo(
     () => Array.from({ length: 4 }, (_, index) => index),
@@ -157,7 +196,10 @@ export function LegalResearchPanel({
             }
             if (query.trim()) {
               submitGuardRef.current = true;
-              setActiveQuery(query.trim());
+              setActiveRequest({
+                nonce: Date.now(),
+                query: query.trim(),
+              });
               queueMicrotask(() => {
                 submitGuardRef.current = false;
               });
@@ -272,6 +314,15 @@ export function LegalResearchPanel({
         )}
 
         {status === "error" && <p className={styles.notice}>{errorMessage}</p>}
+        {status === "captcha" && (
+          <>
+            <p className={styles.notice}>{errorMessage}</p>
+            <AltchaCaptcha
+              onVerified={handleCaptchaVerified}
+              resetKey={activeRequest?.nonce}
+            />
+          </>
+        )}
       </section>
     </div>
   );

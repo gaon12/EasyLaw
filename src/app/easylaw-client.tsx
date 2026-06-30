@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { AltchaCaptcha } from "@/components/altcha-captcha";
 import { LoginRequiredModal } from "@/components/auth-required-link";
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import {
@@ -53,6 +54,8 @@ export function JudgmentExplorer({
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [customText, setCustomText] = useState("");
+  const [captchaPrompt, setCaptchaPrompt] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   async function withLoading(action: () => Promise<void>) {
     if (isLoadingRef.current || authRedirectRef.current) {
@@ -72,7 +75,7 @@ export function JudgmentExplorer({
     }
   }
 
-  async function search() {
+  async function search(captchaPayload?: string) {
     if (!query.trim()) {
       setMessage("검색어를 입력해 주세요.");
       return;
@@ -86,10 +89,23 @@ export function JudgmentExplorer({
           "Content-Type": "application/json",
           ...clientFingerprintHeaders(),
         },
-        body: JSON.stringify({ query, email: email || undefined }),
+        body: JSON.stringify({
+          captchaPayload,
+          email: email || undefined,
+          query,
+        }),
       });
       const data = await response.json();
 
+      if (response.status === 403 && data.error === "captcha_required") {
+        setCaptchaPrompt(
+          data.message ??
+            "보안 확인을 완료하면 판결문 검색을 계속할 수 있어요.",
+        );
+        setCaptchaResetKey((current) => current + 1);
+        setMessage("보안 확인이 필요해요.");
+        return;
+      }
       if (response.status === 429 || response.status === 401) {
         setMessage(
           data.message ??
@@ -102,6 +118,7 @@ export function JudgmentExplorer({
         return;
       }
 
+      setCaptchaPrompt(null);
       setJudgments(data.judgments);
       setMessage(
         data.count > 0
@@ -239,7 +256,7 @@ export function JudgmentExplorer({
               <button
                 className={styles.primaryButton}
                 disabled={isLoading}
-                onClick={search}
+                onClick={() => void search()}
                 type="button"
               >
                 {isLoading ? "조회 중" : "판결문 확인하기"}
@@ -257,6 +274,15 @@ export function JudgmentExplorer({
                 비공개 판결문 저장
               </button>
             </div>
+            {captchaPrompt && (
+              <>
+                <p className={styles.notice}>{captchaPrompt}</p>
+                <AltchaCaptcha
+                  onVerified={(payload) => void search(payload)}
+                  resetKey={captchaResetKey}
+                />
+              </>
+            )}
             <p className={styles.notice}>{message}</p>
           </div>
         </div>

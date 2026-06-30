@@ -1,5 +1,10 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import {
+  captchaRequiredResponse,
+  shouldOfferCaptcha,
+  verifyAltchaPayload,
+} from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { buildResearchPlan } from "@/lib/legal-research";
@@ -10,6 +15,7 @@ import {
 } from "@/lib/security/anonymous-access";
 
 const requestSchema = z.object({
+  captchaPayload: z.string().max(12_000).optional(),
   query: z.string().trim().min(2).max(LEGAL_RESEARCH_QUERY_MAX_LENGTH),
 });
 
@@ -26,11 +32,24 @@ export async function POST(request: NextRequest) {
   }
 
   const db = getDatabase();
-  const access = checkAnonymousAccess(db, request, {
-    costly: true,
-    scope: "legal_research",
-  });
+  const captchaVerified = await verifyAltchaPayload(
+    db,
+    parsed.data.captchaPayload,
+  );
+  const access = captchaVerified
+    ? {
+        allowed: true as const,
+        anonymousId: "captcha_verified",
+        release() {},
+      }
+    : checkAnonymousAccess(db, request, {
+        costly: true,
+        scope: "legal_research",
+      });
   if (!access.allowed) {
+    if (shouldOfferCaptcha(db, access.status)) {
+      return captchaRequiredResponse(access.setCookie);
+    }
     return anonymousLimitResponse(access);
   }
 

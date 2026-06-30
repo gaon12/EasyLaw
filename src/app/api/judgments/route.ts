@@ -1,5 +1,10 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import {
+  captchaRequiredResponse,
+  shouldOfferCaptcha,
+  verifyAltchaPayload,
+} from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
 import {
   searchExternalJudgments,
@@ -19,6 +24,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const createJudgmentRequest = z.object({
+  captchaPayload: z.string().max(12_000).optional(),
   query: z.string().trim().min(1).max(JUDGMENT_SEARCH_QUERY_MAX_LENGTH),
   email: z.string().email().optional(),
 });
@@ -43,10 +49,23 @@ export async function POST(request: NextRequest) {
   }
 
   const db = getDatabase();
-  const access = checkAnonymousAccess(db, request, {
-    scope: "judgment_search",
-  });
+  const captchaVerified = await verifyAltchaPayload(
+    db,
+    body.data.captchaPayload,
+  );
+  const access = captchaVerified
+    ? {
+        allowed: true as const,
+        anonymousId: "captcha_verified",
+        release() {},
+      }
+    : checkAnonymousAccess(db, request, {
+        scope: "judgment_search",
+      });
   if (!access.allowed) {
+    if (shouldOfferCaptcha(db, access.status)) {
+      return captchaRequiredResponse(access.setCookie);
+    }
     return anonymousLimitResponse(access);
   }
 
