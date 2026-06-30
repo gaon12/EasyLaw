@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+﻿import type { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   captchaRequiredResponse,
@@ -8,7 +8,7 @@ import {
 import { getDatabase } from "@/lib/db";
 import {
   searchExternalJudgments,
-  syncSampleExternalCatalog,
+  syncExternalCatalog,
   upsertJudgmentFromExternal,
 } from "@/lib/external-law";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
@@ -31,7 +31,7 @@ const createJudgmentRequest = z.object({
 
 export async function GET() {
   const db = getDatabase();
-  await syncSampleExternalCatalog(db);
+  await syncExternalCatalog(db);
   return Response.json({ judgments: getPublicJudgments(db) });
 }
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const records = await searchExternalJudgments(body.data.query);
+    const records = await searchExternalJudgments(db, body.data.query);
     for (const record of records) {
       const judgmentId = upsertJudgmentFromExternal(db, record);
       if (body.data.email) {

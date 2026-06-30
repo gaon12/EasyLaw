@@ -6,7 +6,7 @@ import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { setSetting } from "@/lib/settings";
 
 const requestSchema = z.object({
-  scope: z.enum(["captcha", "llm", "mcp"]),
+  scope: z.enum(["captcha", "llm", "mcp", "openLaw"]),
   settings: z.record(z.string(), z.string().max(2000)),
 });
 
@@ -23,6 +23,7 @@ const allowedKeys = {
     "mcp_case_law_endpoint",
     "mcp_timeout_ms",
   ]),
+  openLaw: new Set(["open_law_oc", "open_law_api_base_url"]),
 };
 
 const validators = {
@@ -54,7 +55,12 @@ export async function POST(request: Request) {
     ) {
       return Response.json({ error: "invalid_settings" }, { status: 400 });
     }
-    setSetting(db, key, trimmedValue, key.endsWith("_api_key"));
+    setSetting(
+      db,
+      key,
+      trimmedValue,
+      key.endsWith("_api_key") || key === "open_law_oc",
+    );
   }
 
   return Response.json({ ok: true });

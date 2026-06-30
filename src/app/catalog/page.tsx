@@ -1,6 +1,6 @@
-import { AppShell } from "@/components/site-chrome";
+﻿import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { syncExternalCatalog } from "@/lib/external-law";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { pageMetadata } from "@/lib/metadata";
 import { getPublicJudgments } from "@/lib/queries";
@@ -22,7 +22,7 @@ export default async function CatalogPage({
   const { q } = await searchParams;
   const initialQuery = typeof q === "string" ? q : "";
   const db = getDatabase();
-  await syncSampleExternalCatalog(db);
+  await syncExternalCatalog(db);
   const allJudgments = getPublicJudgments(db);
   const normalizedQuery = initialQuery.trim().toLowerCase();
   const judgments = normalizedQuery

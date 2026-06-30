@@ -1,6 +1,6 @@
-import { AppShell } from "@/components/site-chrome";
+﻿import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { syncExternalCatalog } from "@/lib/external-law";
 import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getManagementRows } from "@/lib/queries";
 import styles from "../page.module.css";
@@ -15,7 +15,7 @@ export const metadata = pageMetadata({
 
 export default async function AdminPage() {
   const db = getDatabase();
-  await syncSampleExternalCatalog(db);
+  await syncExternalCatalog(db);
   const snapshot = getDashboardSnapshot(db);
   const rows = getManagementRows(db);
 
@@ -54,6 +54,9 @@ export default async function AdminPage() {
           <div className={styles.buttonRow}>
             <a className={styles.secondaryButton} href="/admin/llm">
               LLM API 설정
+            </a>
+            <a className={styles.secondaryButton} href="/admin/open-law">
+              공개법령 API 설정
             </a>
             <a className={styles.secondaryButton} href="/admin/mcp">
               MCP 설정

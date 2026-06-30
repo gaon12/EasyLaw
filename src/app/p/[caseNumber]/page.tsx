@@ -1,8 +1,8 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { JudgmentDetailView } from "@/components/judgment-detail";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { syncExternalCatalog } from "@/lib/external-law";
 import { pageMetadata } from "@/lib/metadata";
 import {
   getLatestAnalysis,
@@ -16,7 +16,7 @@ export async function generateMetadata({
 }: PageProps<"/p/[caseNumber]">) {
   const { caseNumber } = await params;
   const db = getDatabase();
-  await syncSampleExternalCatalog(db);
+  await syncExternalCatalog(db);
   const judgment = getPublicJudgmentByCaseNumber(db, caseNumber);
 
   if (!judgment) {
@@ -40,7 +40,7 @@ export default async function PublicJudgmentPage({
 }: PageProps<"/p/[caseNumber]">) {
   const { caseNumber } = await params;
   const db = getDatabase();
-  await syncSampleExternalCatalog(db);
+  await syncExternalCatalog(db);
   const judgment = getPublicJudgmentByCaseNumber(db, caseNumber);
   if (!judgment) {
     notFound();
