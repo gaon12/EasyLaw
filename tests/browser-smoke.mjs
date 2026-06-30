@@ -252,6 +252,33 @@ try {
   await anonymousPage.getByLabel("위키 분류").waitFor();
   await anonymousPage.getByLabel("최근 변경").waitFor();
 
+  const directErrorContext = await browser.newContext();
+  const directErrorPage = await directErrorContext.newPage();
+  await directErrorPage.goto(`${baseUrl}/missing-direct-page`, {
+    waitUntil: "networkidle",
+  });
+  await directErrorPage.getByRole("link", { name: "홈으로 이동" }).waitFor();
+  if (
+    (await directErrorPage
+      .getByRole("button", { name: "뒤로 돌아가기" })
+      .count()) !== 0
+  ) {
+    throw new Error("Direct error page showed a back button without history.");
+  }
+  await directErrorContext.close();
+
+  await anonymousPage.goto(baseUrl, { waitUntil: "networkidle" });
+  await anonymousPage.evaluate(() => {
+    const link = document.createElement("a");
+    link.href = "/missing-from-home";
+    link.textContent = "missing";
+    document.body.append(link);
+    link.click();
+  });
+  await anonymousPage.getByRole("button", { name: "뒤로 돌아가기" }).waitFor();
+  await anonymousPage.getByRole("button", { name: "뒤로 돌아가기" }).click();
+  await anonymousPage.waitForURL(baseUrl);
+
   const themeToggle = anonymousPage.getByRole("button", {
     name: "다크 모드로 전환",
   });
