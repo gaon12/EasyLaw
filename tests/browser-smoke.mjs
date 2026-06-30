@@ -154,6 +154,10 @@ try {
   if (!iconLinks.some((href) => href.includes("/favicon.ico"))) {
     throw new Error("Page head did not advertise the favicon.");
   }
+  const appIconResponse = await page.request.get(`${baseUrl}/icon.png`);
+  if (!appIconResponse.ok()) {
+    throw new Error("Service logo app icon was not served from /icon.png.");
+  }
   await page
     .getByRole("heading", {
       name: "최고 관리자님, 무엇을 이해해볼까요?",
@@ -239,6 +243,14 @@ try {
   if ((await anonymousPage.getByText(/외부 API/).count()) !== 0) {
     throw new Error("Landing page still exposes implementation terminology.");
   }
+
+  await anonymousPage.goto(`${baseUrl}/guide`, { waitUntil: "networkidle" });
+  await anonymousPage
+    .getByRole("heading", { name: "쉬운 판결문 위키" })
+    .waitFor();
+  await anonymousPage.getByRole("heading", { name: "대문" }).waitFor();
+  await anonymousPage.getByLabel("위키 분류").waitFor();
+  await anonymousPage.getByLabel("최근 변경").waitFor();
 
   const themeToggle = anonymousPage.getByRole("button", {
     name: "다크 모드로 전환",
