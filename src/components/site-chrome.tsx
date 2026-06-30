@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import styles from "@/app/page.module.css";
@@ -5,13 +6,13 @@ import {
   BellIcon,
   BuildingIcon,
   FileTextIcon,
-  LoginIcon,
   SearchIcon,
   SettingsIcon,
   ShieldIcon,
-  UserPlusIcon,
 } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { getDatabase } from "@/lib/db";
+import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 const mainNav = [
   { href: "/catalog", label: "판결문 찾기" },
@@ -22,7 +23,12 @@ const mainNav = [
   { href: "/support", label: "고객센터" },
 ];
 
-export function AppHeader() {
+export async function AppHeader() {
+  const sessionUser = getSessionUser(
+    getDatabase(),
+    (await cookies()).get(SESSION_COOKIE)?.value,
+  );
+
   return (
     <header className={styles.govHeader}>
       <div className={styles.utilityBar}>
@@ -50,14 +56,19 @@ export function AppHeader() {
             <SearchIcon size={18} />
             통합검색
           </a>
-          <a href="/login">
-            <LoginIcon size={18} />
-            로그인
-          </a>
-          <a href="/signup">
-            <UserPlusIcon size={18} />
-            회원가입
-          </a>
+          {sessionUser ? (
+            <a className={styles.accountLink} href="/me">
+              <span aria-hidden="true">
+                {sessionUser.displayName.slice(0, 1)}
+              </span>
+              {sessionUser.displayName}
+            </a>
+          ) : (
+            <>
+              <a href="/login">로그인</a>
+              <a href="/signup">회원가입</a>
+            </>
+          )}
           <ThemeToggle />
         </div>
       </div>

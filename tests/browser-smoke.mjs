@@ -137,6 +137,14 @@ try {
   }
   await page.getByRole("link", { name: "EasyLaw 시작하기" }).click();
   await page.waitForURL(baseUrl);
+  await page.getByRole("link", { name: "최고 관리자" }).waitFor();
+  if ((await page.locator('a[href="/login"]').count()) !== 0) {
+    throw new Error("Installed administrator was not shown as signed in.");
+  }
+  const meResponse = await page.request.get(`${baseUrl}/me`);
+  if (!meResponse.ok()) {
+    throw new Error("Installed administrator could not access their account.");
+  }
 
   const setupResponse = await page.request.get(`${baseUrl}/api/setup/status`);
   if (setupResponse.status() !== 410) {
@@ -160,9 +168,30 @@ try {
 
   await page.getByRole("heading", { level: 1, name: "EasyLaw" }).waitFor();
   await page.getByRole("region", { name: "EasyLaw 결과 예시" }).waitFor();
-  await page.locator('form[action="/catalog"] input').waitFor();
-  await page.locator('a[href="/login"]').first().waitFor();
-  await page.locator('a[href="/signup"]').first().waitFor();
+  await page.getByLabel("판결문 검색").waitFor();
+  if (
+    (await page
+      .getByText("판결문 이해 보조 서비스", { exact: true })
+      .count()) !== 0
+  ) {
+    throw new Error("Removed hero eyebrow is still visible.");
+  }
+  const questionMode = page.getByRole("switch", {
+    name: "자연어 질문 모드",
+  });
+  await questionMode.click();
+  await page.getByLabel("법률 상황 질문").waitFor();
+  await page.getByText("이런 질문을 할 수 있어요", { exact: true }).waitFor();
+  const exampleQuestion =
+    "고블린이 편의점에서 현금 대신 포션으로 거래하자는데 가능한가요?";
+  await page.getByRole("button", { name: exampleQuestion }).click();
+  if (
+    (await page.getByLabel("법률 상황 질문").inputValue()) !== exampleQuestion
+  ) {
+    throw new Error(
+      "Example question did not populate the natural-language input.",
+    );
+  }
   if ((await page.getByText("공개 판결문", { exact: true }).count()) !== 0) {
     throw new Error(
       "Landing page still exposes the removed public catalog section.",
