@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { getDatabase } from "@/lib/db";
+import {
+  CUSTOM_JUDGMENT_TEXT_MAX_LENGTH,
+  CUSTOM_JUDGMENT_TITLE_MAX_LENGTH,
+} from "@/lib/input-limits";
 import { newId } from "@/lib/security/crypto";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { nowIso } from "@/lib/time";
@@ -9,8 +13,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
-  title: z.string().trim().min(2).max(120),
-  text: z.string().trim().min(20).max(500_000),
+  title: z.string().trim().min(2).max(CUSTOM_JUDGMENT_TITLE_MAX_LENGTH),
+  text: z.string().trim().min(20).max(CUSTOM_JUDGMENT_TEXT_MAX_LENGTH),
 });
 
 export async function POST(request: Request) {

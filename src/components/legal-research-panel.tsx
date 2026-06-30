@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
+import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
+import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 
 type ResearchStep = {
   id: string;
@@ -34,6 +36,9 @@ export function LegalResearchPanel({
   const [plan, setPlan] = useState<Plan | null>(null);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [answer, setAnswer] = useState("");
+  const [errorMessage, setErrorMessage] = useState(
+    "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+  );
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">(
     initialQuery ? "loading" : "idle",
   );
@@ -68,12 +73,30 @@ export function LegalResearchPanel({
       try {
         const response = await fetch("/api/research/stream", {
           body: JSON.stringify({ query: nextQuery }),
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...clientFingerprintHeaders(),
+          },
           method: "POST",
           signal,
         });
 
         if (!response.ok || !response.body) {
+          if (response.status === 429 || response.status === 401) {
+            const data = await response.json().catch(() => null);
+            setErrorMessage(
+              data?.message ??
+                "비회원 이용 한도를 넘었어요. 잠시 후 다시 시도하거나 로그인해 주세요.",
+            );
+          } else if (response.status === 400) {
+            setErrorMessage(
+              `질문은 ${LEGAL_RESEARCH_QUERY_MAX_LENGTH.toLocaleString("ko-KR")}자 이내로 입력해 주세요.`,
+            );
+          } else {
+            setErrorMessage(
+              "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+            );
+          }
           setStatus("error");
           return;
         }
@@ -144,6 +167,7 @@ export function LegalResearchPanel({
           <textarea
             aria-label="AI 법률 질문"
             id="research-query"
+            maxLength={LEGAL_RESEARCH_QUERY_MAX_LENGTH}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="예: 중고거래 사기를 당했는데 신고와 배상 절차가 궁금합니다."
             value={query}
@@ -247,11 +271,7 @@ export function LegalResearchPanel({
           </div>
         )}
 
-        {status === "error" && (
-          <p className={styles.notice}>
-            질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.
-          </p>
-        )}
+        {status === "error" && <p className={styles.notice}>{errorMessage}</p>}
       </section>
     </div>
   );

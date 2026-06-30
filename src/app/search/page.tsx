@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/site-chrome";
+import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
 
@@ -27,6 +28,7 @@ export default function SearchPage() {
             <input
               className={styles.input}
               id="site-search"
+              maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
               name="q"
               placeholder="사건번호, 법원명, 판결문 제목"
             />

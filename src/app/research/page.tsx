@@ -1,5 +1,6 @@
 import { LegalResearchPanel } from "@/components/legal-research-panel";
 import { AppShell } from "@/components/site-chrome";
+import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
 
@@ -16,7 +17,8 @@ export default async function ResearchPage({
   searchParams,
 }: PageProps<"/research">) {
   const { q } = await searchParams;
-  const initialQuery = typeof q === "string" ? q : "";
+  const initialQuery =
+    typeof q === "string" ? q.slice(0, LEGAL_RESEARCH_QUERY_MAX_LENGTH) : "";
 
   return (
     <AppShell>

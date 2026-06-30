@@ -3,6 +3,10 @@
 import { useState } from "react";
 import styles from "@/app/page.module.css";
 import { SearchIcon } from "@/components/icons";
+import {
+  JUDGMENT_SEARCH_QUERY_MAX_LENGTH,
+  LEGAL_RESEARCH_QUERY_MAX_LENGTH,
+} from "@/lib/input-limits";
 
 const exampleQuestions = [
   "인터넷 장터에서 물품 대금을 먼저 송금했는데 판매자가 물건을 보내지 않고 계정을 탈퇴했습니다. 경찰서에 사기 혐의로 신고하는 절차와 피해 금액을 배상받는 방법이 궁금합니다.",
@@ -52,6 +56,11 @@ export function LandingSearch() {
         <input
           aria-label={isQuestionMode ? "법률 상황 질문" : "판결문 검색"}
           name="q"
+          maxLength={
+            isQuestionMode
+              ? LEGAL_RESEARCH_QUERY_MAX_LENGTH
+              : JUDGMENT_SEARCH_QUERY_MAX_LENGTH
+          }
           onChange={(event) => setQuery(event.target.value)}
           placeholder={
             isQuestionMode

@@ -42,11 +42,8 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/org/") ||
     pathname === "/me" ||
     pathname.startsWith("/me/") ||
-    pathname === "/research" ||
-    pathname.startsWith("/research/") ||
     pathname === "/cp" ||
     pathname.startsWith("/cp/") ||
-    pathname === "/api/research/stream" ||
     pathname.startsWith("/api/admin/");
   if (complete && managementPath) {
     const user = getSessionUser(

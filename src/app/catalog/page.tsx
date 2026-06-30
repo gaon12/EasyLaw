@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { pageMetadata } from "@/lib/metadata";
 import { getPublicJudgments } from "@/lib/queries";
 import { JudgmentExplorer } from "../easylaw-client";
@@ -54,6 +55,7 @@ export default async function CatalogPage({
               <input
                 aria-label="판결문 검색어"
                 defaultValue={initialQuery}
+                maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
                 name="q"
                 placeholder="사건번호, 법원명, 판결문 제목"
               />
