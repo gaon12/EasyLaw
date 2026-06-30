@@ -2,15 +2,14 @@
 
 import Image from "next/image";
 import { useEffect } from "react";
+import { ErrorNavigationActions } from "@/components/error-navigation-actions";
 import "./globals.css";
 import styles from "./page.module.css";
 
 export default function GlobalError({
   error,
-  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
 }) {
   useEffect(() => {
     console.error(error);
@@ -36,18 +35,7 @@ export default function GlobalError({
             <p>
               잠깐만요. EasyLaw 캐릭터가 흩어진 서류를 다시 주워 담는 중입니다.
             </p>
-            <div className={styles.errorActions}>
-              <button
-                className={styles.primaryButton}
-                onClick={() => unstable_retry()}
-                type="button"
-              >
-                다시 시도
-              </button>
-              <a className={styles.secondaryButton} href="/">
-                홈으로 가기
-              </a>
-            </div>
+            <ErrorNavigationActions />
           </section>
         </main>
       </body>

@@ -1,21 +1,15 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
 import styles from "@/app/page.module.css";
+import { ErrorNavigationActions } from "./error-navigation-actions";
 
 export function ErrorState({
   eyebrow,
   title,
   description,
-  extraAction,
-  primaryAction,
-  secondaryAction,
 }: {
   eyebrow: string;
   title: string;
   description: string;
-  extraAction?: ReactNode;
-  primaryAction: { href: string; label: string };
-  secondaryAction?: { href: string; label: string };
 }) {
   return (
     <section className={styles.errorState} aria-labelledby="error-title">
@@ -30,17 +24,7 @@ export function ErrorState({
       <span className={styles.badge}>{eyebrow}</span>
       <h1 id="error-title">{title}</h1>
       <p>{description}</p>
-      <div className={styles.errorActions}>
-        <a className={styles.primaryButton} href={primaryAction.href}>
-          {primaryAction.label}
-        </a>
-        {secondaryAction && (
-          <a className={styles.secondaryButton} href={secondaryAction.href}>
-            {secondaryAction.label}
-          </a>
-        )}
-        {extraAction}
-      </div>
+      <ErrorNavigationActions />
     </section>
   );
 }

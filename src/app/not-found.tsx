@@ -17,8 +17,6 @@ export default function NotFound() {
           eyebrow="404"
           title="판결문이 잠깐 숨바꼭질 중이에요"
           description="주소를 다시 확인해 주세요. 캐릭터가 돋보기까지 들었는데도 이 페이지는 아직 못 찾았어요."
-          primaryAction={{ href: "/", label: "홈으로 돌아가기" }}
-          secondaryAction={{ href: "/catalog", label: "판결문 검색하기" }}
         />
       </main>
     </AppShell>
