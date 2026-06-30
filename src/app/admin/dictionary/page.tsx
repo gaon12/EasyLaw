@@ -1,4 +1,5 @@
 import { DictionaryUpdateButton } from "@/components/dictionary-update-button";
+import { LegalTermForm } from "@/components/legal-term-form";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { latestDictionaryImport } from "@/lib/dictionary";
@@ -9,8 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = pageMetadata({
   title: "용어 사전 관리",
-  description:
-    "표준국어대사전 데이터를 업데이트하고 용어 설명 기능을 관리합니다.",
+  description: "법률 용어, 한국어기초사전, 표준국어대사전 데이터를 관리합니다.",
   robots: { index: false, follow: false },
 });
 
@@ -25,19 +25,30 @@ export default function AdminDictionaryPage() {
             <div>
               <h1>용어 사전 관리</h1>
               <p>
-                드래그한 어려운 용어를 먼저 로컬 표준국어대사전에서 찾고, 필요한
-                경우 MCP/AI 설명을 덧붙이는 기반 데이터입니다.
+                용어 설명은 자체 법률 용어 사전, 한국어기초사전, 표준국어대사전
+                순서로 확인한 뒤 문맥 설명을 덧붙입니다.
               </p>
             </div>
-            <span className={styles.badge}>표준국어대사전</span>
+            <span className={styles.badge}>우선순위 사전</span>
           </div>
           <div className={styles.contentCard}>
-            <h2 className={styles.panelTitle}>데이터 업데이트</h2>
+            <h2 className={styles.panelTitle}>공개 사전 데이터 업데이트</h2>
             <p>
-              국립국어원 다운로드 ZIP을 임시 파일로 받은 뒤 JSON을 읽어 DB에
-              저장합니다. 반영이 끝나면 ZIP과 압축 해제 데이터는 삭제합니다.
+              한국어기초사전은 GET ZIP, 표준국어대사전은 POST ZIP으로 받은 뒤
+              JSON만 DB에 저장합니다. 반영이 끝나면 임시 파일은 삭제합니다.
             </p>
             <DictionaryUpdateButton />
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.contentCard}>
+            <h2 className={styles.panelTitle}>자체 법률 용어 사전</h2>
+            <p>
+              서비스가 반드시 먼저 보여줘야 하는 법률 용어 설명을 등록합니다.
+              같은 단어가 여러 사전에 있어도 자체 설명이 1순위입니다.
+            </p>
+            <LegalTermForm />
           </div>
         </section>
 
