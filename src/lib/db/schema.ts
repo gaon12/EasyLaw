@@ -293,4 +293,36 @@ export const migrations = [
         ADD COLUMN original_text TEXT;
     `,
   },
+  {
+    id: 6,
+    name: "standard_dictionary_terms",
+    sql: `
+      CREATE TABLE IF NOT EXISTS dictionary_terms (
+        id TEXT PRIMARY KEY,
+        word TEXT NOT NULL,
+        sense_no TEXT NOT NULL DEFAULT '',
+        part_of_speech TEXT,
+        definition TEXT NOT NULL,
+        origin TEXT,
+        raw_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS dictionary_terms_unique_idx
+        ON dictionary_terms(word, sense_no, definition);
+
+      CREATE INDEX IF NOT EXISTS dictionary_terms_word_idx
+        ON dictionary_terms(word);
+
+      CREATE TABLE IF NOT EXISTS dictionary_imports (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        imported_count INTEGER NOT NULL DEFAULT 0,
+        failure_reason TEXT,
+        created_at TEXT NOT NULL,
+        completed_at TEXT
+      );
+    `,
+  },
 ] as const;

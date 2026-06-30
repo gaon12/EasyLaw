@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { TermExplainer } from "@/components/term-explainer";
 import { getSiteUrl, siteDescription, siteName } from "@/lib/metadata";
 import "./globals.css";
 
@@ -91,7 +92,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <TermExplainer />
+      </body>
     </html>
   );
 }
