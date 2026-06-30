@@ -60,11 +60,20 @@ function renderAction(action: EmailAction | undefined) {
     return "";
   }
 
+  const escapedUrl = escapeHtml(action.url);
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 28px;">
       <tr>
         <td bgcolor="#0066FF" style="border-radius: 8px;">
-          <a href="${escapeHtml(action.url)}" style="display: inline-block; padding: 13px 22px; color: #FFFFFF; font-size: 15px; font-weight: 700; line-height: 20px; text-decoration: none;">${escapeHtml(action.label)}</a>
+          <a href="${escapedUrl}" style="display: inline-block; padding: 13px 22px; color: #FFFFFF; font-size: 15px; font-weight: 700; line-height: 20px; text-decoration: none;">${escapeHtml(action.label)}</a>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 16px;">
+      <tr>
+        <td style="color: #667085; font-size: 13px; line-height: 20px;">
+          버튼이 열리지 않으면 아래 주소를 브라우저에 복사해 붙여넣어 주세요.<br>
+          <span style="color: #17191C; word-break: break-all;">${escapedUrl}</span>
         </td>
       </tr>
     </table>`;
@@ -238,7 +247,7 @@ export function renderMagicLinkEmail(input: {
     title: "로그인을 계속해 주세요",
     body: [
       "아래 버튼을 누르면 EasyLaw에 로그인됩니다.",
-      "이 링크는 짧은 시간 동안만 사용할 수 있어요.",
+      "이 링크는 한 번만 사용할 수 있고, 짧은 시간 동안만 유효해요.",
     ],
     action: {
       label: "EasyLaw 로그인",
