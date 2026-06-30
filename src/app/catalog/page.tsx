@@ -10,12 +10,22 @@ export const dynamic = "force-dynamic";
 export default async function CatalogPage({
   searchParams,
 }: PageProps<"/catalog">) {
-  const { mode, q } = await searchParams;
+  const { q } = await searchParams;
   const initialQuery = typeof q === "string" ? q : "";
-  const isQuestionMode = mode === "question";
   const db = getDatabase();
   await syncSampleExternalCatalog(db);
-  const judgments = getPublicJudgments(db);
+  const allJudgments = getPublicJudgments(db);
+  const normalizedQuery = initialQuery.trim().toLowerCase();
+  const judgments = normalizedQuery
+    ? allJudgments.filter((judgment) =>
+        [
+          judgment.caseNumber,
+          judgment.courtName,
+          judgment.title,
+          judgment.caseType,
+        ].some((value) => value.toLowerCase().includes(normalizedQuery)),
+      )
+    : allJudgments;
 
   return (
     <AppShell>
@@ -23,18 +33,31 @@ export default async function CatalogPage({
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>판결문 찾기</h1>
+              <h1>{initialQuery ? "판결문 검색 결과" : "판결문 검색"}</h1>
               <p>
-                공개 출처가 확인된 판결문을 검색하고, 쉬운 설명 생성이 끝나면
-                이메일로 알림을 받아요.
+                사건번호, 법원명, 판결문 제목으로 공개 판결문을 바로 찾아요.
+                직접 붙여넣은 내 문서는 로그인 후 비공개로 저장할 수 있어요.
               </p>
             </div>
             <span className={styles.badge}>확인된 정보 우선</span>
           </div>
+          {initialQuery && (
+            <form action="/catalog" className={styles.searchForm}>
+              <input
+                aria-label="판결문 검색어"
+                defaultValue={initialQuery}
+                name="q"
+                placeholder="사건번호, 법원명, 판결문 제목"
+              />
+              <button className={styles.primaryButton} type="submit">
+                다시 검색
+              </button>
+            </form>
+          )}
           <JudgmentExplorer
             initialJudgments={judgments}
             initialQuery={initialQuery}
-            questionMode={isQuestionMode}
+            showWorkspace={!initialQuery}
           />
         </section>
       </main>

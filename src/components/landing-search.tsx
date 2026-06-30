@@ -44,7 +44,10 @@ export function LandingSearch() {
         </button>
       </div>
 
-      <form className={styles.heroSearch} action="/catalog">
+      <form
+        className={styles.heroSearch}
+        action={isQuestionMode ? "/research" : "/catalog"}
+      >
         <SearchIcon size={22} />
         <input
           aria-label={isQuestionMode ? "법률 상황 질문" : "판결문 검색"}
@@ -57,12 +60,7 @@ export function LandingSearch() {
           }
           value={query}
         />
-        <input
-          name="mode"
-          type="hidden"
-          value={isQuestionMode ? "question" : "judgment"}
-        />
-        <button type="submit">{isQuestionMode ? "질문하기" : "찾기"}</button>
+        <button type="submit">{isQuestionMode ? "질문하기" : "검색"}</button>
       </form>
 
       {isQuestionMode && (

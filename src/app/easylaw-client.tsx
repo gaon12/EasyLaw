@@ -20,13 +20,15 @@ export function JudgmentExplorer({
   initialJudgments,
   initialQuery = "",
   questionMode = false,
+  showWorkspace = true,
 }: {
   compact?: boolean;
   initialJudgments: Judgment[];
   initialQuery?: string;
   questionMode?: boolean;
+  showWorkspace?: boolean;
 }) {
-  const [query, setQuery] = useState(initialQuery || "2023구합54112");
+  const [query, setQuery] = useState(initialQuery);
   const [email, setEmail] = useState("");
   const [judgments, setJudgments] = useState(initialJudgments);
   const [message, setMessage] = useState(
@@ -111,7 +113,7 @@ export function JudgmentExplorer({
 
   return (
     <>
-      {!compact && (
+      {!compact && showWorkspace && (
         <div className={styles.workspace}>
           <h2>판결문 이해 작업대</h2>
           <p>
@@ -240,7 +242,12 @@ export function JudgmentExplorer({
           </article>
         ))}
       </div>
-      {compact && <p className={styles.notice}>{message}</p>}
+      {visibleJudgments.length === 0 && (
+        <p className={styles.notice}>검색 조건에 맞는 판결문이 아직 없어요.</p>
+      )}
+      {(compact || !showWorkspace) && (
+        <p className={styles.notice}>{message}</p>
+      )}
     </>
   );
 }
