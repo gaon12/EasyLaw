@@ -8,13 +8,13 @@ type AuthEmailFormProps = {
   nextPath?: string;
 };
 
+type AuthStatus = "idle" | "loading" | "success" | "error";
+
 export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [message, setMessage] = useState("");
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
+  const [status, setStatus] = useState<AuthStatus>("idle");
   const isSubmittingRef = useRef(false);
 
   async function submit() {
@@ -67,70 +67,107 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
   }
 
   return (
-    <form
-      className={styles.authForm}
-      onSubmit={(event) => {
-        event.preventDefault();
-        void submit();
-      }}
-    >
-      <label className={styles.label} htmlFor="email">
-        이메일
-      </label>
-      <input
-        autoComplete="email"
-        className={styles.input}
-        id="email"
-        onChange={(event) => setEmail(event.target.value)}
-        placeholder="you@example.com"
-        type="email"
-        value={email}
-      />
-      {mode === "signup" && (
-        <>
-          <label className={styles.label} htmlFor="signup-name">
-            이름
-          </label>
-          <input
-            autoComplete="name"
-            className={styles.input}
-            id="signup-name"
-            onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="홍길동"
-            type="text"
-            value={displayName}
-          />
-        </>
-      )}
-      <button
-        className={styles.primaryButton}
-        disabled={status === "loading"}
-        type="submit"
+    <>
+      <form
+        className={styles.authForm}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
       >
-        {status === "loading"
-          ? "보내는 중"
-          : mode === "login"
-            ? "이메일로 인증하기"
-            : "이메일 인증하고 가입하기"}
-      </button>
-      {mode === "login" && (
-        <a className={styles.secondaryButton} href="/signup">
-          회원가입하기
-        </a>
-      )}
-      {status !== "idle" && (
-        <output
-          className={
-            status === "success"
-              ? styles.settingsNoticeSuccess
-              : status === "error"
-                ? styles.settingsNoticeError
-                : styles.settingsNotice
-          }
+        <label className={styles.label} htmlFor="email">
+          이메일
+        </label>
+        <input
+          autoComplete="email"
+          className={styles.input}
+          id="email"
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+          type="email"
+          value={email}
+        />
+        {mode === "signup" && (
+          <>
+            <label className={styles.label} htmlFor="signup-name">
+              이름
+            </label>
+            <input
+              autoComplete="name"
+              className={styles.input}
+              id="signup-name"
+              onChange={(event) => setDisplayName(event.target.value)}
+              placeholder="홍길동"
+              type="text"
+              value={displayName}
+            />
+          </>
+        )}
+        <button
+          className={styles.primaryButton}
+          disabled={status === "loading"}
+          type="submit"
         >
-          {message}
-        </output>
-      )}
-    </form>
+          {status === "loading"
+            ? "보내는 중"
+            : mode === "login"
+              ? "이메일로 인증하기"
+              : "이메일 인증하고 가입하기"}
+        </button>
+        {mode === "login" && (
+          <a className={styles.secondaryButton} href="/signup">
+            회원가입하기
+          </a>
+        )}
+      </form>
+      <AuthStatusModal
+        message={message}
+        onClose={() => setStatus("idle")}
+        status={status}
+      />
+    </>
+  );
+}
+
+function AuthStatusModal({
+  message,
+  onClose,
+  status,
+}: {
+  message: string;
+  onClose: () => void;
+  status: AuthStatus;
+}) {
+  if (status !== "success" && status !== "error") {
+    return null;
+  }
+
+  const isSuccess = status === "success";
+  const title = isSuccess ? "메일을 보냈어요" : "다시 확인해 주세요";
+
+  return (
+    <div className={styles.modalBackdrop} role="presentation">
+      <section
+        aria-labelledby="auth-status-title"
+        aria-modal="true"
+        className={styles.authModal}
+        role="dialog"
+      >
+        <span className={isSuccess ? styles.statusReady : styles.statusReview}>
+          {isSuccess ? "인증 안내" : "확인 필요"}
+        </span>
+        <h2 id="auth-status-title">{title}</h2>
+        <p>{message}</p>
+        <div className={styles.authModalActions}>
+          <button
+            className={styles.primaryButton}
+            onClick={onClose}
+            type="button"
+          >
+            확인
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

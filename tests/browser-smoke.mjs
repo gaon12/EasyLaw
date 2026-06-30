@@ -213,8 +213,20 @@ try {
     .getByRole("button", { name: "이메일로 인증하기" })
     .click();
   await anonymousPage
+    .getByRole("dialog", { name: "메일을 보냈어요" })
+    .waitFor();
+  await anonymousPage
     .getByText("인증 링크를 이메일로 보냈어요", { exact: false })
     .waitFor();
+  if (
+    (await anonymousPage
+      .locator("form")
+      .getByText("인증 링크를 이메일로 보냈어요", { exact: false })
+      .count()) !== 0
+  ) {
+    throw new Error("Login form still shows the mail notice below the form.");
+  }
+  await anonymousPage.getByRole("button", { name: "확인" }).click();
   if (
     (await anonymousPage
       .getByRole("link", { name: "개발용 로그인 링크 열기" })
