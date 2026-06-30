@@ -17,11 +17,6 @@ export async function GET(request: Request) {
       new URL("/login?reason=invalid_link", request.url),
     );
   }
-  if (result.requiresTotp) {
-    return NextResponse.redirect(
-      new URL("/login?reason=totp_required", request.url),
-    );
-  }
 
   const session = createUserSession(getDatabase(), result.userId);
   const response = NextResponse.redirect(new URL(nextPath, request.url));

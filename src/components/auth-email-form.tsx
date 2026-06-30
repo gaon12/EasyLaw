@@ -11,12 +11,7 @@ type AuthEmailFormProps = {
 export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [message, setMessage] = useState(
-    mode === "login"
-      ? "이메일을 입력하면 로그인 링크를 보내드려요."
-      : "이메일 인증 링크로 계정을 만들어요.",
-  );
-  const [loginUrl, setLoginUrl] = useState("");
+  const [message, setMessage] = useState("");
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -39,7 +34,6 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
 
     isSubmittingRef.current = true;
     setStatus("loading");
-    setLoginUrl("");
     setMessage("인증 링크를 준비하고 있어요.");
     try {
       const response = await fetch("/api/auth/magic-link", {
@@ -63,12 +57,7 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
         return;
       }
       setStatus("success");
-      setLoginUrl(data.loginUrl ?? "");
-      setMessage(
-        data.loginUrl
-          ? "개발 모드라 아래 링크로 바로 로그인할 수 있어요."
-          : "인증 링크를 이메일로 보냈어요. 메일함을 확인해 주세요.",
-      );
+      setMessage("인증 링크를 이메일로 보냈어요. 메일함을 확인해 주세요.");
     } catch (_error) {
       setStatus("error");
       setMessage("요청이 끊겼어요. 잠시 뒤 다시 시도해 주세요.");
@@ -129,21 +118,18 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
           회원가입하기
         </a>
       )}
-      <output
-        className={
-          status === "success"
-            ? styles.settingsNoticeSuccess
-            : status === "error"
-              ? styles.settingsNoticeError
-              : styles.settingsNotice
-        }
-      >
-        {message}
-      </output>
-      {loginUrl && (
-        <a className={styles.authDevLink} href={loginUrl}>
-          개발용 로그인 링크 열기
-        </a>
+      {status !== "idle" && (
+        <output
+          className={
+            status === "success"
+              ? styles.settingsNoticeSuccess
+              : status === "error"
+                ? styles.settingsNoticeError
+                : styles.settingsNotice
+          }
+        >
+          {message}
+        </output>
       )}
     </form>
   );

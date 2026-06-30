@@ -42,18 +42,8 @@ export async function POST(request: Request) {
   });
 
   return Response.json({
-    loginUrl:
-      process.env.NODE_ENV === "production" &&
-      process.env.EASYLAW_TEST_MODE !== "1"
-        ? undefined
-        : loginUrl,
     ok: true,
     userId: result.userId,
-    devToken:
-      process.env.NODE_ENV === "production" &&
-      process.env.EASYLAW_TEST_MODE !== "1"
-        ? undefined
-        : result.token,
   });
 }
 
