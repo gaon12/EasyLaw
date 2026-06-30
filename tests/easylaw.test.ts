@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { NextRequest } from "next/server";
 import { generate } from "otplib";
 import {
   assertManagementAccess,
@@ -23,6 +24,7 @@ import {
 import { buildResearchPlan } from "../src/lib/legal-research";
 import { sendReadyNotifications } from "../src/lib/notifications";
 import { getPublicJudgments } from "../src/lib/queries";
+import { checkAnonymousAccess } from "../src/lib/security/anonymous-access";
 import { decryptSecret } from "../src/lib/security/crypto";
 import { getSessionUser } from "../src/lib/session";
 import {
@@ -268,6 +270,47 @@ test("legal research harness assigns coverage and evidence", () => {
     assert.equal(plan.intent, "피해 회복과 민사 청구 가능성 확인");
     assert.ok(plan.evidence.some((item) => item.source === "Case Law API"));
     assert.match(plan.answer, /하네스 미리보기/);
+  } finally {
+    cleanup();
+  }
+});
+
+test("anonymous usage limits survive cookie resets on the same network signal", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const makeRequest = () =>
+      new NextRequest("http://easylaw.local/api/research/stream", {
+        headers: {
+          "accept-language": "ko-KR",
+          "user-agent": "anonymous-browser",
+          "x-easylaw-screen": "1440x900:1",
+          "x-easylaw-timezone": "Asia/Seoul",
+          "x-forwarded-for": "203.0.113.10",
+        },
+        method: "POST",
+      });
+
+    for (let index = 0; index < 5; index += 1) {
+      const result = checkAnonymousAccess(db, makeRequest(), {
+        scope: "legal_research",
+      });
+      assert.equal(result.allowed, true);
+      if (result.allowed) {
+        result.release();
+      }
+      db.prepare(
+        "UPDATE rate_limits SET window_start = ? WHERE key LIKE ?",
+      ).run("2000-01-01T00:00:00.000Z", "legal_research:minute:%");
+    }
+
+    const blocked = checkAnonymousAccess(db, makeRequest(), {
+      scope: "legal_research",
+    });
+    assert.equal(blocked.allowed, false);
+    assert.equal(
+      blocked.allowed ? "" : blocked.error,
+      "anonymous_limit_exceeded",
+    );
   } finally {
     cleanup();
   }

@@ -201,6 +201,17 @@ try {
     .getByRole("region", { name: "EasyLaw 결과 예시" })
     .waitFor();
   await anonymousPage.getByLabel("판결문 검색").waitFor();
+  const publicCatalogHref = await anonymousPage
+    .getByRole("link", { name: "판결문 찾기" })
+    .getAttribute("href");
+  if (publicCatalogHref !== "/catalog") {
+    throw new Error("Anonymous catalog CTA should open public search.");
+  }
+  await anonymousPage.getByRole("link", { name: "내 문서로 시작하기" }).click();
+  await anonymousPage
+    .getByRole("dialog", { name: "로그인이 필요해요" })
+    .waitFor();
+  await anonymousPage.getByRole("button", { name: "취소" }).click();
   if (
     (await anonymousPage.getByText("관리센터", { exact: true }).count()) !== 0
   ) {
@@ -243,6 +254,9 @@ try {
   if ((await anonymousPage.getByText(/외부 API/).count()) !== 0) {
     throw new Error("Landing page still exposes implementation terminology.");
   }
+
+  await anonymousPage.goto(`${baseUrl}/research`, { waitUntil: "networkidle" });
+  await anonymousPage.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
 
   await anonymousPage.goto(`${baseUrl}/guide`, { waitUntil: "networkidle" });
   await anonymousPage
