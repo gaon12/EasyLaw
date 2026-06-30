@@ -24,10 +24,10 @@ export default function GlobalError({
             <Image
               alt="돋보기와 서류 사이에서 길을 찾는 EasyLaw 캐릭터"
               className={styles.errorCharacter}
-              height={220}
+              height={390}
               priority
-              src="/error-character.svg"
-              width={260}
+              src="/error-character.png"
+              width={520}
             />
             <span className={styles.badge}>앗</span>
             <h1 id="error-title">

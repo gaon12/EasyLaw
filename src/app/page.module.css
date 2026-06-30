@@ -1233,6 +1233,235 @@
   margin-top: 32px;
 }
 
+.wikiHome {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.wikiHero,
+.wikiMainPanel,
+.wikiSidebar,
+.wikiArticle,
+.wikiDocumentAside {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  background: var(--bg-surface);
+}
+
+.wikiHero {
+  min-height: 220px;
+  display: grid;
+  align-content: end;
+  gap: 12px;
+  padding: 34px;
+  background:
+    radial-gradient(circle at 12% 18%, var(--bg-brand-subtle), transparent 30%),
+    linear-gradient(135deg, var(--bg-surface), var(--bg-muted));
+}
+
+.wikiHero h1,
+.wikiWelcome h2,
+.wikiArticleHeader h1 {
+  color: var(--fg-strong);
+  font-family: var(--font-display);
+  font-weight: 850;
+  letter-spacing: -0.025em;
+}
+
+.wikiHero h1 {
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: 1.08;
+}
+
+.wikiHero p,
+.wikiWelcome p,
+.wikiCard p,
+.wikiArticleHeader p {
+  color: var(--fg-secondary);
+  line-height: 1.7;
+}
+
+.wikiHero p {
+  max-width: 720px;
+  font-size: 17px;
+}
+
+.wikiPortal {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 240px;
+  gap: 16px;
+  align-items: start;
+}
+
+.wikiSidebar,
+.wikiDocumentAside {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.wikiSidebar strong,
+.wikiDocumentAside > a,
+.wikiToc strong,
+.wikiInfoBox strong {
+  color: var(--fg-strong);
+  font-weight: 850;
+}
+
+.wikiSidebar a,
+.wikiDocumentAside a,
+.wikiBacklink {
+  color: var(--fg-brand);
+  font-weight: 750;
+}
+
+.wikiMainPanel {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.wikiWelcome {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.wikiWelcome h2 {
+  margin-bottom: 8px;
+  font-size: 30px;
+}
+
+.wikiCardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wikiCard {
+  min-height: 184px;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-muted);
+}
+
+.wikiCard:hover {
+  border-color: var(--border-default);
+  background: var(--bg-surface);
+}
+
+.wikiCard > span {
+  width: fit-content;
+  border-radius: var(--radius-full);
+  padding: 5px 9px;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.wikiCard strong {
+  color: var(--fg-strong);
+  font-size: 18px;
+}
+
+.wikiCard time {
+  margin-top: auto;
+  color: var(--fg-tertiary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wikiDocumentLayout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 860px);
+  gap: 18px;
+  align-items: start;
+  justify-content: center;
+}
+
+.wikiDocumentAside {
+  position: sticky;
+  top: 18px;
+}
+
+.wikiInfoBox {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.wikiInfoBox span {
+  color: var(--fg-secondary);
+  font-size: 13px;
+}
+
+.wikiArticle {
+  max-width: none;
+  margin: 0;
+  padding: 30px;
+}
+
+.wikiArticleHeader {
+  padding-bottom: 26px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.wikiArticleHeader h1 {
+  margin-top: 12px;
+  font-size: clamp(32px, 5vw, 48px);
+  line-height: 1.15;
+}
+
+.wikiArticleHeader p {
+  margin-top: 12px;
+  font-size: 17px;
+}
+
+.wikiArticleHeader > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 18px;
+  color: var(--fg-tertiary);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.wikiArticleHeader a {
+  color: var(--fg-brand);
+}
+
+.wikiArticleFooter {
+  display: grid;
+  gap: 5px;
+  margin-top: 28px;
+  padding: 18px;
+  border-radius: var(--radius-12);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+}
+
+.wikiArticleFooter span {
+  color: var(--fg-secondary);
+  font-size: 14px;
+}
+
+.wikiBacklink {
+  display: inline-flex;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
 .termList {
   display: grid;
   gap: 8px;
@@ -1360,8 +1589,9 @@
 }
 
 .errorCharacter {
-  width: min(260px, 74vw);
+  width: min(520px, 82vw);
   height: auto;
+  border-radius: 24px;
   object-fit: contain;
 }
 
@@ -1992,8 +2222,14 @@
   .contentGrid,
   .resultGrid,
   .authGrid,
-  .researchLayout {
+  .researchLayout,
+  .wikiPortal,
+  .wikiDocumentLayout {
     grid-template-columns: 1fr;
+  }
+
+  .wikiDocumentAside {
+    position: static;
   }
 
   .catalog,
@@ -2078,8 +2314,15 @@
   .guideTabs,
   .catalog,
   .adminGrid,
-  .harnessSteps {
+  .harnessSteps,
+  .wikiCardGrid {
     grid-template-columns: 1fr;
+  }
+
+  .wikiHero,
+  .wikiMainPanel,
+  .wikiArticle {
+    padding: 22px;
   }
 
   .boardList > a {
