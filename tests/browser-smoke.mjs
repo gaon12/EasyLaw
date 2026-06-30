@@ -176,6 +176,17 @@ try {
     throw new Error("Setup API remained available after installation.");
   }
 
+  await page.goto(`${baseUrl}/admin/captcha`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "CAPTCHA 설정" }).waitFor();
+  await page.getByLabel("캡챠 수준").selectOption("strict");
+  await page.getByRole("button", { name: "설정 저장" }).click();
+  await page.getByText("설정을 저장했어요", { exact: false }).waitFor();
+  if ((await page.getByText("CAPTCHA", { exact: true }).count()) === 0) {
+    throw new Error(
+      "Administration navigation did not expose CAPTCHA settings.",
+    );
+  }
+
   const anonymousContext = await browser.newContext();
   const anonymousPage = await anonymousContext.newPage();
   await anonymousPage.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });

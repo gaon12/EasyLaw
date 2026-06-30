@@ -1,15 +1,17 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { CAPTCHA_LEVELS } from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { setSetting } from "@/lib/settings";
 
 const requestSchema = z.object({
-  scope: z.enum(["llm", "mcp"]),
+  scope: z.enum(["captcha", "llm", "mcp"]),
   settings: z.record(z.string(), z.string().max(2000)),
 });
 
 const allowedKeys = {
+  captcha: new Set(["captcha_level"]),
   llm: new Set([
     "llm_provider",
     "llm_api_base_url",
@@ -21,6 +23,11 @@ const allowedKeys = {
     "mcp_case_law_endpoint",
     "mcp_timeout_ms",
   ]),
+};
+
+const validators = {
+  captcha_level: (value: string) =>
+    CAPTCHA_LEVELS.some((level) => level === value),
 };
 
 export async function POST(request: Request) {
@@ -40,6 +47,12 @@ export async function POST(request: Request) {
     const trimmedValue = value.trim();
     if (!allowed.has(key) || !trimmedValue) {
       continue;
+    }
+    if (
+      key in validators &&
+      !validators[key as keyof typeof validators](trimmedValue)
+    ) {
+      return Response.json({ error: "invalid_settings" }, { status: 400 });
     }
     setSetting(db, key, trimmedValue, key.endsWith("_api_key"));
   }

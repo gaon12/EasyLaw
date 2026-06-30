@@ -35,6 +35,7 @@ const adminNav = [
   { href: "/admin", label: "관리 개요" },
   { href: "/admin/llm", label: "LLM API" },
   { href: "/admin/mcp", label: "MCP 설정" },
+  { href: "/admin/captcha", label: "CAPTCHA" },
   { href: "/admin#jobs", label: "사용자·작업" },
 ];
 
