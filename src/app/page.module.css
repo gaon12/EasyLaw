@@ -1322,6 +1322,60 @@
   margin-top: 24px;
 }
 
+.errorState {
+  width: min(760px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  margin: 36px auto 80px;
+  padding: 44px 28px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 20% 0%, var(--bg-brand-subtle), transparent 38%),
+    var(--bg-surface);
+  text-align: center;
+  box-shadow: var(--shadow-soft);
+}
+
+.errorCharacter {
+  width: min(260px, 74vw);
+  height: auto;
+  object-fit: contain;
+}
+
+.errorState h1 {
+  max-width: 620px;
+  color: var(--fg-strong);
+  font-family: var(--font-display);
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.18;
+  letter-spacing: -0.03em;
+}
+
+.errorState p {
+  max-width: 560px;
+  color: var(--fg-secondary);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.errorActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.globalErrorShell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg-canvas);
+}
+
 .settingsForm {
   display: grid;
   gap: 18px;
