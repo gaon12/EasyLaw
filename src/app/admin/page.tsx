@@ -13,7 +13,7 @@ export default async function AdminPage() {
   const rows = getManagementRows(db);
 
   return (
-    <AppShell>
+    <AppShell variant="admin">
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
@@ -43,6 +43,14 @@ export default async function AdminPage() {
               <strong>{snapshot.failedJobCount}</strong>
               <span>실패 작업</span>
             </div>
+          </div>
+          <div className={styles.buttonRow}>
+            <a className={styles.secondaryButton} href="/admin/llm">
+              LLM API 설정
+            </a>
+            <a className={styles.secondaryButton} href="/admin/mcp">
+              MCP 설정
+            </a>
           </div>
         </section>
 
