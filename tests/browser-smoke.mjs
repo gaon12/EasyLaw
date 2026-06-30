@@ -75,12 +75,29 @@ async function waitForServer() {
   throw new Error(`Dev server did not become ready.\n${output}`);
 }
 
+const hydrationMessages = [];
+
+function trackHydrationWarnings(page) {
+  page.on("console", (message) => {
+    const text = message.text();
+    if (
+      (message.type() === "error" || message.type() === "warning") &&
+      (text.includes("A tree hydrated") ||
+        text.includes("Hydration failed") ||
+        text.includes("server rendered HTML"))
+    ) {
+      hydrationMessages.push(text);
+    }
+  });
+}
+
 try {
   await waitForServer();
   const browser = await chromium.launch();
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1100 },
   });
+  trackHydrationWarnings(page);
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.waitForURL(`${baseUrl}/setup`);
@@ -179,12 +196,31 @@ try {
 
   await page.goto(`${baseUrl}/admin/captcha`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "CAPTCHA 설정" }).waitFor();
-  if (
-    (await page
-      .locator('nav a[aria-current="page"][href="/admin/captcha"]')
-      .count()) !== 1
-  ) {
+  const activeAdminNav = page.locator(
+    'nav a[aria-current="page"][href="/admin/captcha"]',
+  );
+  if ((await activeAdminNav.count()) !== 1) {
     throw new Error("Administration navigation did not highlight CAPTCHA.");
+  }
+  const activeAdminNavStyle = await activeAdminNav.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const underline = getComputedStyle(element, "::after");
+    return {
+      backgroundColor: style.backgroundColor,
+      borderRadius: style.borderRadius,
+      underlineBackground: underline.backgroundColor,
+      underlineHeight: underline.height,
+    };
+  });
+  if (
+    activeAdminNavStyle.backgroundColor !== "rgba(0, 0, 0, 0)" ||
+    activeAdminNavStyle.borderRadius !== "0px" ||
+    activeAdminNavStyle.underlineBackground === "rgba(0, 0, 0, 0)" ||
+    activeAdminNavStyle.underlineHeight !== "4px"
+  ) {
+    throw new Error(
+      `Administration navigation did not render as underline tabs: ${JSON.stringify(activeAdminNavStyle)}`,
+    );
   }
   await page.getByLabel("캡챠 수준").selectOption("strict");
   await page.getByRole("button", { name: "설정 저장" }).click();
@@ -199,12 +235,27 @@ try {
   if ((await page.getByLabel("OC 키").count()) !== 1) {
     throw new Error("Open Law administration page did not expose the OC key.");
   }
+  if (
+    (await page.locator('input[name="open_law_api_base_url"]').count()) !== 0
+  ) {
+    throw new Error(
+      "Open Law administration page exposed an editable base URL.",
+    );
+  }
   await page.goto(`${baseUrl}/admin/dictionary`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "용어 사전 관리" }).waitFor();
   await page.getByRole("button", { name: "표준국어대사전 업데이트" }).waitFor();
 
+  await page.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
+  if ((await page.locator('main a[href="/admin/llm"]').count()) !== 0) {
+    throw new Error(
+      "Administration overview still exposed duplicate action buttons.",
+    );
+  }
+
   const anonymousContext = await browser.newContext();
   const anonymousPage = await anonymousContext.newPage();
+  trackHydrationWarnings(anonymousPage);
   await anonymousPage.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
   if (new URL(anonymousPage.url()).pathname !== "/login") {
     throw new Error("Anonymous user could access the administration page.");
@@ -491,6 +542,10 @@ try {
         throw new Error(`${path} leaves space below the footer.`);
       }
     }
+  }
+
+  if (hydrationMessages.length > 0) {
+    throw new Error(`Hydration warning was logged:\n${hydrationMessages[0]}`);
   }
 
   await browser.close();
