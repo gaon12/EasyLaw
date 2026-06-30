@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { CAPTCHA_LEVELS } from "@/lib/captcha";
+import { CAPTCHA_LEVELS, isCaptchaAlgorithm } from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { setSetting } from "@/lib/settings";
@@ -11,7 +11,13 @@ const requestSchema = z.object({
 });
 
 const allowedKeys = {
-  captcha: new Set(["captcha_level"]),
+  captcha: new Set([
+    "captcha_algorithm",
+    "captcha_cost",
+    "captcha_expires_minutes",
+    "captcha_level",
+    "captcha_min_duration_ms",
+  ]),
   llm: new Set([
     "llm_provider",
     "llm_api_base_url",
@@ -23,13 +29,22 @@ const allowedKeys = {
     "mcp_case_law_endpoint",
     "mcp_timeout_ms",
   ]),
-  openLaw: new Set(["open_law_oc", "open_law_api_base_url"]),
+  openLaw: new Set(["open_law_oc"]),
 };
 
 const validators = {
   captcha_level: (value: string) =>
     CAPTCHA_LEVELS.some((level) => level === value),
+  captcha_algorithm: isCaptchaAlgorithm,
+  captcha_cost: (value: string) => integerInRange(value, 1, 200_000),
+  captcha_expires_minutes: (value: string) => integerInRange(value, 1, 60),
+  captcha_min_duration_ms: (value: string) => integerInRange(value, 0, 3000),
 };
+
+function integerInRange(value: string, min: number, max: number) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max;
+}
 
 export async function POST(request: Request) {
   const db = getDatabase();

@@ -1,4 +1,5 @@
 import type { SqliteDatabase } from "../db";
+import { logIntegrationEvent } from "../integration-events";
 import { downloadJsonZip } from "./download";
 import { extractDictionaryTerms } from "./extract";
 import {
@@ -18,15 +19,36 @@ export async function updateDictionarySource(
 ) {
   const sourceUrl = source === "basic" ? basicDownloadUrl : standardDownloadUrl;
   const importId = startDictionaryImport(db, { source, sourceUrl });
+  logIntegrationEvent(db, {
+    action: `${source}.download`,
+    message: "사전 데이터 다운로드를 시작했습니다.",
+    metadata: { importId, source },
+    service: "dictionary",
+    status: "success",
+  });
   try {
     const jsonEntries = await downloadJsonZip(requestForSource(source));
     const terms = jsonEntries.flatMap((entry) => extractDictionaryTerms(entry));
     const importedCount = upsertDictionaryTerms(db, { source, terms });
     completeDictionaryImport(db, { importId, importedCount });
+    logIntegrationEvent(db, {
+      action: `${source}.import`,
+      message: `${importedCount.toLocaleString("ko-KR")}개 뜻풀이를 반영했습니다.`,
+      metadata: { importId, importedCount, source },
+      service: "dictionary",
+      status: "success",
+    });
     return { importId, importedCount, ok: true as const, source };
   } catch (error) {
     const message = error instanceof Error ? error.message : "알 수 없는 오류";
     failDictionaryImport(db, { importId, message });
+    logIntegrationEvent(db, {
+      action: `${source}.import`,
+      message,
+      metadata: { importId, source },
+      service: "dictionary",
+      status: "failed",
+    });
     return { importId, message, ok: false as const, source };
   }
 }

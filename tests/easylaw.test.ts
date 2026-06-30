@@ -14,7 +14,11 @@ import {
   createTotpEnrollment,
   verifyTotpEnrollment,
 } from "../src/lib/auth";
-import { createAltchaChallenge, verifyAltchaPayload } from "../src/lib/captcha";
+import {
+  createAltchaChallenge,
+  getCaptchaSettings,
+  verifyAltchaPayload,
+} from "../src/lib/captcha";
 import { createDatabase } from "../src/lib/db";
 import { seedDatabase } from "../src/lib/db/seed";
 import {
@@ -27,6 +31,7 @@ import {
   parseOpenLawSearchResponse,
   syncSampleExternalCatalog,
 } from "../src/lib/external-law";
+import { listIntegrationEvents } from "../src/lib/integration-events";
 import {
   completeGenerationJob,
   createOrAttachGenerationJob,
@@ -38,6 +43,7 @@ import { getPublicRequestOrigin } from "../src/lib/request-origin";
 import { checkAnonymousAccess } from "../src/lib/security/anonymous-access";
 import { decryptSecret } from "../src/lib/security/crypto";
 import { getSessionUser } from "../src/lib/session";
+import { setSetting } from "../src/lib/settings";
 import {
   completeSetup,
   configureSetup,
@@ -394,6 +400,39 @@ test("ALTCHA payloads verify against the service captcha secret", async () => {
 
     assert.equal(await verifyAltchaPayload(db, payload), true);
     assert.equal(await verifyAltchaPayload(db, "not-valid-base64"), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test("CAPTCHA settings tune challenge generation and audit records", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    setSetting(db, "captcha_algorithm", "SHA-384");
+    setSetting(db, "captcha_cost", "50");
+    setSetting(db, "captcha_expires_minutes", "7");
+    setSetting(db, "captcha_min_duration_ms", "900");
+
+    const settings = getCaptchaSettings(db);
+    assert.equal(settings.algorithm, "SHA-384");
+    assert.equal(settings.expiresMinutes, 7);
+    assert.equal(settings.minDurationMs, 900);
+
+    const challenge = await createAltchaChallenge(db);
+    assert.ok(challenge);
+    assert.equal(challenge.parameters.algorithm, "SHA-384");
+    assert.equal(challenge.parameters.cost, 8);
+    assert.deepEqual(challenge.configuration, { minDuration: 900 });
+
+    const events = listIntegrationEvents(db, "captcha");
+    assert.equal(events[0]?.action, "challenge.create");
+    assert.equal(events[0]?.status, "success");
+    assert.deepEqual(events[0]?.metadata, {
+      algorithm: "SHA-384",
+      cost: 8,
+      expiresMinutes: 7,
+      level: "standard",
+    });
   } finally {
     cleanup();
   }

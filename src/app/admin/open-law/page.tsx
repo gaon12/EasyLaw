@@ -1,8 +1,9 @@
 import { AdminSettingsForm } from "@/components/admin-settings-form";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
+import { listIntegrationEvents } from "@/lib/integration-events";
 import { pageMetadata } from "@/lib/metadata";
-import { getSetting, hasSetting } from "@/lib/settings";
+import { hasSetting } from "@/lib/settings";
 import styles from "../../page.module.css";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +11,13 @@ export const dynamic = "force-dynamic";
 export const metadata = pageMetadata({
   title: "공개법령 API 설정",
   description:
-    "국가법령정보센터 판례 API 호출에 사용할 OC 키와 API 주소를 관리합니다.",
+    "국가법령정보센터 판례 API 호출에 사용할 OC 키와 동기화 기록을 관리합니다.",
   robots: { index: false, follow: false },
 });
 
 export default function AdminOpenLawPage() {
   const db = getDatabase();
+  const events = listIntegrationEvents(db, "open-law");
 
   return (
     <AppShell variant="admin">
@@ -46,18 +48,53 @@ export default function AdminOpenLawPage() {
                   placeholder: "새 키를 입력할 때만 저장",
                   secret: true,
                 },
-                {
-                  key: "open_law_api_base_url",
-                  label: "API Base URL",
-                  placeholder: "https://www.law.go.kr/DRF/lawSearch.do",
-                  value: getSetting(db, "open_law_api_base_url") ?? "",
-                },
               ]}
               scope="openLaw"
             />
           </div>
         </section>
+        <section className={styles.section}>
+          <div className={styles.contentCard}>
+            <h2 className={styles.panelTitle}>최근 호출 기록</h2>
+            <IntegrationEventTable events={events} />
+          </div>
+        </section>
       </main>
     </AppShell>
+  );
+}
+
+function IntegrationEventTable({
+  events,
+}: {
+  events: ReturnType<typeof listIntegrationEvents>;
+}) {
+  if (events.length === 0) {
+    return <p>아직 공개법령 API 호출 기록이 없어요.</p>;
+  }
+
+  return (
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>시각</th>
+            <th>동작</th>
+            <th>상태</th>
+            <th>메시지</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((event) => (
+            <tr key={`${event.createdAt}-${event.action}`}>
+              <td>{event.createdAt}</td>
+              <td>{event.action}</td>
+              <td>{event.status}</td>
+              <td>{event.message ?? "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

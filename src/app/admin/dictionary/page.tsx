@@ -3,6 +3,7 @@ import { LegalTermForm } from "@/components/legal-term-form";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { latestDictionaryImport } from "@/lib/dictionary";
+import { listIntegrationEvents } from "@/lib/integration-events";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "../../page.module.css";
 
@@ -15,7 +16,9 @@ export const metadata = pageMetadata({
 });
 
 export default function AdminDictionaryPage() {
-  const latest = latestDictionaryImport(getDatabase());
+  const db = getDatabase();
+  const latest = latestDictionaryImport(db);
+  const events = listIntegrationEvents(db, "dictionary");
 
   return (
     <AppShell variant="admin">
@@ -66,6 +69,38 @@ export default function AdminDictionaryPage() {
               </p>
             ) : (
               <p>아직 업데이트 이력이 없어요.</p>
+            )}
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.contentCard}>
+            <h2 className={styles.panelTitle}>최근 작업 기록</h2>
+            {events.length > 0 ? (
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>시각</th>
+                      <th>동작</th>
+                      <th>상태</th>
+                      <th>메시지</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {events.map((event) => (
+                      <tr key={`${event.createdAt}-${event.action}`}>
+                        <td>{event.createdAt}</td>
+                        <td>{event.action}</td>
+                        <td>{event.status}</td>
+                        <td>{event.message ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>아직 사전 작업 기록이 없어요.</p>
             )}
           </div>
         </section>

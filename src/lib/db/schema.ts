@@ -344,4 +344,22 @@ export const migrations = [
         ON dictionary_terms(word, priority);
     `,
   },
+  {
+    id: 8,
+    name: "integration_events",
+    sql: `
+      CREATE TABLE IF NOT EXISTS integration_events (
+        id TEXT PRIMARY KEY,
+        service TEXT NOT NULL,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        message TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS integration_events_service_created_idx
+        ON integration_events(service, created_at);
+    `,
+  },
 ] as const;

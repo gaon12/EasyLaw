@@ -51,17 +51,6 @@ export default async function AdminPage() {
               <span>실패 작업</span>
             </div>
           </div>
-          <div className={styles.buttonRow}>
-            <a className={styles.secondaryButton} href="/admin/llm">
-              LLM API 설정
-            </a>
-            <a className={styles.secondaryButton} href="/admin/open-law">
-              공개법령 API 설정
-            </a>
-            <a className={styles.secondaryButton} href="/admin/mcp">
-              MCP 설정
-            </a>
-          </div>
         </section>
 
         <section className={styles.section}>

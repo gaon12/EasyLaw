@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "./db";
+import { logIntegrationEvent } from "./integration-events";
 import { newId } from "./security/crypto";
 import { getSetting } from "./settings";
 import { addMinutesIso, nowIso } from "./time";
@@ -216,18 +217,29 @@ export async function fetchOpenLawJudgments(
 ) {
   const oc = getOpenLawOc(db);
   if (!oc) {
+    logIntegrationEvent(db, {
+      action: "prec.search",
+      message: "OC 키가 없어 공개법령 API 호출을 건너뛰었습니다.",
+      service: OPEN_LAW_PROVIDER,
+      status: "skipped",
+    });
     return [];
   }
 
-  const apiBaseUrl =
-    getSetting(db, "open_law_api_base_url") ?? OPEN_LAW_DEFAULT_API_URL;
   const cacheKey = openLawCacheKey(query, options);
   const cached = readCachedOpenLawResponse(db, cacheKey);
   if (cached) {
+    logIntegrationEvent(db, {
+      action: "prec.search.cache",
+      message: "캐시된 공개법령 API 응답을 사용했습니다.",
+      metadata: { query, ...options },
+      service: OPEN_LAW_PROVIDER,
+      status: "success",
+    });
     return parseOpenLawSearchResponse(cached);
   }
 
-  const url = new URL(apiBaseUrl);
+  const url = new URL(OPEN_LAW_DEFAULT_API_URL);
   url.searchParams.set("OC", oc);
   url.searchParams.set("target", "prec");
   url.searchParams.set("type", "JSON");
@@ -243,13 +255,36 @@ export async function fetchOpenLawJudgments(
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
+      logIntegrationEvent(db, {
+        action: "prec.search",
+        message: `공개법령 API가 ${response.status} 상태를 반환했습니다.`,
+        metadata: { query, status: response.status, ...options },
+        service: OPEN_LAW_PROVIDER,
+        status: "failed",
+      });
       return [];
     }
 
     const payload = (await response.json()) as unknown;
     cacheExternalResponse(db, OPEN_LAW_PROVIDER, cacheKey, payload);
-    return parseOpenLawSearchResponse(payload);
-  } catch (_error) {
+    const records = parseOpenLawSearchResponse(payload);
+    logIntegrationEvent(db, {
+      action: "prec.search",
+      message: `${records.length.toLocaleString("ko-KR")}건의 판례 후보를 가져왔습니다.`,
+      metadata: { count: records.length, query, ...options },
+      service: OPEN_LAW_PROVIDER,
+      status: "success",
+    });
+    return records;
+  } catch (error) {
+    logIntegrationEvent(db, {
+      action: "prec.search",
+      message:
+        error instanceof Error ? error.message : "공개법령 API 호출 실패",
+      metadata: { query, ...options },
+      service: OPEN_LAW_PROVIDER,
+      status: "failed",
+    });
     return [];
   }
 }
