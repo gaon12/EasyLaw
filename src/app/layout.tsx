@@ -27,14 +27,6 @@ export const metadata: Metadata = {
   alternates: {
     canonical: siteUrl,
   },
-  icons: {
-    icon: [
-      { url: "/brand-character.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
-    shortcut: "/brand-character.svg",
-    apple: "/brand-character.svg",
-  },
   openGraph: {
     title: `${siteName} | 판결문을 이해하기 쉽게`,
     description: siteDescription,
