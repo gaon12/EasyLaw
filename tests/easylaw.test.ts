@@ -17,7 +17,11 @@ import {
 import { createAltchaChallenge, verifyAltchaPayload } from "../src/lib/captcha";
 import { createDatabase } from "../src/lib/db";
 import { seedDatabase } from "../src/lib/db/seed";
-import { extractDictionaryTerms } from "../src/lib/dictionary";
+import {
+  addLegalDictionaryTerm,
+  buildTermExplanation,
+  extractDictionaryTerms,
+} from "../src/lib/dictionary";
 import {
   mergeExternalFirst,
   syncSampleExternalCatalog,
@@ -409,6 +413,32 @@ test("standard dictionary JSON entries are normalized for lookup", () => {
       },
     ],
   );
+});
+
+test("term explanations prefer legal terms over public dictionaries", () => {
+  const { db, cleanup } = withDb();
+  try {
+    db.prepare(
+      `INSERT INTO dictionary_terms
+        (id, source, priority, word, sense_no, definition, raw_json, updated_at)
+        VALUES
+        ('dict_basic_test', 'basic', 2, '기판력', '1', '기초 사전 설명', '{}', ?),
+        ('dict_standard_test', 'standard', 3, '기판력', '1', '표준 사전 설명', '{}', ?)`,
+    ).run(new Date().toISOString(), new Date().toISOString());
+    addLegalDictionaryTerm(db, {
+      definition: "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
+      word: "기판력",
+    });
+
+    const explanation = buildTermExplanation(db, { term: "기판력" });
+    assert.equal(explanation.priority, "자체 법률 용어 사전");
+    assert.equal(
+      explanation.definitions[0]?.definition,
+      "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
+    );
+  } finally {
+    cleanup();
+  }
 });
 
 test("TOTP enrollment, recovery code, and management access policy", async () => {

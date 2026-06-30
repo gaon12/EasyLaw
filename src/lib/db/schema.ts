@@ -325,4 +325,23 @@ export const migrations = [
       );
     `,
   },
+  {
+    id: 7,
+    name: "dictionary_source_priority",
+    sql: `
+      ALTER TABLE dictionary_terms
+        ADD COLUMN source TEXT NOT NULL DEFAULT 'standard';
+      ALTER TABLE dictionary_terms
+        ADD COLUMN priority INTEGER NOT NULL DEFAULT 3;
+      ALTER TABLE dictionary_imports
+        ADD COLUMN source TEXT NOT NULL DEFAULT 'standard';
+
+      DROP INDEX IF EXISTS dictionary_terms_unique_idx;
+      CREATE UNIQUE INDEX IF NOT EXISTS dictionary_terms_unique_idx
+        ON dictionary_terms(source, word, sense_no, definition);
+
+      CREATE INDEX IF NOT EXISTS dictionary_terms_source_priority_idx
+        ON dictionary_terms(word, priority);
+    `,
+  },
 ] as const;
