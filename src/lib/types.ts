@@ -46,6 +46,13 @@ export type JudgmentListItem = {
   notificationCount: number;
 };
 
+export type JudgmentDetail = JudgmentListItem & {
+  sourceUrl: string | null;
+  sourceTrust: SourceTrust;
+  originalText: string | null;
+  createdByUserId: string | null;
+};
+
 export type EasyReadAnalysis = {
   summary: string;
   easyRead: string[];

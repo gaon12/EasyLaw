@@ -285,4 +285,12 @@ export const migrations = [
       DELETE FROM service_settings WHERE key = 'base_url';
     `,
   },
+  {
+    id: 5,
+    name: "custom_judgment_text",
+    sql: `
+      ALTER TABLE judgments
+        ADD COLUMN original_text TEXT;
+    `,
+  },
 ] as const;

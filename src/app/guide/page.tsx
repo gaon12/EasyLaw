@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/site-chrome";
-import { sampleAnalysis } from "@/lib/easyread";
+import { guideDocuments } from "@/lib/content";
 import styles from "../page.module.css";
 
 export default function GuidePage() {
@@ -10,33 +10,22 @@ export default function GuidePage() {
           <div className={styles.sectionTitle}>
             <div>
               <h1>쉬운 판결문</h1>
-              <p>
-                판결의 결론, 이유, 어려운 말, 주의할 점을 나눠 읽을 수 있게
-                정리해요.
-              </p>
+              <p>누구나 함께 읽고 개선할 수 있는 위키형 도움말입니다.</p>
             </div>
           </div>
-          <div className={styles.resultGrid}>
-            <article className={styles.resultBlock}>
-              <h3>쉽게 말하면</h3>
-              <ul>
-                {sampleAnalysis.easyRead.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </article>
-            <article className={styles.resultBlock}>
-              <h3>근거와 용어</h3>
-              <p>{sampleAnalysis.summary}</p>
-              <div className={styles.termList}>
-                {sampleAnalysis.terms.map((term) => (
-                  <div className={styles.termItem} key={term.term}>
-                    <strong>{term.term}</strong>
-                    <p>{term.explanation}</p>
-                  </div>
-                ))}
-              </div>
-            </article>
+          <div className={styles.wikiList}>
+            {guideDocuments.map((document) => (
+              <a
+                href={`/guide/${encodeURIComponent(document.slug)}`}
+                key={document.slug}
+              >
+                <div>
+                  <strong>{document.title}</strong>
+                  <p>{document.summary}</p>
+                </div>
+                <time>{document.updatedOn}</time>
+              </a>
+            ))}
           </div>
         </section>
       </main>

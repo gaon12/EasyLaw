@@ -29,6 +29,8 @@ export function JudgmentExplorer({
     "확인된 판결문 정보를 기준으로 검색해요.",
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customText, setCustomText] = useState("");
 
   async function search() {
     setIsLoading(true);
@@ -75,6 +77,30 @@ export function JudgmentExplorer({
     setMessage(`생성 작업에 연결했어요. 작업 ID: ${data.jobId}`);
   }
 
+  async function createCustomJudgment() {
+    setIsLoading(true);
+    setMessage("비공개 판결문을 저장하고 있어요.");
+    const response = await fetch("/api/custom-judgments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: customTitle, text: customText }),
+    });
+    const data = await response.json();
+    setIsLoading(false);
+
+    if (response.status === 401) {
+      window.location.assign(
+        `/login?next=${encodeURIComponent("/catalog#custom-judgment")}`,
+      );
+      return;
+    }
+    if (!response.ok) {
+      setMessage("제목과 판결문 내용을 확인해 주세요.");
+      return;
+    }
+    window.location.assign(data.href);
+  }
+
   const visibleJudgments = compact ? judgments.slice(0, 3) : judgments;
 
   return (
@@ -108,13 +134,22 @@ export function JudgmentExplorer({
               type="email"
               value={email}
             />
+            <div id="custom-judgment" className={styles.customDocumentHeading}>
+              <strong>내 판결문으로 시작하기</strong>
+              <span>로그인한 계정만 볼 수 있는 고유 주소로 저장됩니다.</span>
+            </div>
+            <input
+              className={styles.input}
+              onChange={(event) => setCustomTitle(event.target.value)}
+              placeholder="문서 제목"
+              value={customTitle}
+            />
             <textarea
-              aria-label="판결문 입력 예시"
+              aria-label="커스텀 판결문 내용"
               className={styles.textarea}
-              readOnly
-              value={
-                "판결문 원문을 붙여넣거나 텍스트 PDF에서 추출한 내용을 넣는 영역이에요.\n\n현재는 글자를 선택할 수 있는 PDF와 직접 붙여넣은 텍스트를 지원해요."
-              }
+              onChange={(event) => setCustomText(event.target.value)}
+              placeholder="판결문 내용을 복사해 붙여넣으세요."
+              value={customText}
             />
             <div className={styles.buttonRow}>
               <button
@@ -127,13 +162,15 @@ export function JudgmentExplorer({
               </button>
               <button
                 className={styles.secondaryButton}
-                onClick={() => {
-                  setQuery("학교폭력 처분 취소");
-                  setMessage("샘플 검색어를 입력했어요.");
-                }}
+                disabled={
+                  isLoading ||
+                  customTitle.trim().length < 2 ||
+                  customText.trim().length < 20
+                }
+                onClick={createCustomJudgment}
                 type="button"
               >
-                샘플 입력하기
+                비공개 판결문 저장
               </button>
             </div>
             <p className={styles.notice}>{message}</p>
@@ -173,6 +210,12 @@ export function JudgmentExplorer({
                 {judgment.notificationCount}건
               </p>
               <div className={styles.buttonRow}>
+                <a
+                  className={styles.primaryButton}
+                  href={`/p/${encodeURIComponent(judgment.caseNumber)}`}
+                >
+                  판결문 보기
+                </a>
                 <button
                   className={styles.secondaryButton}
                   onClick={() => subscribe(judgment.id)}

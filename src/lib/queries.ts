@@ -2,6 +2,7 @@ import type { SqliteDatabase } from "./db";
 import type {
   DashboardSnapshot,
   EasyReadAnalysis,
+  JudgmentDetail,
   JudgmentListItem,
 } from "./types";
 
@@ -82,6 +83,101 @@ export function getLatestAnalysis(
   }
 
   return JSON.parse(row.content_json) as EasyReadAnalysis;
+}
+
+const judgmentDetailSql = `SELECT judgments.id,
+  judgments.case_number,
+  judgments.court_name,
+  judgments.decided_on,
+  judgments.title,
+  judgments.case_type,
+  judgments.status,
+  judgments.visibility,
+  judgments.source_provider,
+  judgments.source_url,
+  judgments.source_trust,
+  judgments.original_text,
+  judgments.created_by_user_id,
+  (
+    SELECT status FROM judgment_generation_jobs
+    WHERE judgment_generation_jobs.judgment_id = judgments.id
+    ORDER BY created_at DESC
+    LIMIT 1
+  ) AS latest_job_status,
+  (
+    SELECT COUNT(*) FROM notifications
+    WHERE notifications.judgment_id = judgments.id
+  ) AS notification_count
+FROM judgments`;
+
+type JudgmentDetailRow = {
+  id: string;
+  case_number: string;
+  court_name: string;
+  decided_on: string;
+  title: string;
+  case_type: string;
+  status: JudgmentDetail["status"];
+  visibility: JudgmentDetail["visibility"];
+  source_provider: string;
+  source_url: string | null;
+  source_trust: JudgmentDetail["sourceTrust"];
+  original_text: string | null;
+  created_by_user_id: string | null;
+  latest_job_status: string | null;
+  notification_count: number;
+};
+
+function mapJudgmentDetail(row: JudgmentDetailRow): JudgmentDetail {
+  return {
+    id: row.id,
+    caseNumber: row.case_number,
+    courtName: row.court_name,
+    decidedOn: row.decided_on,
+    title: row.title,
+    caseType: row.case_type,
+    status: row.status,
+    visibility: row.visibility,
+    sourceProvider: row.source_provider,
+    sourceUrl: row.source_url,
+    sourceTrust: row.source_trust,
+    originalText: row.original_text,
+    createdByUserId: row.created_by_user_id,
+    latestJobStatus: row.latest_job_status as JudgmentDetail["latestJobStatus"],
+    notificationCount: row.notification_count,
+  };
+}
+
+export function getPublicJudgmentByCaseNumber(
+  db: SqliteDatabase,
+  caseNumber: string,
+) {
+  const row = db
+    .prepare<[string], JudgmentDetailRow>(
+      `${judgmentDetailSql}
+       WHERE judgments.visibility = 'public'
+         AND judgments.case_number = ?
+       LIMIT 1`,
+    )
+    .get(caseNumber);
+  return row ? mapJudgmentDetail(row) : null;
+}
+
+export function getCustomJudgmentById(
+  db: SqliteDatabase,
+  id: string,
+  userId: string,
+) {
+  const row = db
+    .prepare<[string, string], JudgmentDetailRow>(
+      `${judgmentDetailSql}
+       WHERE judgments.visibility = 'private'
+         AND judgments.id = ?
+         AND judgments.created_by_user_id = ?
+       LIMIT 1`,
+    )
+    .get(id, userId);
+  return row ? mapJudgmentDetail(row) : null;
 }
 
 export function getDashboardSnapshot(db: SqliteDatabase): DashboardSnapshot {
