@@ -1,3 +1,4 @@
+import { AuthEmailForm } from "@/components/auth-email-form";
 import { AppShell } from "@/components/site-chrome";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
@@ -20,6 +21,12 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 function loginNotice(reason: string | undefined, nextPath: string | undefined) {
+  if (reason === "invalid_link") {
+    return "로그인 링크가 만료되었거나 이미 사용됐어요. 새 링크를 받아 주세요.";
+  }
+  if (reason === "totp_required") {
+    return "이 계정은 2차 인증이 필요해요. 현재 화면에서는 이메일 확인까지만 완료했습니다.";
+  }
   if (reason === "login_required" || nextPath) {
     return "로그인이 필요한 페이지예요. 먼저 이메일로 로그인하면 원래 보려던 곳으로 이어서 이동할 수 있어요.";
   }
@@ -41,23 +48,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             입력한 이메일로 인증 안내를 보내드려요. 2차 인증을 설정한 계정은
             로그인 과정에서 한 번 더 확인해요.
           </p>
-          <form className={styles.authForm}>
-            <label className={styles.label} htmlFor="email">
-              이메일
-            </label>
-            <input
-              className={styles.input}
-              id="email"
-              placeholder="you@example.com"
-              type="email"
-            />
-            <button className={styles.primaryButton} type="button">
-              이메일로 인증하기
-            </button>
-            <a className={styles.secondaryButton} href="/signup">
-              회원가입하기
-            </a>
-          </form>
+          <AuthEmailForm mode="login" nextPath={nextPath} />
         </section>
       </main>
     </AppShell>

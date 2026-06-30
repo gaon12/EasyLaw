@@ -226,3 +226,24 @@ export function renderJudgmentReadyEmail(input: {
     notice: "EasyLaw의 설명은 법률 자문을 대신하지 않습니다.",
   });
 }
+
+export function renderMagicLinkEmail(input: {
+  serviceName?: string;
+  loginUrl: string;
+}) {
+  return renderTransactionalEmail({
+    serviceName: input.serviceName,
+    previewText: "EasyLaw 로그인 링크가 도착했어요.",
+    eyebrow: "LOGIN",
+    title: "로그인을 계속해 주세요",
+    body: [
+      "아래 버튼을 누르면 EasyLaw에 로그인됩니다.",
+      "이 링크는 짧은 시간 동안만 사용할 수 있어요.",
+    ],
+    action: {
+      label: "EasyLaw 로그인",
+      url: input.loginUrl,
+    },
+    notice: "직접 요청하지 않았다면 이 메일을 무시해 주세요.",
+  });
+}

@@ -1,12 +1,17 @@
 import { z } from "zod";
-import { createMagicLink } from "@/lib/auth";
+import { createMagicLink, createSignupMagicLink } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
+import { getSiteUrl } from "@/lib/metadata";
+import { sendMagicLinkEmail } from "@/lib/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const magicLinkRequest = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
   email: z.string().email(),
+  next: z.string().max(300).optional(),
+  purpose: z.enum(["login", "signup"]).default("login"),
 });
 
 export async function POST(request: Request) {
@@ -18,14 +23,52 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = createMagicLink(getDatabase(), body.data.email);
+  const db = getDatabase();
+  const result =
+    body.data.purpose === "signup" && body.data.displayName
+      ? createSignupMagicLink(db, {
+          displayName: body.data.displayName,
+          email: body.data.email,
+        })
+      : createMagicLink(db, body.data.email);
   if (!result.ok) {
     return Response.json(result, { status: 429 });
   }
 
+  const loginUrl = magicLinkUrl(request, result.token, body.data.next);
+  await sendMagicLinkEmail(db, {
+    email: body.data.email.trim().toLowerCase(),
+    loginUrl,
+  });
+
   return Response.json({
+    loginUrl:
+      process.env.NODE_ENV === "production" &&
+      process.env.EASYLAW_TEST_MODE !== "1"
+        ? undefined
+        : loginUrl,
     ok: true,
     userId: result.userId,
-    devToken: process.env.NODE_ENV === "production" ? undefined : result.token,
+    devToken:
+      process.env.NODE_ENV === "production" &&
+      process.env.EASYLAW_TEST_MODE !== "1"
+        ? undefined
+        : result.token,
   });
+}
+
+function magicLinkUrl(request: Request, token: string, nextPath?: string) {
+  const baseUrl = getSiteUrl();
+  if (baseUrl.hostname === "localhost" && request.url) {
+    const current = new URL(request.url);
+    baseUrl.protocol = current.protocol;
+    baseUrl.host = current.host;
+  }
+
+  const url = new URL("/api/auth/magic-link/consume", baseUrl);
+  url.searchParams.set("token", token);
+  if (nextPath?.startsWith("/")) {
+    url.searchParams.set("next", nextPath);
+  }
+  return url.toString();
 }

@@ -95,6 +95,14 @@ export function createMagicLink(db: SqliteDatabase, email: string) {
   return { ok: true as const, userId: user.id, token };
 }
 
+export function createSignupMagicLink(
+  db: SqliteDatabase,
+  input: { displayName: string; email: string },
+) {
+  const user = ensureUser(db, input.email, input.displayName.trim());
+  return createMagicLink(db, user.email);
+}
+
 export function consumeMagicLink(db: SqliteDatabase, token: string) {
   const row = db
     .prepare<

@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { auditLog } from "./audit";
 import type { SqliteDatabase } from "./db";
-import { renderJudgmentReadyEmail } from "./email";
+import { renderJudgmentReadyEmail, renderMagicLinkEmail } from "./email";
 import { getSetting } from "./settings";
 import { nowIso } from "./time";
 
@@ -92,4 +92,21 @@ export async function sendReadyNotifications(
   }
 
   return rows.length;
+}
+
+export async function sendMagicLinkEmail(
+  db: SqliteDatabase,
+  input: { email: string; loginUrl: string },
+  sender: NotificationSender = createResendSender(db),
+) {
+  const email = renderMagicLinkEmail({
+    loginUrl: input.loginUrl,
+    serviceName: getSetting(db, "service_name") ?? "EasyLaw",
+  });
+  await sender.send({
+    html: email.html,
+    subject: "[EasyLaw] 로그인 링크",
+    text: email.text,
+    to: input.email,
+  });
 }
