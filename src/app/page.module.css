@@ -42,7 +42,7 @@
 }
 
 .brandRow {
-  min-height: 72px;
+  min-height: 68px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -92,9 +92,9 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
+  gap: 10px;
   color: var(--fg-strong);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -104,6 +104,61 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+}
+
+.readingControls {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--bg-muted);
+}
+
+.readingControls label,
+.readingControls fieldset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  padding: 0;
+}
+
+.readingControls span,
+.readingControls legend {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.readingControls select,
+.readingControls button {
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--fg-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.readingControls select {
+  padding: 0 8px;
+}
+
+.readingControls button {
+  min-width: 34px;
+  padding: 0 8px;
+}
+
+.readingControls button[aria-pressed="true"] {
+  background: var(--bg-surface);
+  color: var(--fg-brand);
+  box-shadow: 0 1px 4px oklch(0.2 0.02 270 / 0.08);
 }
 
 .iconButton {
@@ -123,13 +178,13 @@
 }
 
 .mainNav {
-  min-height: 54px;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 52px;
+  gap: 36px;
   color: var(--fg-strong);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.002em;
 }
@@ -140,7 +195,7 @@
 }
 
 .main {
-  padding: 22px 0 56px;
+  padding: 20px 0 48px;
 }
 
 .portalGrid {
@@ -367,7 +422,7 @@
 }
 
 .section {
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 .sectionTitle {
@@ -395,8 +450,8 @@
 .authPanel p,
 .workspace p {
   color: var(--fg-secondary);
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.65;
 }
 
 .contentGrid {
@@ -408,7 +463,7 @@
 .contentCard,
 .noticePanel,
 .banner {
-  padding: 24px;
+  padding: 22px;
 }
 
 .guideTabs {
@@ -1010,8 +1065,9 @@
 }
 
 .input {
-  min-height: 44px;
+  min-height: 46px;
   padding: 0 14px;
+  font-size: 15px;
 }
 
 .textarea {
@@ -1019,6 +1075,7 @@
   resize: vertical;
   padding: 14px;
   line-height: 1.6;
+  font-size: 15px;
 }
 
 .buttonRow {
@@ -1662,6 +1719,13 @@
   line-height: 1.6;
 }
 
+.authDevLink {
+  width: fit-content;
+  color: var(--fg-brand);
+  font-size: 14px;
+  font-weight: 850;
+}
+
 .mutedText {
   margin-top: 14px;
   color: var(--fg-tertiary);
@@ -1766,6 +1830,83 @@
   place-items: center;
   padding: 24px;
   background: var(--bg-canvas);
+}
+
+.termPopover {
+  width: min(360px, calc(100vw - 24px));
+  position: absolute;
+  z-index: 120;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 20px;
+  background: var(--bg-surface);
+  color: var(--fg-default);
+  box-shadow: var(--shadow-soft);
+}
+
+.termPopover > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.termPopover > div:first-child span,
+.termPopover section strong {
+  color: var(--fg-brand);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.termPopover button {
+  border: 0;
+  border-radius: var(--radius-full);
+  padding: 5px 9px;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.termPopover h2 {
+  color: var(--fg-strong);
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.termPopover section {
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.termPopover p,
+.termPopover li {
+  color: var(--fg-default);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.termPopover ol {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+.termPopover em {
+  margin-right: 5px;
+  color: var(--fg-tertiary);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.termPopover small {
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .settingsForm {

@@ -9,8 +9,8 @@
   --bg-success-subtle: oklch(0.968 0.052 154);
   --fg-strong: oklch(0.148 0.004 277);
   --fg-default: oklch(0.259 0.01 273 / 0.88);
-  --fg-secondary: oklch(0.298 0.01 273 / 0.61);
-  --fg-tertiary: oklch(0.298 0.01 273 / 0.43);
+  --fg-secondary: oklch(0.298 0.01 273 / 0.76);
+  --fg-tertiary: oklch(0.298 0.01 273 / 0.58);
   --fg-brand: oklch(0.563 0.232 257);
   --fg-warning: oklch(0.625 0.148 56);
   --fg-success: oklch(0.673 0.211 144);
@@ -93,6 +93,14 @@ html {
   color-scheme: light dark;
 }
 
+html[data-text-size="large"] {
+  font-size: 17px;
+}
+
+html[data-text-size="larger"] {
+  font-size: 18px;
+}
+
 html,
 body {
   max-width: 100vw;
@@ -106,6 +114,7 @@ body {
   color: var(--fg-default);
   background: var(--bg-canvas);
   font-family: var(--font-sans);
+  font-size: 1rem;
   font-feature-settings: "ss20", "calt", "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

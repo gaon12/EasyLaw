@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   ShieldIcon,
 } from "@/components/icons";
+import { ReadingPreferences } from "@/components/reading-preferences";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getDatabase } from "@/lib/db";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
@@ -17,26 +18,27 @@ import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 type ShellVariant = "service" | "admin";
 
 const publicNav = [
-  { href: "/", label: "서비스 소개" },
-  { href: "/guide", label: "쉬운 판결문" },
-  { href: "/notice", label: "공지사항" },
-  { href: "/support", label: "고객센터" },
+  { href: "/", key: "nav.service", label: "서비스 소개" },
+  { href: "/guide", key: "nav.guide", label: "쉬운 판결문" },
+  { href: "/notice", key: "nav.notice", label: "공지사항" },
+  { href: "/support", key: "nav.support", label: "고객센터" },
 ];
 
 const signedInNav = [
-  { href: "/", label: "홈" },
-  { href: "/catalog", label: "판결문 검색" },
-  { href: "/research", label: "AI 질문" },
-  { href: "/me", label: "내 문서함" },
-  { href: "/org", label: "조직" },
+  { href: "/", key: "nav.home", label: "홈" },
+  { href: "/catalog", key: "nav.catalog", label: "판결문 검색" },
+  { href: "/research", key: "nav.research", label: "AI 질문" },
+  { href: "/me", key: "nav.me", label: "내 문서함" },
+  { href: "/org", key: "nav.org", label: "조직" },
 ];
 
 const adminNav = [
-  { href: "/admin", label: "관리 개요" },
-  { href: "/admin/llm", label: "LLM API" },
-  { href: "/admin/mcp", label: "MCP 설정" },
-  { href: "/admin/captcha", label: "CAPTCHA" },
-  { href: "/admin#jobs", label: "사용자·작업" },
+  { href: "/admin", key: "admin.home", label: "관리 개요" },
+  { href: "/admin/llm", key: "admin.llm", label: "LLM API" },
+  { href: "/admin/mcp", key: "admin.mcp", label: "MCP 설정" },
+  { href: "/admin/captcha", key: "admin.captcha", label: "CAPTCHA" },
+  { href: "/admin/dictionary", key: "admin.dictionary", label: "용어 사전" },
+  { href: "/admin#jobs", key: "admin.jobs", label: "사용자·작업" },
 ];
 
 export async function AppHeader({
@@ -56,10 +58,20 @@ export async function AppHeader({
     <header className={styles.govHeader}>
       <div className={styles.utilityBar}>
         <div className={styles.utilityInner}>
-          <a href="/privacy">개인정보처리방침</a>
-          <a href="/terms">이용약관</a>
-          <a href="/support">지원</a>
-          {canSeeAdmin && <a href="/admin">관리센터</a>}
+          <a href="/privacy" data-i18n="nav.privacy">
+            개인정보처리방침
+          </a>
+          <a href="/terms" data-i18n="nav.terms">
+            이용약관
+          </a>
+          <a href="/support" data-i18n="nav.support">
+            지원
+          </a>
+          {canSeeAdmin && (
+            <a href="/admin" data-i18n="nav.admin">
+              관리센터
+            </a>
+          )}
         </div>
       </div>
       <div className={styles.brandRow}>
@@ -77,7 +89,7 @@ export async function AppHeader({
         <div className={styles.headerActions}>
           <a href="/research">
             <SearchIcon size={18} />
-            AI 질문
+            <span data-i18n="nav.research">AI 질문</span>
           </a>
           {sessionUser ? (
             <a className={styles.accountLink} href="/me">
@@ -88,10 +100,15 @@ export async function AppHeader({
             </a>
           ) : (
             <>
-              <a href="/login">로그인</a>
-              <a href="/signup">회원가입</a>
+              <a href="/login" data-i18n="nav.login">
+                로그인
+              </a>
+              <a href="/signup" data-i18n="nav.signup">
+                회원가입
+              </a>
             </>
           )}
+          <ReadingPreferences />
           <ThemeToggle />
         </div>
       </div>
@@ -101,10 +118,14 @@ export async function AppHeader({
       >
         {navItems.map((item) => (
           <a href={item.href} key={item.href}>
-            {item.label}
+            <span data-i18n={item.key}>{item.label}</span>
           </a>
         ))}
-        {canSeeAdmin && variant !== "admin" && <a href="/admin">관리센터</a>}
+        {canSeeAdmin && variant !== "admin" && (
+          <a href="/admin" data-i18n="nav.admin">
+            관리센터
+          </a>
+        )}
       </nav>
     </header>
   );
@@ -130,9 +151,15 @@ export function AppFooter() {
           중요한 판단은 변호사 등 전문가와 확인해 주세요.
         </p>
         <div className={styles.footerLinks}>
-          <a href="/support">고객센터</a>
-          <a href="/privacy">개인정보처리방침</a>
-          <a href="/terms">이용약관</a>
+          <a href="/support" data-i18n="nav.support">
+            고객센터
+          </a>
+          <a href="/privacy" data-i18n="nav.privacy">
+            개인정보처리방침
+          </a>
+          <a href="/terms" data-i18n="nav.terms">
+            이용약관
+          </a>
         </div>
       </div>
     </footer>
