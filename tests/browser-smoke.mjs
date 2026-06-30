@@ -82,7 +82,8 @@ try {
     viewport: { width: 1440, height: 1100 },
   });
 
-  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(`${baseUrl}/setup`);
   if (new URL(page.url()).pathname !== "/setup") {
     throw new Error(
       "Unconfigured service did not redirect to the setup wizard.",
