@@ -169,6 +169,29 @@ test("first-run setup creates the verified service super administrator", async (
   }
 });
 
+test("first-run setup can explicitly skip the Resend API test", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    ensureInstallationState(db);
+    const unlocked = unlockSetup(db, "TEST-SETUP-01", "skip-test-client");
+    assert.ok(unlocked.ok);
+
+    const configured = await configureSetup(db, unlocked.sessionToken, {
+      serviceName: "EasyLaw Test",
+      adminName: "최고 관리자",
+      adminEmail: "skip@example.com",
+      resendApiKey: "re_test_key",
+      fromName: "EasyLaw",
+      fromAddress: "hello@example.com",
+      skipApiTest: true,
+    });
+
+    assert.equal(configured.ok, true);
+  } finally {
+    cleanup();
+  }
+});
+
 test("external catalog creates public pending judgments", async () => {
   const { db, cleanup } = withDb();
   try {

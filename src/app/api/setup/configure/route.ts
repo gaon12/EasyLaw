@@ -13,6 +13,7 @@ const requestSchema = z.object({
   resendApiKey: z.string().trim().min(8).max(200),
   fromName: z.string().trim().min(1).max(60),
   fromAddress: z.email(),
+  skipApiTest: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {

@@ -185,6 +185,7 @@ export async function configureSetup(
     resendApiKey: string;
     fromName: string;
     fromAddress: string;
+    skipApiTest?: boolean;
   },
 ) {
   if (!isSetupSessionValid(db, sessionToken)) {
@@ -195,12 +196,12 @@ export async function configureSetup(
   if (!state || !["pending", "email_pending"].includes(state.status)) {
     return { ok: false as const, reason: "invalid_state" };
   }
-  if (
-    !state.email_test_fingerprint ||
-    !state.email_tested_at ||
-    Date.now() - new Date(state.email_tested_at).getTime() > 15 * 60_000 ||
-    state.email_test_fingerprint !== emailConfigurationFingerprint(input)
-  ) {
+  const hasValidEmailTest =
+    state.email_test_fingerprint &&
+    state.email_tested_at &&
+    Date.now() - new Date(state.email_tested_at).getTime() <= 15 * 60_000 &&
+    state.email_test_fingerprint === emailConfigurationFingerprint(input);
+  if (!input.skipApiTest && !hasValidEmailTest) {
     return { ok: false as const, reason: "api_test_required" };
   }
 
@@ -269,7 +270,7 @@ export async function configureSetup(
   await sendSetupVerificationEmail(db, email, emailCode);
   auditLog(db, {
     actorUserId: adminUserId,
-    action: "setup.email_sent",
+    action: input.skipApiTest ? "setup.email_test_skipped" : "setup.email_sent",
     targetType: "installation",
   });
   return { ok: true as const };

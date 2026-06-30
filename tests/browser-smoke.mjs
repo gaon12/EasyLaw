@@ -104,6 +104,15 @@ try {
   if (await configureButton.isEnabled()) {
     throw new Error("Setup continued before the email API test passed.");
   }
+  const skipApiTest = page.getByTestId("skip-api-test");
+  await skipApiTest.check();
+  const checkmarkColor = await skipApiTest.evaluate(
+    (checkbox) => getComputedStyle(checkbox, "::before").borderBottomColor,
+  );
+  if (checkmarkColor !== "rgb(255, 255, 255)") {
+    throw new Error("Checked checkbox did not render a white checkmark.");
+  }
+  await skipApiTest.uncheck();
   await page.getByRole("button", { name: "API 키 테스트" }).click();
   await page.getByRole("button", { name: "테스트 통과" }).waitFor();
   await configureButton.click();

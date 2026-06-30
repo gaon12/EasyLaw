@@ -89,6 +89,7 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [apiTestPassed, setApiTestPassed] = useState(false);
+  const [skipApiTest, setSkipApiTest] = useState(false);
   const [config, setConfig] = useState({
     serviceName: "EasyLaw",
     adminName: "",
@@ -142,7 +143,10 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   function configure(event: FormEvent) {
     event.preventDefault();
     void submit(async () => {
-      await postJson("/api/setup/configure", config);
+      await postJson("/api/setup/configure", {
+        ...config,
+        skipApiTest,
+      });
       setMessage("인증 코드를 이메일로 보냈어요.");
       setStage("email_pending");
     }, "메일 발송 설정을 확인하고 있어요.");
@@ -157,6 +161,7 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
         fromAddress: config.fromAddress,
       });
       setApiTestPassed(true);
+      setSkipApiTest(false);
       setMessage("테스트 메일을 보냈어요. API 키와 발신 정보를 확인했습니다.");
     }, "테스트 메일을 보내고 있어요.");
   }
@@ -192,7 +197,14 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
       <div className={styles.setupWindow}>
         <header className={styles.setupHeader}>
           <a className={styles.setupBrand} href="/setup">
-            <span className={styles.setupSymbol} aria-hidden="true" />
+            <Image
+              alt=""
+              aria-hidden="true"
+              className={styles.setupCharacter}
+              height={38}
+              src="/brand-character.svg"
+              width={36}
+            />
             <span>EasyLaw</span>
           </a>
           <span className={styles.stepLabel}>
@@ -367,9 +379,23 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                     {apiTestPassed ? "테스트 통과" : "API 키 테스트"}
                   </button>
                 </div>
+                <label className={styles.skipOption}>
+                  <input
+                    checked={skipApiTest}
+                    data-testid="skip-api-test"
+                    onChange={(event) => setSkipApiTest(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>
+                    지금은 API 테스트 건너뛰기
+                    <small>
+                      설치 확인 메일은 입력한 Resend 설정으로 실제 발송됩니다.
+                    </small>
+                  </span>
+                </label>
                 <button
                   className={styles.nextButton}
-                  disabled={busy || !apiTestPassed}
+                  disabled={busy || (!apiTestPassed && !skipApiTest)}
                   type="submit"
                 >
                   {busy ? "확인 중..." : "저장하고 인증 메일 보내기"}
