@@ -8,7 +8,6 @@ import {
   FileTextIcon,
   SearchIcon,
   ShieldIcon,
-  UploadIcon,
 } from "@/components/icons";
 import { LandingSearch } from "@/components/landing-search";
 import { AppShell, serviceShortcuts } from "@/components/site-chrome";
@@ -210,18 +209,6 @@ export default async function Home() {
               필요한 내용을 쉬운 말로 나눠 읽어보세요.
             </p>
             <LandingSearch />
-            <div className={styles.heroActions}>
-              <a className={styles.primaryButton} href="/catalog">
-                <SearchIcon size={18} />
-                판결문 찾기
-              </a>
-              <AuthRequiredLink
-                className={styles.secondaryButton}
-                nextPath="/catalog#custom-judgment"
-              >
-                <UploadIcon size={18} />내 문서로 시작하기
-              </AuthRequiredLink>
-            </div>
           </div>
         </section>
 

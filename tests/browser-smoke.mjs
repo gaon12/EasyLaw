@@ -231,17 +231,19 @@ try {
     .getByRole("region", { name: "EasyLaw 결과 예시" })
     .waitFor();
   await anonymousPage.getByLabel("판결문 검색").waitFor();
-  const publicCatalogHref = await anonymousPage
-    .getByRole("link", { name: "판결문 찾기" })
-    .getAttribute("href");
-  if (publicCatalogHref !== "/catalog") {
-    throw new Error("Anonymous catalog CTA should open public search.");
+  if (
+    (await anonymousPage.getByRole("link", { name: "판결문 찾기" }).count()) !==
+    0
+  ) {
+    throw new Error("Anonymous landing page still exposes the catalog CTA.");
   }
-  await anonymousPage.getByRole("link", { name: "내 문서로 시작하기" }).click();
-  await anonymousPage
-    .getByRole("dialog", { name: "로그인이 필요해요" })
-    .waitFor();
-  await anonymousPage.getByRole("button", { name: "취소" }).click();
+  if (
+    (await anonymousPage
+      .getByRole("link", { name: "내 문서로 시작하기" })
+      .count()) !== 0
+  ) {
+    throw new Error("Anonymous landing page still exposes the document CTA.");
+  }
   if (
     (await anonymousPage.getByText("관리센터", { exact: true }).count()) !== 0
   ) {
@@ -255,15 +257,16 @@ try {
     throw new Error("Removed hero eyebrow is still visible.");
   }
   const questionMode = anonymousPage.getByRole("switch", {
-    name: "자연어 질문 모드",
+    name: "법률 질문 모드",
   });
   await questionMode.click();
   await anonymousPage.getByLabel("법률 상황 질문").waitFor();
   await anonymousPage
     .getByText("이런 질문을 할 수 있어요", { exact: true })
     .waitFor();
+  await anonymousPage.getByRole("button", { name: "질문" }).waitFor();
   const exampleQuestion =
-    "고블린이 편의점에서 현금 대신 포션으로 거래하자는데 가능한가요?";
+    "집주인이 보증금 반환을 미루고 있습니다. 내용증명, 임차권등기명령, 지급명령 중 어떤 순서로 진행해야 하나요?";
   await anonymousPage.getByRole("button", { name: exampleQuestion }).click();
   if (
     (await anonymousPage.getByLabel("법률 상황 질문").inputValue()) !==
