@@ -2,19 +2,39 @@ import { AppShell } from "@/components/site-chrome";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
 
+type SecurityPageProps = {
+  searchParams: Promise<{
+    reason?: string | string[];
+  }>;
+};
+
 export const metadata = pageMetadata({
   title: "계정 보호 설정",
   description: "EasyLaw 계정의 로그인 확인, 2차 인증, 복구 코드를 관리합니다.",
   robots: { index: false, follow: false },
 });
 
-export default function SecurityPage() {
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function SecurityPage({
+  searchParams,
+}: SecurityPageProps) {
+  const reason = firstParam((await searchParams).reason);
+
   return (
     <AppShell>
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
+              {reason === "totp_required" && (
+                <output className={styles.authNotice}>
+                  관리 기능은 2차 인증을 켠 뒤 사용할 수 있어요. 계정을 먼저
+                  단단하게 잠가볼게요.
+                </output>
+              )}
               <h1>계정 보호 설정</h1>
               <p>
                 로그인 확인, 2차 인증, 복구 코드를 조용히 관리하는 곳이에요.

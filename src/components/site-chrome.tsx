@@ -74,7 +74,13 @@ export async function AppHeader({
           <span className={styles.brandText}>EasyLaw</span>
         </a>
         <div className={styles.headerActions}>
-          <a href={sessionUser ? "/research" : "/login?next=%2Fresearch"}>
+          <a
+            href={
+              sessionUser
+                ? "/research"
+                : "/login?next=%2Fresearch&reason=login_required"
+            }
+          >
             <SearchIcon size={18} />
             AI 질문
           </a>

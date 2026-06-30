@@ -1322,6 +1322,27 @@
   margin-top: 24px;
 }
 
+.authNotice {
+  display: block;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in oklch, var(--bg-brand) 24%, transparent);
+  border-radius: var(--radius-12);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.6;
+}
+
+.mutedText {
+  margin-top: 14px;
+  color: var(--fg-tertiary);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
 .errorState {
   width: min(760px, 100%);
   display: grid;

@@ -38,6 +38,7 @@ export function JudgmentExplorer({
   );
   const [isLoading, setIsLoading] = useState(false);
   const isLoadingRef = useRef(false);
+  const authRedirectRef = useRef(false);
   const notificationRef = useRef<string | null>(null);
   const [pendingNotificationId, setPendingNotificationId] = useState<
     string | null
@@ -46,7 +47,7 @@ export function JudgmentExplorer({
   const [customText, setCustomText] = useState("");
 
   async function withLoading(action: () => Promise<void>) {
-    if (isLoadingRef.current) {
+    if (isLoadingRef.current || authRedirectRef.current) {
       return;
     }
     isLoadingRef.current = true;
@@ -57,7 +58,9 @@ export function JudgmentExplorer({
       setMessage("요청을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     } finally {
       isLoadingRef.current = false;
-      setIsLoading(false);
+      if (!authRedirectRef.current) {
+        setIsLoading(false);
+      }
     }
   }
 
@@ -134,9 +137,17 @@ export function JudgmentExplorer({
       const data = await response.json();
 
       if (response.status === 401) {
-        window.location.assign(
-          `/login?next=${encodeURIComponent("/catalog#custom-judgment")}`,
+        authRedirectRef.current = true;
+        setMessage(
+          "로그인이 필요한 기능이에요. 잠시 후 로그인 페이지로 이동합니다.",
         );
+        window.setTimeout(() => {
+          window.location.assign(
+            `/login?next=${encodeURIComponent(
+              "/catalog#custom-judgment",
+            )}&reason=login_required`,
+          );
+        }, 900);
         return;
       }
       if (!response.ok) {

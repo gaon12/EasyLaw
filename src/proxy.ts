@@ -56,6 +56,7 @@ export function proxy(request: NextRequest) {
     if (!user) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+      loginUrl.searchParams.set("reason", "login_required");
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });
       }
@@ -64,10 +65,25 @@ export function proxy(request: NextRequest) {
     const adminPath =
       pathname.startsWith("/admin") || pathname.startsWith("/api/admin/");
     if (adminPath && !["admin", "super_admin"].includes(user.role)) {
-      return new NextResponse("Forbidden", { status: 403 });
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+      const forbiddenUrl = new URL("/forbidden", request.url);
+      forbiddenUrl.searchParams.set(
+        "from",
+        `${pathname}${request.nextUrl.search}`,
+      );
+      forbiddenUrl.searchParams.set("reason", "admin_required");
+      return NextResponse.redirect(forbiddenUrl);
     }
     if (adminPath && !user.totpEnabled) {
-      return NextResponse.redirect(new URL("/security", request.url));
+      const securityUrl = new URL("/security", request.url);
+      securityUrl.searchParams.set(
+        "next",
+        `${pathname}${request.nextUrl.search}`,
+      );
+      securityUrl.searchParams.set("reason", "totp_required");
+      return NextResponse.redirect(securityUrl);
     }
   }
 

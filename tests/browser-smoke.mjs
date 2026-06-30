@@ -138,6 +138,22 @@ try {
   await page.getByRole("link", { name: "EasyLaw 시작하기" }).click();
   await page.waitForURL(baseUrl);
   await page.getByRole("link", { name: "최고 관리자" }).waitFor();
+  const faviconResponse = await page.request.get(`${baseUrl}/favicon.ico`);
+  if (!faviconResponse.ok()) {
+    throw new Error("Favicon was not served from /favicon.ico.");
+  }
+  const faviconType = faviconResponse.headers()["content-type"] ?? "";
+  if (!faviconType.includes("image/")) {
+    throw new Error("Favicon response did not use an image content type.");
+  }
+  const iconLinks = await page
+    .locator('head link[rel~="icon"]')
+    .evaluateAll((links) =>
+      links.map((link) => link.getAttribute("href") ?? ""),
+    );
+  if (!iconLinks.some((href) => href.includes("/favicon.ico"))) {
+    throw new Error("Page head did not advertise the favicon.");
+  }
   await page
     .getByRole("heading", {
       name: "최고 관리자님, 무엇을 이해해볼까요?",
@@ -162,6 +178,9 @@ try {
   if (new URL(anonymousPage.url()).pathname !== "/login") {
     throw new Error("Anonymous user could access the administration page.");
   }
+  await anonymousPage
+    .getByText("로그인이 필요한 페이지예요", { exact: false })
+    .waitFor();
   if (
     (
       await anonymousPage.request.post(`${baseUrl}/api/auth/totp/setup`)

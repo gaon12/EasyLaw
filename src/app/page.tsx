@@ -212,7 +212,7 @@ export default async function Home() {
               </a>
               <a
                 className={styles.secondaryButton}
-                href="/login?next=%2Fcatalog%23custom-judgment"
+                href="/login?next=%2Fcatalog%23custom-judgment&reason=login_required"
               >
                 <UploadIcon size={18} />내 문서로 시작하기
               </a>
