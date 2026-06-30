@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { sha, solveChallenge } from "altcha/lib";
 import { NextRequest } from "next/server";
 import { generate } from "otplib";
 import {
@@ -11,6 +12,7 @@ import {
   createTotpEnrollment,
   verifyTotpEnrollment,
 } from "../src/lib/auth";
+import { createAltchaChallenge, verifyAltchaPayload } from "../src/lib/captcha";
 import { createDatabase } from "../src/lib/db";
 import { seedDatabase } from "../src/lib/db/seed";
 import {
@@ -311,6 +313,28 @@ test("anonymous usage limits survive cookie resets on the same network signal", 
       blocked.allowed ? "" : blocked.error,
       "anonymous_limit_exceeded",
     );
+  } finally {
+    cleanup();
+  }
+});
+
+test("ALTCHA payloads verify against the service captcha secret", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    const challenge = await createAltchaChallenge(db);
+    assert.ok(challenge);
+    const solution = await solveChallenge({
+      challenge,
+      deriveKey: sha.deriveKey,
+      timeout: 10_000,
+    });
+    const payload = Buffer.from(
+      JSON.stringify({ challenge, solution }),
+      "utf8",
+    ).toString("base64");
+
+    assert.equal(await verifyAltchaPayload(db, payload), true);
+    assert.equal(await verifyAltchaPayload(db, "not-valid-base64"), false);
   } finally {
     cleanup();
   }
