@@ -10,9 +10,11 @@ type Explanation = {
     definition: string;
     partOfSpeech: string | null;
     senseNo: string;
+    source: "legal" | "basic" | "standard";
     word: string;
   }[];
   plain: string;
+  priority: string;
   term: string;
 };
 
@@ -46,7 +48,11 @@ export function TermExplainer() {
       });
       setExplanation(null);
       setStatus("loading");
-      void fetch(`/api/terms/explain?term=${encodeURIComponent(text)}`)
+      const params = new URLSearchParams({
+        context: selectionContext(selection),
+        term: text,
+      });
+      void fetch(`/api/terms/explain?${params}`)
         .then((response) => {
           if (!response.ok) {
             throw new Error("term lookup failed");
@@ -100,12 +106,13 @@ export function TermExplainer() {
       {explanation && (
         <>
           <section>
-            <strong>사전</strong>
+            <strong>사전 · {explanation.priority}</strong>
             {explanation.definitions.length > 0 ? (
               <ol>
                 {explanation.definitions.map((item) => (
                   <li key={`${item.word}-${item.senseNo}-${item.definition}`}>
                     {item.partOfSpeech && <em>{item.partOfSpeech}</em>}
+                    <em>{sourceLabel(item.source)}</em>
                     {item.definition}
                   </li>
                 ))}
@@ -127,4 +134,22 @@ export function TermExplainer() {
       )}
     </aside>
   );
+}
+
+function selectionContext(selection: Selection | null) {
+  const container = selection?.anchorNode?.parentElement;
+  return (container?.textContent ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 500);
+}
+
+function sourceLabel(source: "legal" | "basic" | "standard") {
+  if (source === "legal") {
+    return "법률";
+  }
+  if (source === "basic") {
+    return "기초";
+  }
+  return "표준";
 }

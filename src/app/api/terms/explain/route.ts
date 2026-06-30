@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
+  context: z.string().trim().max(500).optional(),
   term: z.string().trim().min(1).max(40),
 });
 
@@ -17,5 +18,5 @@ export async function GET(request: Request) {
     return Response.json({ error: "invalid_term" }, { status: 400 });
   }
 
-  return Response.json(buildTermExplanation(getDatabase(), parsed.data.term));
+  return Response.json(buildTermExplanation(getDatabase(), parsed.data));
 }
