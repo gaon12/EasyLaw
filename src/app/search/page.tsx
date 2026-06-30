@@ -1,5 +1,13 @@
 import { AppShell } from "@/components/site-chrome";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "통합검색",
+  description:
+    "판결문 검색과 AI 법률 질문으로 이동하는 검색 안내 페이지입니다.",
+  robots: { index: false, follow: true },
+});
 
 export default function SearchPage() {
   return (

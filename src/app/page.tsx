@@ -13,6 +13,7 @@ import { LandingSearch } from "@/components/landing-search";
 import { AppShell, serviceShortcuts } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getPublicJudgments } from "@/lib/queries";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import styles from "./page.module.css";
@@ -63,6 +64,13 @@ const paths = [
 ];
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  title: "판결문을 이해하기 쉽게",
+  description:
+    "공개 판결문 검색, 비공개 문서 저장, AI 법률 질문을 한곳에서 시작하세요.",
+  path: "/",
+});
 
 export default async function Home() {
   const db = getDatabase();

@@ -1,5 +1,12 @@
 import { AppShell } from "@/components/site-chrome";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "회원가입",
+  description: "EasyLaw 계정을 만들고 판결문 이해 작업을 시작하세요.",
+  robots: { index: false, follow: false },
+});
 
 export default function SignupPage() {
   return (

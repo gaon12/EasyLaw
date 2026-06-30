@@ -1,6 +1,13 @@
 import { AppShell } from "@/components/site-chrome";
 import { notices } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "공지사항",
+  description: "EasyLaw 서비스 변경, URL 정책, 운영 안내를 확인하세요.",
+  path: "/notice",
+});
 
 export default function NoticeListPage() {
   return (

@@ -1,5 +1,12 @@
 import { AppShell } from "@/components/site-chrome";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "계정 보호 설정",
+  description: "EasyLaw 계정의 로그인 확인, 2차 인증, 복구 코드를 관리합니다.",
+  robots: { index: false, follow: false },
+});
 
 export default function SecurityPage() {
   return (

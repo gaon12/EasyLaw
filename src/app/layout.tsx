@@ -1,11 +1,64 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { getSiteUrl, siteDescription, siteName } from "@/lib/metadata";
 import "./globals.css";
 
+const siteUrl = getSiteUrl();
+
 export const metadata: Metadata = {
-  title: "EasyLaw | 판결문을 이해하기 쉽게",
-  description:
-    "판결의 결론과 이유, 어려운 법률 용어를 쉬운 설명으로 나눠 읽는 판결문 이해 보조 서비스",
+  metadataBase: siteUrl,
+  title: {
+    default: `${siteName} | 판결문을 이해하기 쉽게`,
+    template: `%s | ${siteName}`,
+  },
+  description: siteDescription,
+  applicationName: siteName,
+  authors: [{ name: siteName }],
+  category: "legal technology",
+  keywords: [
+    "판결문",
+    "법률 검색",
+    "쉬운 법률",
+    "판례",
+    "AI 법률 질문",
+    "Legal AI",
+    "EasyLaw",
+  ],
+  alternates: {
+    canonical: siteUrl,
+  },
+  icons: {
+    icon: [
+      { url: "/brand-character.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/brand-character.svg",
+    apple: "/brand-character.svg",
+  },
+  openGraph: {
+    title: `${siteName} | 판결문을 이해하기 쉽게`,
+    description: siteDescription,
+    locale: "ko_KR",
+    siteName,
+    type: "website",
+    url: siteUrl,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${siteName} | 판결문을 이해하기 쉽게`,
+    description: siteDescription,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default function RootLayout({
@@ -17,6 +70,23 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <head>
         <script src="/theme-init.js" />
+        <script type="application/ld+json" suppressHydrationWarning>
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: siteName,
+            applicationCategory: "LegalTechApplication",
+            operatingSystem: "Web",
+            url: siteUrl.toString(),
+            description: siteDescription,
+            inLanguage: "ko-KR",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "KRW",
+            },
+          })}
+        </script>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" />
         <link
           crossOrigin="anonymous"

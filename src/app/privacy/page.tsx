@@ -1,5 +1,13 @@
 import { AppShell } from "@/components/site-chrome";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "개인정보처리방침",
+  description:
+    "EasyLaw가 개인정보와 비공개 판결문을 처리하는 기준을 안내합니다.",
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (

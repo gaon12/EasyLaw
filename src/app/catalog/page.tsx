@@ -1,11 +1,19 @@
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { pageMetadata } from "@/lib/metadata";
 import { getPublicJudgments } from "@/lib/queries";
 import { JudgmentExplorer } from "../easylaw-client";
 import styles from "../page.module.css";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  title: "판결문 검색",
+  description:
+    "사건번호, 법원명, 판결문 제목으로 공개 판결문을 검색하고 쉬운 설명을 확인하세요.",
+  path: "/catalog",
+});
 
 export default async function CatalogPage({
   searchParams,

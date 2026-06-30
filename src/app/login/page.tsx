@@ -1,5 +1,12 @@
 import { AppShell } from "@/components/site-chrome";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "로그인",
+  description: "EasyLaw 계정으로 로그인해 비공개 문서와 알림을 관리하세요.",
+  robots: { index: false, follow: false },
+});
 
 export default function LoginPage() {
   return (

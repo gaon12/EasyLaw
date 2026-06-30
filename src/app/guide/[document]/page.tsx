@@ -1,7 +1,29 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/site-chrome";
 import { getGuideDocument } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../../page.module.css";
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/guide/[document]">) {
+  const { document: slug } = await params;
+  const document = getGuideDocument(slug);
+
+  if (!document) {
+    return pageMetadata({
+      title: "가이드를 찾을 수 없음",
+      description: "요청한 EasyLaw 가이드 문서를 찾을 수 없습니다.",
+      robots: { index: false, follow: false },
+    });
+  }
+
+  return pageMetadata({
+    title: document.title,
+    description: document.summary,
+    path: `/guide/${encodeURIComponent(document.slug)}`,
+  });
+}
 
 export default async function GuideDocumentPage({
   params,

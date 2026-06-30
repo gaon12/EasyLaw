@@ -1,8 +1,15 @@
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  title: "조직 문서함",
+  description: "조직에서 공유한 판결문 결과와 구성원 상태를 관리합니다.",
+  robots: { index: false, follow: false },
+});
 
 export default function OrganizationPage() {
   const db = getDatabase();

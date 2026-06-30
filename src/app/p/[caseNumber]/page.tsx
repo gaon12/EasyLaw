@@ -3,12 +3,37 @@ import { JudgmentDetailView } from "@/components/judgment-detail";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { pageMetadata } from "@/lib/metadata";
 import {
   getLatestAnalysis,
   getPublicJudgmentByCaseNumber,
 } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/p/[caseNumber]">) {
+  const { caseNumber } = await params;
+  const db = getDatabase();
+  await syncSampleExternalCatalog(db);
+  const judgment = getPublicJudgmentByCaseNumber(db, caseNumber);
+
+  if (!judgment) {
+    return pageMetadata({
+      title: "판결문을 찾을 수 없음",
+      description: "요청한 공개 판결문을 찾을 수 없습니다.",
+      path: `/p/${encodeURIComponent(caseNumber)}`,
+      robots: { index: false, follow: false },
+    });
+  }
+
+  return pageMetadata({
+    title: `${judgment.caseNumber} ${judgment.title}`,
+    description: `${judgment.courtName} ${judgment.decidedOn} 판결의 핵심 내용과 쉬운 설명을 확인하세요.`,
+    path: `/p/${encodeURIComponent(judgment.caseNumber)}`,
+  });
+}
 
 export default async function PublicJudgmentPage({
   params,

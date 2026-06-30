@@ -1,6 +1,14 @@
 import { AppShell } from "@/components/site-chrome";
 import { guideDocuments } from "@/lib/content";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "쉬운 판결문 가이드",
+  description:
+    "판결문 읽는 순서, 쉬운말 작성 원칙, 비공개 문서 처리 기준을 확인하세요.",
+  path: "/guide",
+});
 
 export default function GuidePage() {
   return (

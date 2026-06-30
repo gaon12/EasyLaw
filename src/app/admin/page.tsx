@@ -1,10 +1,17 @@
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getManagementRows } from "@/lib/queries";
 import styles from "../page.module.css";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  title: "운영 관리센터",
+  description: "EasyLaw 운영 상태, 생성 큐, 사용자 보안 상태를 관리합니다.",
+  robots: { index: false, follow: false },
+});
 
 export default async function AdminPage() {
   const db = getDatabase();

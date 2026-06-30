@@ -1,5 +1,13 @@
 import { AppShell } from "@/components/site-chrome";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "이용약관",
+  description:
+    "EasyLaw 이용 범위, 법률 자문 대체 금지, 문서 업로드 기준을 안내합니다.",
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

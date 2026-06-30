@@ -1,5 +1,13 @@
 import { AppShell } from "@/components/site-chrome";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
+
+export const metadata = pageMetadata({
+  title: "고객센터",
+  description:
+    "판결문 검색, AI 질문, 생성 알림, 조직 문서함 이용 안내를 확인하세요.",
+  path: "/support",
+});
 
 export default function SupportPage() {
   return (

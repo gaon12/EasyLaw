@@ -1,8 +1,15 @@
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
+import { pageMetadata } from "@/lib/metadata";
 import styles from "../page.module.css";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  title: "내 문서함",
+  description: "저장한 판결문, 생성 알림, 계정 설정을 확인합니다.",
+  robots: { index: false, follow: false },
+});
 
 export default function MePage() {
   const db = getDatabase();

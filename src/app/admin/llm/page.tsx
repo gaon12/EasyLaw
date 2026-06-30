@@ -1,10 +1,17 @@
 import { AdminSettingsForm } from "@/components/admin-settings-form";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
+import { pageMetadata } from "@/lib/metadata";
 import { getSetting, hasSetting } from "@/lib/settings";
 import styles from "../../page.module.css";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  title: "LLM API 설정",
+  description: "AI 법률 질문에 사용할 LLM 공급자, 모델, API Key를 설정합니다.",
+  robots: { index: false, follow: false },
+});
 
 export default function AdminLlmPage() {
   const db = getDatabase();

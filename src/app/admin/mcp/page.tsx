@@ -1,10 +1,18 @@
 import { AdminSettingsForm } from "@/components/admin-settings-form";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
+import { pageMetadata } from "@/lib/metadata";
 import { getSetting } from "@/lib/settings";
 import styles from "../../page.module.css";
 
 export const dynamic = "force-dynamic";
+
+export const metadata = pageMetadata({
+  title: "MCP 설정",
+  description:
+    "법령, 판례, 공공데이터 도구를 연결하는 MCP 엔드포인트를 설정합니다.",
+  robots: { index: false, follow: false },
+});
 
 export default function AdminMcpPage() {
   const db = getDatabase();
