@@ -23,7 +23,6 @@ type Plan = {
   coverageLabel: string;
   coverageLevel: number;
   intent: string;
-  modelLabel: string;
   steps: ResearchStep[];
 };
 
@@ -253,7 +252,6 @@ export function LegalResearchPanel({
             </header>
             <div className={styles.aiOverviewMeta}>
               <span>{plan.intent}</span>
-              <span>모델 {plan.modelLabel}</span>
             </div>
 
             {answer && (

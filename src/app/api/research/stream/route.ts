@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     return anonymousLimitResponse(access);
   }
 
-  const plan = buildResearchPlan(db, parsed.data.query);
+  const plan = await buildResearchPlan(db, parsed.data.query);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -71,7 +71,6 @@ export async function POST(request: NextRequest) {
           coverageLabel: plan.coverageLabel,
           coverageLevel: plan.coverageLevel,
           intent: plan.intent,
-          modelLabel: plan.modelLabel,
           steps: plan.steps,
         });
 
