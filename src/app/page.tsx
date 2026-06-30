@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import Image from "next/image";
 import { AuthRequiredLink } from "@/components/auth-required-link";
 import {
@@ -12,7 +12,7 @@ import {
 import { LandingSearch } from "@/components/landing-search";
 import { AppShell, serviceShortcuts } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncSampleExternalCatalog } from "@/lib/external-law";
+import { syncExternalCatalog } from "@/lib/external-law";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getPublicJudgments } from "@/lib/queries";
@@ -73,6 +73,7 @@ export const metadata = pageMetadata({
   description:
     "공개 판결문 검색, 비공개 문서 저장, AI 법률 질문을 한곳에서 시작하세요.",
   path: "/",
+  titleKey: "meta.home.title",
 });
 
 export default async function Home() {
@@ -83,7 +84,7 @@ export default async function Home() {
   );
 
   if (sessionUser) {
-    await syncSampleExternalCatalog(db);
+    await syncExternalCatalog(db);
     const snapshot = getDashboardSnapshot(db);
     const judgments = getPublicJudgments(db).slice(0, 3);
 

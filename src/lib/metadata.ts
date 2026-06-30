@@ -13,15 +13,17 @@ export function pageMetadata(input: {
   description: string;
   path?: string;
   robots?: Metadata["robots"];
+  titleKey?: string;
 }): Metadata {
   const canonical = input.path ? new URL(input.path, getSiteUrl()) : undefined;
+  const title = `${input.title} | ${siteName}`;
 
   return {
-    title: input.title,
+    title: { absolute: title },
     description: input.description,
     alternates: canonical ? { canonical } : undefined,
     openGraph: {
-      title: `${input.title} | ${siteName}`,
+      title,
       description: input.description,
       siteName,
       type: "website",
@@ -29,9 +31,14 @@ export function pageMetadata(input: {
     },
     twitter: {
       card: "summary_large_image",
-      title: `${input.title} | ${siteName}`,
+      title,
       description: input.description,
     },
+    other: input.titleKey
+      ? {
+          "easylaw-title-key": input.titleKey,
+        }
+      : undefined,
     robots: input.robots,
   };
 }

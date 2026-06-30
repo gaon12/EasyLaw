@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import styles from "@/app/page.module.css";
 import { SettingsIcon } from "@/components/icons";
@@ -18,6 +19,7 @@ const textSizes = textSizeOptions.map((option) => option.value);
 type TextSize = (typeof textSizes)[number];
 
 export function ReadingPreferences() {
+  const pathname = usePathname();
   const [locale, setLocale] = useState<SupportedLocale>("ko");
   const [textSize, setTextSize] = useState<TextSize>("normal");
 
@@ -31,6 +33,10 @@ export function ReadingPreferences() {
     applyLocale(nextLocale);
     applyTextSize(nextTextSize);
   }, []);
+
+  useEffect(() => {
+    applyLocale(locale, pathname);
+  }, [locale, pathname]);
 
   return (
     <details className={styles.preferenceMenu}>
@@ -78,7 +84,10 @@ export function ReadingPreferences() {
   );
 }
 
-function applyLocale(locale: SupportedLocale) {
+function applyLocale(
+  locale: SupportedLocale,
+  pathname = window.location.pathname,
+) {
   document.documentElement.lang = locale === "ko" ? "ko" : locale;
   document.documentElement.dataset.locale = locale;
   const dictionary: Readonly<Record<string, string>> = translations[locale];
@@ -87,6 +96,18 @@ function applyLocale(locale: SupportedLocale) {
     if (key && dictionary[key]) {
       element.textContent = dictionary[key];
     }
+  }
+  const titleKey = document.querySelector<HTMLMetaElement>(
+    'meta[name="easylaw-title-key"]',
+  )?.content;
+  const fallbackTitleKey = pathname === "/" ? "meta.home.title" : undefined;
+  const nextTitle = titleKey
+    ? dictionary[titleKey]
+    : fallbackTitleKey
+      ? dictionary[fallbackTitleKey]
+      : undefined;
+  if (nextTitle) {
+    document.title = nextTitle;
   }
 }
 

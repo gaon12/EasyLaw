@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   ShieldIcon,
 } from "@/components/icons";
+import { NavLinks } from "@/components/nav-links";
 import { ReadingPreferences } from "@/components/reading-preferences";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getDatabase } from "@/lib/db";
@@ -35,6 +36,7 @@ const signedInNav = [
 const adminNav = [
   { href: "/admin", key: "admin.home", label: "관리 개요" },
   { href: "/admin/llm", key: "admin.llm", label: "LLM API" },
+  { href: "/admin/open-law", key: "admin.openLaw", label: "공개법령 API" },
   { href: "/admin/mcp", key: "admin.mcp", label: "MCP 설정" },
   { href: "/admin/captcha", key: "admin.captcha", label: "CAPTCHA" },
   { href: "/admin/dictionary", key: "admin.dictionary", label: "용어 사전" },
@@ -51,9 +53,12 @@ export async function AppHeader({
     (await cookies()).get(SESSION_COOKIE)?.value,
   );
   const canSeeAdmin = sessionUser?.role === "super_admin";
-  const navItems =
-    variant === "admin" ? adminNav : sessionUser ? signedInNav : publicNav;
-
+  const navItems = [
+    ...(variant === "admin" ? adminNav : sessionUser ? signedInNav : publicNav),
+    ...(canSeeAdmin && variant !== "admin"
+      ? [{ href: "/admin", key: "nav.admin", label: "관리센터" }]
+      : []),
+  ];
   return (
     <header className={styles.govHeader}>
       <div className={styles.utilityBar}>
@@ -112,21 +117,10 @@ export async function AppHeader({
           <ThemeToggle />
         </div>
       </div>
-      <nav
-        className={styles.mainNav}
-        aria-label={variant === "admin" ? "관리센터 메뉴" : "주요 서비스"}
-      >
-        {navItems.map((item) => (
-          <a href={item.href} key={item.href}>
-            <span data-i18n={item.key}>{item.label}</span>
-          </a>
-        ))}
-        {canSeeAdmin && variant !== "admin" && (
-          <a href="/admin" data-i18n="nav.admin">
-            관리센터
-          </a>
-        )}
-      </nav>
+      <NavLinks
+        items={navItems}
+        label={variant === "admin" ? "관리센터 메뉴" : "주요 서비스"}
+      />
     </header>
   );
 }

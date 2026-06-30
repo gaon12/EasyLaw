@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createMagicLink, createSignupMagicLink } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
-import { getSiteUrl } from "@/lib/metadata";
 import { sendMagicLinkEmail } from "@/lib/notifications";
+import { getPublicRequestOrigin } from "@/lib/request-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,14 +48,10 @@ export async function POST(request: Request) {
 }
 
 function magicLinkUrl(request: Request, token: string, nextPath?: string) {
-  const baseUrl = getSiteUrl();
-  if (baseUrl.hostname === "localhost" && request.url) {
-    const current = new URL(request.url);
-    baseUrl.protocol = current.protocol;
-    baseUrl.host = current.host;
-  }
-
-  const url = new URL("/api/auth/magic-link/consume", baseUrl);
+  const url = new URL(
+    "/api/auth/magic-link/consume",
+    getPublicRequestOrigin(request),
+  );
   url.searchParams.set("token", token);
   if (nextPath?.startsWith("/")) {
     url.searchParams.set("next", nextPath);

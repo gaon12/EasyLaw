@@ -228,8 +228,22 @@
 }
 
 .mainNav a {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 0 12px;
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.mainNav a:hover,
+.navActive {
+  background: var(--bg-brand-subtle);
+}
+
+.navActive {
+  color: var(--fg-brand);
 }
 
 .main {
