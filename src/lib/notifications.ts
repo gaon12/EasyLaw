@@ -1,11 +1,17 @@
 import { Resend } from "resend";
 import { auditLog } from "./audit";
 import type { SqliteDatabase } from "./db";
+import { renderJudgmentReadyEmail } from "./email";
 import { getSetting } from "./settings";
 import { nowIso } from "./time";
 
 export type NotificationSender = {
-  send(input: { to: string; subject: string; text: string }): Promise<void>;
+  send(input: {
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+  }): Promise<void>;
 };
 
 export function createResendSender(db: SqliteDatabase): NotificationSender {
@@ -26,6 +32,7 @@ export function createResendSender(db: SqliteDatabase): NotificationSender {
         from,
         to: input.to,
         subject: input.subject,
+        html: input.html,
         text: input.text,
       });
     },
@@ -62,10 +69,16 @@ export async function sendReadyNotifications(
     .all(jobId);
 
   for (const row of rows) {
+    const email = renderJudgmentReadyEmail({
+      serviceName: getSetting(db, "service_name") ?? "EasyLaw",
+      caseNumber: row.case_number,
+      title: row.title,
+    });
     await sender.send({
       to: row.email,
       subject: `[EasyLaw] ${row.title} Easy-Read 판결문 생성 완료`,
-      text: `${row.case_number} ${row.title}의 Easy-Read 판결문이 준비되었습니다.`,
+      html: email.html,
+      text: email.text,
     });
     db.prepare(
       "UPDATE notifications SET status = 'sent', sent_at = ? WHERE id = ? AND status = 'pending'",

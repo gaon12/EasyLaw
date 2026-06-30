@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { auditLog } from "./audit";
 import { createTotpEnrollment, verifyTotpEnrollment } from "./auth";
 import type { SqliteDatabase } from "./db";
+import { renderEmailTest, renderSetupVerificationEmail } from "./email";
 import {
   decryptSecret,
   encryptSecret,
@@ -318,11 +319,13 @@ export async function testSetupEmailConfiguration(
 
   if (process.env.EASYLAW_TEST_MODE !== "1") {
     const resend = new Resend(input.resendApiKey.trim());
+    const email = renderEmailTest("EasyLaw");
     const result = await resend.emails.send({
       from: formatSender(input.fromName, input.fromAddress),
       to: input.adminEmail.trim().toLowerCase(),
       subject: "[EasyLaw] 이메일 발송 테스트",
-      text: "EasyLaw가 이 주소로 이메일을 보낼 수 있습니다. 설치 화면으로 돌아가 계속 진행해 주세요.",
+      html: email.html,
+      text: email.text,
     });
     if (result.error) {
       return { ok: false as const, reason: "email_test_failed" };
@@ -359,11 +362,13 @@ async function sendSetupVerificationEmail(
   }
 
   const resend = new Resend(apiKey);
+  const emailContent = renderSetupVerificationEmail(code, serviceName);
   const result = await resend.emails.send({
     from: formatSender(fromName, fromAddress),
     to: email,
     subject: `[${serviceName}] 최고 관리자 이메일 확인`,
-    text: `설치를 계속하려면 확인 코드 ${code}를 입력하세요. 이 코드는 10분 동안 유효합니다.`,
+    html: emailContent.html,
+    text: emailContent.text,
   });
   if (result.error) {
     throw new Error(result.error.message);
