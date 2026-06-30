@@ -2027,7 +2027,7 @@
 }
 
 .hero {
-  padding: 88px 24px 150px;
+  padding: 76px 24px 124px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-surface);
 }
@@ -2049,7 +2049,7 @@
 .sectionIntro > span,
 .securityBand > div > span {
   color: var(--fg-brand);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -2063,15 +2063,15 @@
 }
 
 .heroLead {
-  margin-top: 24px;
+  margin-top: 20px;
   color: var(--fg-default);
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 700;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .searchExperience {
-  margin-top: 38px;
+  margin-top: 32px;
 }
 
 .searchModeRow {
@@ -2239,16 +2239,16 @@
 
 .previewSection {
   position: relative;
-  margin-top: -78px;
+  margin-top: -62px;
 }
 
 .previewHeader {
-  min-height: 108px;
+  min-height: 94px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 24px 28px;
+  padding: 22px 26px;
   border: 1px solid var(--border-subtle);
   border-bottom: 0;
   border-radius: var(--radius-8) var(--radius-8) 0 0;
@@ -2265,8 +2265,8 @@
 }
 
 .previewHeader h2 {
-  margin-top: 6px;
-  font-size: 24px;
+  margin-top: 4px;
+  font-size: 25px;
 }
 
 .previewHeader a {
@@ -2287,7 +2287,7 @@
 }
 
 .documentNav {
-  min-height: 54px;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2308,7 +2308,7 @@
 
 .documentMeta {
   color: var(--fg-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .documentBody {
@@ -2318,8 +2318,8 @@
 
 .originalPane,
 .easyPane {
-  min-height: 310px;
-  padding: 32px;
+  min-height: 284px;
+  padding: 28px;
 }
 
 .originalPane {
@@ -2332,20 +2332,20 @@
 
 .paneLabel {
   display: block;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
   color: var(--fg-secondary);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
 .originalPane p {
   color: var(--fg-default);
-  font-size: 15px;
-  line-height: 1.9;
+  font-size: 16px;
+  line-height: 1.8;
 }
 
 .originalPane p + p {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 
 .resultCallout {
@@ -2363,27 +2363,27 @@
 
 .resultCallout strong {
   color: var(--fg-strong);
-  font-size: 20px;
+  font-size: 21px;
   line-height: 1.5;
 }
 
 .easyPane ul {
   display: grid;
-  gap: 12px;
-  margin-top: 28px;
+  gap: 10px;
+  margin-top: 22px;
   padding-left: 20px;
 }
 
 .easyPane li {
   padding-left: 4px;
   color: var(--fg-default);
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 .processSection,
 .pathSection {
-  padding-top: 104px;
+  padding-top: 76px;
 }
 
 .sectionIntro {
@@ -2391,29 +2391,29 @@
 }
 
 .sectionIntro h2 {
-  margin-top: 8px;
+  margin-top: 6px;
   font-size: 34px;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .sectionIntro p {
-  margin-top: 12px;
+  margin-top: 10px;
   color: var(--fg-secondary);
-  font-size: 16px;
-  line-height: 1.65;
+  font-size: 17px;
+  line-height: 1.6;
 }
 
 .stepGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 38px;
+  margin-top: 28px;
   border-top: 1px solid var(--border-default);
   border-bottom: 1px solid var(--border-default);
 }
 
 .stepItem {
-  min-height: 220px;
-  padding: 30px 28px;
+  min-height: 178px;
+  padding: 24px;
 }
 
 .stepItem + .stepItem {
@@ -2436,8 +2436,8 @@
 }
 
 .stepItem h3 {
-  margin-top: 44px;
-  font-size: 20px;
+  margin-top: 28px;
+  font-size: 21px;
 }
 
 .stepItem p,
@@ -2448,24 +2448,24 @@
 }
 
 .stepItem p {
-  margin-top: 10px;
-  font-size: 14px;
+  margin-top: 8px;
+  font-size: 15px;
 }
 
 .pathGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 34px;
+  gap: 10px;
+  margin-top: 26px;
 }
 
 .pathItem {
-  min-height: 124px;
+  min-height: 112px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 18px;
-  padding: 22px;
+  gap: 16px;
+  padding: 20px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-8);
   background: var(--bg-surface);
@@ -2494,12 +2494,12 @@
 }
 
 .pathItem h3 {
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .pathItem p {
-  margin-top: 6px;
-  font-size: 14px;
+  margin-top: 4px;
+  font-size: 15px;
 }
 
 .pathItem > svg {
@@ -2507,14 +2507,14 @@
 }
 
 .securityBand {
-  min-height: 172px;
+  min-height: 156px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 24px;
-  margin-top: 104px;
-  margin-bottom: 80px;
-  padding: 32px;
+  gap: 22px;
+  margin-top: 76px;
+  margin-bottom: 64px;
+  padding: 28px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-8);
   background: var(--bg-surface);
@@ -2533,8 +2533,8 @@
 
 .securityBand p {
   max-width: 680px;
-  margin-top: 8px;
-  font-size: 14px;
+  margin-top: 6px;
+  font-size: 15px;
 }
 
 @media (max-width: 980px) {
@@ -2659,7 +2659,7 @@
   }
 
   .hero {
-    padding: 64px 16px 122px;
+    padding: 56px 16px 104px;
   }
 
   .hero h1 {
@@ -2667,17 +2667,17 @@
   }
 
   .heroLead {
-    font-size: 20px;
+    font-size: 19px;
   }
 
   .heroSearch {
     min-height: 60px;
-    margin-top: 30px;
+    margin-top: 24px;
     padding-left: 16px;
   }
 
   .searchExperience {
-    margin-top: 30px;
+    margin-top: 26px;
   }
 
   .searchModeRow {
@@ -2713,7 +2713,7 @@
   .previewHeader {
     align-items: flex-start;
     flex-direction: column;
-    padding: 20px;
+    padding: 18px;
   }
 
   .previewHeader h2 {
@@ -2729,12 +2729,12 @@
   .originalPane,
   .easyPane {
     min-height: auto;
-    padding: 24px 20px;
+    padding: 22px 18px;
   }
 
   .processSection,
   .pathSection {
-    padding-top: 76px;
+    padding-top: 58px;
   }
 
   .sectionIntro h2 {
@@ -2748,7 +2748,7 @@
 
   .stepItem {
     min-height: auto;
-    padding: 26px 4px;
+    padding: 22px 4px;
   }
 
   .stepItem + .stepItem {
@@ -2762,9 +2762,9 @@
 
   .securityBand {
     grid-template-columns: 1fr;
-    margin-top: 76px;
-    margin-bottom: 56px;
-    padding: 24px;
+    margin-top: 58px;
+    margin-bottom: 48px;
+    padding: 22px;
   }
 
   .securityBand .secondaryButton {

@@ -265,8 +265,7 @@ try {
     .getByText("이런 질문을 할 수 있어요", { exact: true })
     .waitFor();
   await anonymousPage.getByRole("button", { name: "질문" }).waitFor();
-  const exampleQuestion =
-    "집주인이 보증금 반환을 미루고 있습니다. 내용증명, 임차권등기명령, 지급명령 중 어떤 순서로 진행해야 하나요?";
+  const exampleQuestion = "전세보증금을 못 받고 있어요.";
   await anonymousPage.getByRole("button", { name: exampleQuestion }).click();
   if (
     (await anonymousPage.getByLabel("법률 상황 질문").inputValue()) !==
