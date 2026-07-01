@@ -3081,6 +3081,21 @@
   gap: 8px;
 }
 
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fg-strong);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.checkboxField input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--bg-brand);
+}
+
 .settingsActions {
   display: flex;
   align-items: center;

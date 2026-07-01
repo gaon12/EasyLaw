@@ -37,3 +37,7 @@ export function hasSetting(db: SqliteDatabase, key: string) {
       .get(key),
   );
 }
+
+export function deleteSetting(db: SqliteDatabase, key: string) {
+  db.prepare<[string]>("DELETE FROM service_settings WHERE key = ?").run(key);
+}

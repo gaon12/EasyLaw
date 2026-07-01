@@ -388,4 +388,31 @@ export const migrations = [
         ON login_challenges(user_id, expires_at);
     `,
   },
+  {
+    id: 11,
+    name: "judgment_collection_runs",
+    sql: `
+      CREATE TABLE IF NOT EXISTS judgment_collection_runs (
+        id TEXT PRIMARY KEY,
+        trigger TEXT NOT NULL,
+        status TEXT NOT NULL,
+        query TEXT NOT NULL,
+        display INTEGER NOT NULL,
+        imported_count INTEGER NOT NULL DEFAULT 0,
+        created_count INTEGER NOT NULL DEFAULT 0,
+        updated_count INTEGER NOT NULL DEFAULT 0,
+        failure_reason TEXT,
+        actor_user_id TEXT,
+        started_at TEXT NOT NULL,
+        completed_at TEXT,
+        FOREIGN KEY(actor_user_id) REFERENCES users(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS judgment_collection_runs_started_idx
+        ON judgment_collection_runs(started_at DESC);
+
+      CREATE INDEX IF NOT EXISTS judgment_collection_runs_status_idx
+        ON judgment_collection_runs(status, started_at);
+    `,
+  },
 ] as const;

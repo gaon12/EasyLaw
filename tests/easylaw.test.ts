@@ -40,6 +40,12 @@ import {
   completeGenerationJob,
   createOrAttachGenerationJob,
 } from "../src/lib/jobs";
+import {
+  getJudgmentCollectionStatus,
+  listJudgmentCollectionRuns,
+  runJudgmentCollection,
+  updateJudgmentCollectionSettings,
+} from "../src/lib/judgment-collection";
 import { parseJudgmentDocument } from "../src/lib/judgment-document";
 import { extractRelatedCaseReferences } from "../src/lib/judgment-relations";
 import { buildResearchPlan } from "../src/lib/legal-research";
@@ -331,6 +337,69 @@ test("open law parser normalizes public case records", () => {
     },
   );
   assert.ok(records[0].sourceUrl?.startsWith("https://www.law.go.kr/"));
+});
+
+test("manual judgment collection stores fetched public judgments", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          PrecSearch: {
+            prec: [
+              {
+                caseNumber: "2026Da1001",
+                courtName: "Supreme Court",
+                decidedOn: "20260701",
+                detailLink: "/DRF/lawService.do?target=prec&ID=auto-1",
+                precSeq: "auto-1",
+                title: "Collected damages judgment",
+              },
+            ],
+          },
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+
+    updateJudgmentCollectionSettings(db, {
+      display: 1,
+      enabled: true,
+      intervalMinutes: 10,
+      query: "damages",
+    });
+    const result = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.equal(result.importedCount, 1);
+    assert.equal(result.createdCount, 1);
+
+    const collected = getPublicJudgments(db).find(
+      (judgment) => judgment.sourceProvider === "open-law",
+    );
+    assert.equal(collected?.caseNumber, "2026Da1001");
+    assert.equal(collected?.title, "Collected damages judgment");
+
+    const status = getJudgmentCollectionStatus(db);
+    assert.equal(status.status, "success");
+    assert.equal(status.lastImportedCount, 1);
+    assert.ok(status.nextRunAt);
+
+    const runs = listJudgmentCollectionRuns(db);
+    assert.equal(runs[0]?.trigger, "manual");
+    assert.equal(runs[0]?.status, "success");
+    assert.equal(runs[0]?.createdCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
 });
 
 test("judgment document parser splits bracket headings and numbered reasons", () => {

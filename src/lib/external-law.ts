@@ -53,6 +53,7 @@ const sampleExternalRecords: ExternalJudgmentRecord[] = [
 
 type OpenLawSearchOptions = {
   display?: number;
+  forceRefresh?: boolean;
   page?: number;
 };
 
@@ -239,7 +240,9 @@ export async function fetchOpenLawJudgments(
   }
 
   const cacheKey = openLawCacheKey(query, options);
-  const cached = readCachedOpenLawResponse(db, cacheKey);
+  const cached = options.forceRefresh
+    ? null
+    : readCachedOpenLawResponse(db, cacheKey);
   if (cached) {
     logIntegrationEvent(db, {
       action: "prec.search.cache",

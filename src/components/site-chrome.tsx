@@ -15,6 +15,7 @@ import { NavLinks } from "@/components/nav-links";
 import { ReadingPreferences } from "@/components/reading-preferences";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getDatabase } from "@/lib/db";
+import { ensureJudgmentCollectionScheduler } from "@/lib/judgment-collection-scheduler";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 type ShellVariant = "service" | "admin";
@@ -48,6 +49,7 @@ export async function AppHeader({
 }: {
   variant?: ShellVariant;
 }) {
+  ensureJudgmentCollectionScheduler();
   const sessionUser = getSessionUser(
     getDatabase(),
     (await cookies()).get(SESSION_COOKIE)?.value,
