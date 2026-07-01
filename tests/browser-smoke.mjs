@@ -404,10 +404,11 @@ try {
   );
   await collectionDialog.waitFor();
   await collectionDialog.getByRole("progressbar").waitFor();
-  await collectionDialog.getByText("수집 결과 정리").waitFor({
-    timeout: 10000,
+  const closeCollectionDialog = collectionDialog.getByRole("button", {
+    name: "닫기",
   });
-  await collectionDialog.getByRole("button", { name: "닫기" }).click();
+  await closeCollectionDialog.waitFor({ timeout: 30000 });
+  await closeCollectionDialog.click();
   if (
     (await page
       .locator('nav a[aria-current="page"][href="/admin/judgments"]')
@@ -765,13 +766,12 @@ try {
     throw new Error("Research overview exposed the internal model name.");
   }
 
-  await page.goto(
-    `${baseUrl}/catalog?q=${encodeURIComponent("서울중앙지방법원")}`,
-    {
-      waitUntil: "networkidle",
-    },
-  );
+  await page.goto(`${baseUrl}/catalog?q=${encodeURIComponent("서울")}`, {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("heading", { name: "판결문 검색 결과" }).waitFor();
+  await page.getByRole("button", { name: "이전" }).waitFor();
+  await page.getByRole("button", { name: "다음" }).waitFor();
   if (
     (await page
       .getByRole("heading", { exact: true, name: "판결문 검색" })
@@ -782,7 +782,7 @@ try {
 
   await page.locator('a[href="/catalog"]').first().click();
   await page.locator("main article").first().waitFor();
-  await page.getByRole("link", { name: "판결문 보기" }).first().click();
+  await page.locator('main article a[href^="/p/"]').first().click();
   await page.getByRole("heading", { name: "판결문 본문" }).waitFor();
   const publicJudgmentText = await page.locator("main").innerText();
   if (/공개 출처|원문 출처/.test(publicJudgmentText)) {

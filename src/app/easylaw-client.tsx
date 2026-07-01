@@ -14,6 +14,8 @@ import { judgmentSearchTagExamples } from "@/lib/judgment-search";
 import type { JudgmentListItem } from "@/lib/types";
 import styles from "./page.module.css";
 
+const JUDGMENT_LIST_PAGE_SIZE = 15;
+
 type Judgment = Pick<
   JudgmentListItem,
   | "caseNumber"
@@ -108,19 +110,27 @@ function withSearchTag(query: string, tag: string) {
 export function JudgmentExplorer({
   compact = false,
   initialJudgments,
+  initialPage = 1,
   initialQuery = "",
+  initialTotalCount = initialJudgments.length,
+  initialView,
   questionMode = false,
   showWorkspace = true,
 }: {
   compact?: boolean;
   initialJudgments: Judgment[];
+  initialPage?: number;
   initialQuery?: string;
+  initialTotalCount?: number;
+  initialView?: "recent";
   questionMode?: boolean;
   showWorkspace?: boolean;
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [email, setEmail] = useState("");
   const [judgments, setJudgments] = useState(initialJudgments);
+  const [page, setPage] = useState(initialPage);
+  const [hasClientResults, setHasClientResults] = useState(false);
   const [message, setMessage] = useState(
     questionMode
       ? "질문과 관련된 공개 판결문을 찾아볼 수 있어요."
@@ -213,6 +223,8 @@ export function JudgmentExplorer({
 
       setCaptchaPrompt(null);
       setJudgments(data.judgments);
+      setHasClientResults(true);
+      setPage(1);
       setMessage(
         data.count > 0
           ? `${data.count}개의 판결문을 찾았어요.`
@@ -286,6 +298,37 @@ export function JudgmentExplorer({
   }
 
   const visibleJudgments = compact ? judgments.slice(0, 3) : judgments;
+  const usesServerPaging = !compact && !hasClientResults;
+  const totalCount = usesServerPaging
+    ? initialTotalCount
+    : visibleJudgments.length;
+  const pageCount = Math.max(
+    1,
+    Math.ceil(totalCount / JUDGMENT_LIST_PAGE_SIZE),
+  );
+  const pagedJudgments = compact
+    ? visibleJudgments
+    : usesServerPaging
+      ? visibleJudgments
+      : visibleJudgments.slice(
+          (page - 1) * JUDGMENT_LIST_PAGE_SIZE,
+          page * JUDGMENT_LIST_PAGE_SIZE,
+        );
+
+  function goToPage(nextPage: number) {
+    const safePage = Math.min(pageCount, Math.max(1, nextPage));
+    if (usesServerPaging) {
+      window.location.assign(
+        catalogPageHref({
+          page: safePage,
+          query: initialQuery,
+          view: initialView,
+        }),
+      );
+      return;
+    }
+    setPage(safePage);
+  }
 
   return (
     <>
@@ -428,61 +471,126 @@ export function JudgmentExplorer({
         </div>
       )}
 
-      <div className={styles.catalog}>
-        {visibleJudgments.map((judgment) => (
-          <article className={styles.judgmentCard} key={judgment.id}>
-            <div>
-              <span
-                className={
-                  judgment.status === "ready"
-                    ? styles.statusReady
-                    : judgment.status === "needs_review"
-                      ? styles.statusReview
-                      : styles.statusPending
-                }
-              >
-                {judgment.status === "ready"
-                  ? "생성 완료"
-                  : judgment.status === "needs_review"
-                    ? "검토 필요"
-                    : "생성 대기"}
-              </span>
-              <h3>{judgment.title}</h3>
-              <div className={styles.meta}>
-                <span>{judgment.caseNumber}</span>
-                <span>{judgment.courtName}</span>
-                <span>
-                  <LocalTime dateOnly dateTime={judgment.decidedOn} />
-                </span>
-              </div>
-            </div>
-            <div>
-              <p className={styles.meta}>
-                작업 상태: {judgment.latestJobStatus ?? "아직 없음"} / 알림{" "}
-                {judgment.notificationCount}건
-              </p>
-              <div className={styles.buttonRow}>
-                <a
-                  className={styles.primaryButton}
-                  href={`/p/${encodeURIComponent(judgment.id)}`}
-                >
-                  판결문 보기
-                </a>
-                <button
-                  className={styles.secondaryButton}
-                  disabled={pendingNotificationId !== null}
-                  onClick={() => subscribe(judgment.id)}
-                  type="button"
-                >
-                  {pendingNotificationId === judgment.id
-                    ? "알림 등록 중"
-                    : "완료 알림 받기"}
-                </button>
-              </div>
-            </div>
+      {!compact && visibleJudgments.length > 0 && (
+        <div className={styles.judgmentListHeader}>
+          <span>{totalCount.toLocaleString("ko-KR")}건</span>
+          <div className={styles.listPager}>
+            <button
+              disabled={page <= 1}
+              onClick={() => goToPage(page - 1)}
+              type="button"
+            >
+              이전
+            </button>
+            <span>
+              {page} / {pageCount}
+            </span>
+            <button
+              disabled={page >= pageCount}
+              onClick={() => goToPage(page + 1)}
+              type="button"
+            >
+              다음
+            </button>
+          </div>
+        </div>
+      )}
+      <div className={compact ? styles.catalog : styles.judgmentList}>
+        {pagedJudgments.map((judgment) => (
+          <article
+            className={compact ? styles.judgmentCard : styles.judgmentListItem}
+            key={judgment.id}
+          >
+            {compact ? (
+              <>
+                <div>
+                  <StatusBadge status={judgment.status} />
+                  <h3>{judgment.title}</h3>
+                  <div className={styles.meta}>
+                    <span>{judgment.caseNumber}</span>
+                    <span>{judgment.courtName}</span>
+                    <span>
+                      <LocalTime dateOnly dateTime={judgment.decidedOn} />
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <p className={styles.meta}>
+                    작업 상태: {judgment.latestJobStatus ?? "아직 없음"} / 알림{" "}
+                    {judgment.notificationCount}건
+                  </p>
+                  <div className={styles.buttonRow}>
+                    <a
+                      className={styles.primaryButton}
+                      href={`/p/${encodeURIComponent(judgment.id)}`}
+                    >
+                      판결문 보기
+                    </a>
+                    <NotifyButton
+                      disabled={pendingNotificationId !== null}
+                      isPending={pendingNotificationId === judgment.id}
+                      onClick={() => subscribe(judgment.id)}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={styles.judgmentListMain}>
+                  <StatusBadge status={judgment.status} />
+                  <a href={`/p/${encodeURIComponent(judgment.id)}`}>
+                    {judgment.title}
+                  </a>
+                  <span>{judgment.caseNumber}</span>
+                </div>
+                <div className={styles.judgmentListMeta}>
+                  <span>{judgment.courtName}</span>
+                  <span>
+                    <LocalTime dateOnly dateTime={judgment.decidedOn} />
+                  </span>
+                  <span>알림 {judgment.notificationCount}건</span>
+                </div>
+                <div className={styles.judgmentListActions}>
+                  <a
+                    className={styles.secondaryButton}
+                    href={`/p/${encodeURIComponent(judgment.id)}`}
+                  >
+                    보기
+                  </a>
+                  <NotifyButton
+                    disabled={pendingNotificationId !== null}
+                    isPending={pendingNotificationId === judgment.id}
+                    onClick={() => subscribe(judgment.id)}
+                  />
+                </div>
+              </>
+            )}
           </article>
         ))}
       </div>
+      {!compact && totalCount > JUDGMENT_LIST_PAGE_SIZE && (
+        <div className={styles.judgmentListFooter}>
+          <div className={styles.listPager}>
+            <button
+              disabled={page <= 1}
+              onClick={() => goToPage(page - 1)}
+              type="button"
+            >
+              이전
+            </button>
+            <span>
+              {page} / {pageCount}
+            </span>
+            <button
+              disabled={page >= pageCount}
+              onClick={() => goToPage(page + 1)}
+              type="button"
+            >
+              다음
+            </button>
+          </div>
+        </div>
+      )}
       {visibleJudgments.length === 0 && (
         <p className={styles.notice}>검색 조건에 맞는 판결문이 아직 없어요.</p>
       )}
@@ -491,4 +599,68 @@ export function JudgmentExplorer({
       )}
     </>
   );
+}
+
+function StatusBadge({ status }: { status: Judgment["status"] }) {
+  return (
+    <span
+      className={
+        status === "ready"
+          ? styles.statusReady
+          : status === "needs_review"
+            ? styles.statusReview
+            : styles.statusPending
+      }
+    >
+      {status === "ready"
+        ? "생성 완료"
+        : status === "needs_review"
+          ? "검토 필요"
+          : "생성 대기"}
+    </span>
+  );
+}
+
+function NotifyButton({
+  disabled,
+  isPending,
+  onClick,
+}: {
+  disabled: boolean;
+  isPending: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={styles.secondaryButton}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {isPending ? "알림 등록 중" : "완료 알림 받기"}
+    </button>
+  );
+}
+
+function catalogPageHref({
+  page,
+  query,
+  view,
+}: {
+  page: number;
+  query: string;
+  view?: "recent";
+}) {
+  const params = new URLSearchParams();
+  if (query.trim()) {
+    params.set("q", query.trim());
+  }
+  if (view) {
+    params.set("view", view);
+  }
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+  const queryString = params.toString();
+  return queryString ? `/catalog?${queryString}` : "/catalog";
 }

@@ -13,6 +13,8 @@ import styles from "../page.module.css";
 
 export const dynamic = "force-dynamic";
 
+const CATALOG_PAGE_SIZE = 15;
+
 export const metadata = pageMetadata({
   title: "판결문 검색",
   description:
@@ -23,18 +25,28 @@ export const metadata = pageMetadata({
 export default async function CatalogPage({
   searchParams,
 }: PageProps<"/catalog">) {
-  const { q, view } = await searchParams;
+  const { page, q, view } = await searchParams;
   const initialQuery = typeof q === "string" ? q : "";
   const isRecentView = view === "recent" && !initialQuery;
+  const currentPage = parseCatalogPage(page);
   const db = getDatabase();
   await syncExternalCatalog(db);
   const allJudgments = getPublicJudgments(db);
   const filters = parseJudgmentSearchQuery(initialQuery);
-  const judgments = initialQuery.trim()
+  const filteredJudgments = initialQuery.trim()
     ? allJudgments.filter((judgment) =>
         matchesJudgmentSearch(judgment, filters),
       )
     : allJudgments;
+  const pageCount = Math.max(
+    1,
+    Math.ceil(filteredJudgments.length / CATALOG_PAGE_SIZE),
+  );
+  const safePage = Math.min(currentPage, pageCount);
+  const judgments = filteredJudgments.slice(
+    (safePage - 1) * CATALOG_PAGE_SIZE,
+    safePage * CATALOG_PAGE_SIZE,
+  );
 
   return (
     <AppShell>
@@ -72,12 +84,23 @@ export default async function CatalogPage({
             </form>
           )}
           <JudgmentExplorer
+            initialPage={safePage}
             initialJudgments={judgments}
             initialQuery={initialQuery}
+            initialTotalCount={filteredJudgments.length}
+            initialView={isRecentView ? "recent" : undefined}
             showWorkspace={!initialQuery && !isRecentView}
           />
         </section>
       </main>
     </AppShell>
   );
+}
+
+function parseCatalogPage(value: unknown) {
+  if (typeof value !== "string") {
+    return 1;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }

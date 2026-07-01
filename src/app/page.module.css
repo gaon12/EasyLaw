@@ -1662,6 +1662,101 @@
   letter-spacing: -0.002em;
 }
 
+.judgmentListHeader,
+.judgmentListFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.judgmentListHeader {
+  margin-bottom: 12px;
+}
+
+.judgmentListFooter {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.judgmentListHeader > span {
+  color: var(--fg-secondary);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.judgmentList {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  background: var(--bg-surface);
+}
+
+.judgmentListItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.85fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.judgmentListItem + .judgmentListItem {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.judgmentListMain {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px 10px;
+  align-items: center;
+}
+
+.judgmentListMain a {
+  overflow: hidden;
+  color: var(--fg-strong);
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.judgmentListMain a:hover {
+  color: var(--fg-brand);
+}
+
+.judgmentListMain > span:last-child {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.judgmentListMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.judgmentListActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.judgmentListActions .secondaryButton {
+  min-height: 36px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;
@@ -3813,6 +3908,15 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .judgmentListItem {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .judgmentListActions {
+    justify-content: flex-start;
+  }
+
   .aiSources > div {
     grid-template-columns: 1fr;
   }
@@ -3950,6 +4054,33 @@
   .listToolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .judgmentListHeader,
+  .judgmentListFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .judgmentListHeader .listPager,
+  .judgmentListFooter .listPager {
+    justify-content: flex-start;
+  }
+
+  .judgmentListMain {
+    grid-template-columns: 1fr;
+  }
+
+  .judgmentListMain > span:last-child {
+    grid-column: auto;
+  }
+
+  .judgmentListActions {
+    flex-direction: column;
+  }
+
+  .judgmentListActions .secondaryButton {
+    width: 100%;
   }
 
   .listSearchField {
