@@ -321,13 +321,29 @@ try {
   await page.getByRole("heading", { name: "도구 연결" }).waitFor();
 
   await page.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "판결문 자동 수집" }).waitFor();
-  await page.getByLabel("검색어").waitFor();
-  await page.getByRole("button", { name: "지금 수집" }).waitFor();
+  if (
+    (await page.getByRole("heading", { name: "판결문 수집" }).count()) !== 0
+  ) {
+    throw new Error("Administration overview exposed judgment collection.");
+  }
+  await page.locator('nav a[aria-current="page"][href="/admin"]').waitFor();
   if ((await page.locator('main a[href="/admin/llm"]').count()) !== 0) {
     throw new Error(
       "Administration overview still exposed duplicate action buttons.",
     );
+  }
+  await page.goto(`${baseUrl}/admin/judgment-collection`, {
+    waitUntil: "networkidle",
+  });
+  await page.getByRole("heading", { name: "판결문 수집" }).waitFor();
+  await page.getByLabel("검색어").waitFor();
+  await page.getByRole("button", { name: "지금 수집" }).waitFor();
+  if (
+    (await page
+      .locator('nav a[aria-current="page"][href="/admin/judgment-collection"]')
+      .count()) !== 1
+  ) {
+    throw new Error("Judgment collection navigation was not active.");
   }
 
   const loginChallengeContext = await browser.newContext();

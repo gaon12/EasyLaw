@@ -39,6 +39,11 @@ const adminNav = [
   { href: "/admin", key: "admin.home", label: "관리 개요" },
   { href: "/admin/ai", key: "admin.ai", label: "AI 설정" },
   { href: "/admin/open-law", key: "admin.openLaw", label: "공개법령 API" },
+  {
+    href: "/admin/judgment-collection",
+    key: "admin.judgmentCollection",
+    label: "판결문 수집",
+  },
   { href: "/admin/captcha", key: "admin.captcha", label: "CAPTCHA" },
   { href: "/admin/dictionary", key: "admin.dictionary", label: "용어 사전" },
   { href: "/admin#jobs", key: "admin.jobs", label: "사용자·작업" },
