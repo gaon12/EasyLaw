@@ -728,6 +728,18 @@
   margin-top: 18px;
 }
 
+.securityDisableForm {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.securityDisableForm .secondaryButton {
+  width: fit-content;
+}
+
 .securityNotice,
 .securityError {
   display: block;

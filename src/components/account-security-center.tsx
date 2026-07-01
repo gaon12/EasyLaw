@@ -11,6 +11,7 @@ type TotpEnrollment = {
 };
 
 type SecurityStatus = "idle" | "loading" | "success" | "error";
+type MessageContext = "totp" | "recovery";
 
 type AccountSecurityCenterProps = {
   initialState: AccountSecurityState;
@@ -76,8 +77,11 @@ export function AccountSecurityCenter({
   const [securityState, setSecurityState] = useState(initialState);
   const [enrollment, setEnrollment] = useState<TotpEnrollment | null>(null);
   const [code, setCode] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+  const [isDisableFormOpen, setIsDisableFormOpen] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [messageContext, setMessageContext] = useState<MessageContext>("totp");
   const [status, setStatus] = useState<SecurityStatus>("idle");
 
   const isTotpEnabled = securityState.authentication.totpEnabled;
@@ -93,6 +97,7 @@ export function AccountSecurityCenter({
   }
 
   async function startEnrollment() {
+    setMessageContext("totp");
     setStatus("loading");
     setMessage("인증 앱 등록 정보를 만들고 있어요.");
     setRecoveryCodes([]);
@@ -118,6 +123,7 @@ export function AccountSecurityCenter({
   }
 
   async function verifyEnrollment() {
+    setMessageContext("totp");
     if (code.replace(/\s/g, "").length < 6) {
       setStatus("error");
       setMessage("인증 앱에 표시된 6자리 코드를 입력해 주세요.");
@@ -156,6 +162,7 @@ export function AccountSecurityCenter({
   }
 
   async function regenerateCodes() {
+    setMessageContext("recovery");
     setStatus("loading");
     setMessage("새 복구 코드를 만들고 있어요.");
     try {
@@ -177,6 +184,47 @@ export function AccountSecurityCenter({
       setMessage(
         "복구 코드를 새로 만들었어요. 이전 코드는 더 이상 사용할 수 없어요.",
       );
+    } catch (_error) {
+      setStatus("error");
+      setMessage("요청이 끊겼어요. 잠시 뒤 다시 시도해 주세요.");
+    }
+  }
+
+  async function disableSecondFactor() {
+    setMessageContext("totp");
+    if (disableCode.replace(/\s/g, "").length < 6) {
+      setStatus("error");
+      setMessage("현재 인증 앱에 표시된 6자리 코드를 입력해 주세요.");
+      return;
+    }
+
+    setStatus("loading");
+    setMessage("2FA를 끄기 전에 인증 코드를 확인하고 있어요.");
+    try {
+      const response = await fetch("/api/auth/totp", {
+        body: JSON.stringify({ code: disableCode }),
+        headers: { "Content-Type": "application/json" },
+        method: "DELETE",
+      });
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        setStatus("error");
+        setMessage(
+          isRecord(data) && data.reason === "totp_required"
+            ? "현재 권한에서는 2FA를 끌 수 없어요."
+            : isRecord(data) && data.reason === "rate_limited"
+              ? "시도가 너무 많아요. 잠시 뒤 다시 확인해 주세요."
+              : "인증 코드가 맞지 않아요. 최신 코드를 입력해 주세요.",
+        );
+        return;
+      }
+
+      setDisableCode("");
+      setIsDisableFormOpen(false);
+      setRecoveryCodes([]);
+      await refreshSecurityState();
+      setStatus("success");
+      setMessage("2FA를 껐어요. 기존 복구 코드도 모두 폐기했습니다.");
     } catch (_error) {
       setStatus("error");
       setMessage("요청이 끊겼어요. 잠시 뒤 다시 시도해 주세요.");
@@ -208,7 +256,7 @@ export function AccountSecurityCenter({
 
       <article className={styles.contentCard}>
         <div className={styles.securityCardHeader}>
-          <h2 className={styles.panelTitle}>2차 인증</h2>
+          <h2 className={styles.panelTitle}>2차 인증(2FA)</h2>
           <span
             className={
               isTotpEnabled ? styles.statusReady : styles.statusPending
@@ -221,9 +269,14 @@ export function AccountSecurityCenter({
           </span>
         </div>
         <p>
-          인증 앱으로 로그인과 관리 기능 접근을 한 번 더 확인합니다. 관리자와
-          조직 소유자 계정은 2차 인증을 켜야 민감한 화면에 들어갈 수 있어요.
+          인증 앱의 일회용 코드로 계정 접근을 한 번 더 확인합니다. 복구 코드는
+          2FA 자체가 아니라 인증 앱을 사용할 수 없을 때만 쓰는 비상 수단입니다.
         </p>
+        {securityState.authentication.totpRequired && (
+          <p className={styles.mutedText}>
+            현재 권한은 2FA가 필수이므로 끌 수 없습니다.
+          </p>
+        )}
         <div className={styles.securityActions}>
           {!isTotpEnabled && (
             <button
@@ -235,14 +288,14 @@ export function AccountSecurityCenter({
               2차 인증 설정
             </button>
           )}
-          {isTotpEnabled && (
+          {securityState.authentication.totpCanDisable && (
             <button
               className={styles.secondaryButton}
               disabled={isBusy}
-              onClick={regenerateCodes}
+              onClick={() => setIsDisableFormOpen((current) => !current)}
               type="button"
             >
-              복구 코드 재발급
+              2FA 끄기
             </button>
           )}
           {nextPath && isTotpEnabled && (
@@ -251,7 +304,31 @@ export function AccountSecurityCenter({
             </a>
           )}
         </div>
-        {message && (
+        {isDisableFormOpen && (
+          <div className={styles.securityDisableForm}>
+            <label className={styles.label} htmlFor="disable-totp-code">
+              현재 인증 앱 코드
+            </label>
+            <input
+              autoComplete="one-time-code"
+              className={styles.input}
+              id="disable-totp-code"
+              inputMode="numeric"
+              onChange={(event) => setDisableCode(event.target.value)}
+              placeholder="123456"
+              value={disableCode}
+            />
+            <button
+              className={styles.secondaryButton}
+              disabled={isBusy}
+              onClick={disableSecondFactor}
+              type="button"
+            >
+              코드 확인하고 2FA 끄기
+            </button>
+          </div>
+        )}
+        {message && messageContext === "totp" && (
           <output
             className={
               status === "error" ? styles.securityError : styles.securityNotice
@@ -321,6 +398,27 @@ export function AccountSecurityCenter({
           휴대폰을 잃어버렸을 때 계정 접근을 되찾는 일회용 코드입니다. 새로
           만들면 기존 복구 코드는 모두 폐기됩니다.
         </p>
+        {isTotpEnabled && (
+          <div className={styles.securityActions}>
+            <button
+              className={styles.secondaryButton}
+              disabled={isBusy}
+              onClick={regenerateCodes}
+              type="button"
+            >
+              복구 코드 재발급
+            </button>
+          </div>
+        )}
+        {message && messageContext === "recovery" && (
+          <output
+            className={
+              status === "error" ? styles.securityError : styles.securityNotice
+            }
+          >
+            {message}
+          </output>
+        )}
         {recoveryCodes.length > 0 && (
           <ol className={styles.recoveryCodeList}>
             {recoveryCodes.map((recoveryCode) => (

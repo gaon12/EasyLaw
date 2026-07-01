@@ -32,6 +32,7 @@ export type AccountSecurityState = {
   authentication: {
     emailVerifiedAt: string | null;
     magicLinkVerifiedAt: string | null;
+    totpCanDisable: boolean;
     totpEnabled: boolean;
     totpRequired: boolean;
     totpVerifiedAt: string | null;
@@ -328,6 +329,31 @@ export function consumeRecoveryCode(
   return { ok: true as const };
 }
 
+function isTotpRequiredForUser(db: SqliteDatabase, user: UserRow) {
+  if (
+    user.totp_required === 1 ||
+    user.role === "admin" ||
+    user.role === "super_admin"
+  ) {
+    return true;
+  }
+
+  const organizationOwner = db
+    .prepare<[string, string], { required: number }>(
+      `SELECT EXISTS (
+        SELECT 1
+        FROM organizations
+        WHERE owner_user_id = ?
+        UNION ALL
+        SELECT 1
+        FROM organization_members
+        WHERE user_id = ? AND role = 'owner'
+      ) required`,
+    )
+    .get(user.id, user.id);
+  return organizationOwner?.required === 1;
+}
+
 export function getAccountSecurityState(
   db: SqliteDatabase,
   userId: string,
@@ -358,13 +384,15 @@ export function getAccountSecurityState(
         WHERE user_id = ?`,
     )
     .get(userId);
+  const totpRequired = isTotpRequiredForUser(db, user);
 
   return {
     authentication: {
       emailVerifiedAt: verifiedAtByKind.get("email") ?? null,
       magicLinkVerifiedAt: verifiedAtByKind.get("magic_link") ?? null,
+      totpCanDisable: user.totp_enabled === 1 && !totpRequired,
       totpEnabled: user.totp_enabled === 1,
-      totpRequired: user.totp_required === 1,
+      totpRequired,
       totpVerifiedAt: verifiedAtByKind.get("totp") ?? null,
     },
     recoveryCodes: {
@@ -398,6 +426,68 @@ export function regenerateRecoveryCodes(db: SqliteDatabase, userId: string) {
     targetId: userId,
   });
   return { ok: true as const, recoveryCodes };
+}
+
+export async function disableTotp(
+  db: SqliteDatabase,
+  userId: string,
+  code: string,
+) {
+  const rate = checkRateLimit(db, `totp-disable:${userId}`, 5, 10 * 60_000);
+  if (!rate.allowed) {
+    return { ok: false as const, reason: "rate_limited" };
+  }
+
+  const user = db
+    .prepare<[string], UserRow>("SELECT * FROM users WHERE id = ?")
+    .get(userId);
+  if (!user) {
+    return { ok: false as const, reason: "not_found" };
+  }
+  if (isTotpRequiredForUser(db, user)) {
+    return { ok: false as const, reason: "totp_required" };
+  }
+  if (user.totp_enabled !== 1 || !user.totp_secret_ciphertext) {
+    return { ok: false as const, reason: "not_enabled" };
+  }
+
+  const secret = decryptSecret(user.totp_secret_ciphertext);
+  const result = await verify({ secret, token: code.replace(/\s/g, "") });
+  if (!result.valid) {
+    auditLog(db, {
+      actorUserId: userId,
+      action: "totp.disable_failed",
+      targetType: "user",
+      targetId: userId,
+    });
+    return { ok: false as const, reason: "invalid_code" };
+  }
+
+  const now = nowIso();
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE users
+        SET totp_enabled = 0,
+          totp_secret_ciphertext = NULL,
+          updated_at = ?
+        WHERE id = ?`,
+    ).run(now, userId);
+    db.prepare(
+      `UPDATE user_auth_methods
+        SET verified_at = NULL
+        WHERE user_id = ? AND kind = 'totp'`,
+    ).run(userId);
+    db.prepare("DELETE FROM user_recovery_codes WHERE user_id = ?").run(userId);
+  });
+  tx();
+
+  auditLog(db, {
+    actorUserId: userId,
+    action: "totp.disabled",
+    targetType: "user",
+    targetId: userId,
+  });
+  return { ok: true as const };
 }
 
 export function assertManagementAccess(
@@ -440,12 +530,7 @@ export function assertManagementAccess(
     }
   }
 
-  if (
-    (user.totp_required === 1 ||
-      user.role === "admin" ||
-      user.role === "super_admin") &&
-    user.totp_enabled !== 1
-  ) {
+  if (isTotpRequiredForUser(db, user) && user.totp_enabled !== 1) {
     return { ok: false as const, reason: "totp_required" };
   }
 
