@@ -1,3 +1,4 @@
+import { LocalTime } from "@/components/local-time";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
@@ -114,7 +115,9 @@ export default function MePage() {
                     <td>{notice.email}</td>
                     <td>{notice.type}</td>
                     <td>{notice.status}</td>
-                    <td>{notice.created_at}</td>
+                    <td>
+                      <LocalTime dateTime={notice.created_at} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

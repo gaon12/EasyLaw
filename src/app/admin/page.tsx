@@ -1,4 +1,5 @@
-﻿import { AppShell } from "@/components/site-chrome";
+﻿import { LocalTime } from "@/components/local-time";
+import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncExternalCatalog } from "@/lib/external-law";
 import { pageMetadata } from "@/lib/metadata";
@@ -146,7 +147,9 @@ export default async function AdminPage() {
               <tbody>
                 {rows.auditLogs.map((log) => (
                   <tr key={`${log.action}-${log.created_at}`}>
-                    <td>{log.created_at}</td>
+                    <td>
+                      <LocalTime dateTime={log.created_at} />
+                    </td>
                     <td>{log.action}</td>
                     <td>
                       {log.target_type}

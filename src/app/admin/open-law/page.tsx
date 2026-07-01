@@ -1,4 +1,5 @@
 import { AdminSettingsForm } from "@/components/admin-settings-form";
+import { LocalTime } from "@/components/local-time";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { listIntegrationEvents } from "@/lib/integration-events";
@@ -87,7 +88,9 @@ function IntegrationEventTable({
         <tbody>
           {events.map((event) => (
             <tr key={`${event.createdAt}-${event.action}`}>
-              <td>{event.createdAt}</td>
+              <td>
+                <LocalTime dateTime={event.createdAt} />
+              </td>
               <td>{event.action}</td>
               <td>{event.status}</td>
               <td>{event.message ?? "-"}</td>

@@ -1,4 +1,5 @@
 import { AdminSettingsForm } from "@/components/admin-settings-form";
+import { LocalTime } from "@/components/local-time";
 import { AppShell } from "@/components/site-chrome";
 import { CAPTCHA_ALGORITHMS, getCaptchaSettings } from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
@@ -113,7 +114,9 @@ export default function AdminCaptchaPage() {
                   <tbody>
                     {events.map((event) => (
                       <tr key={`${event.createdAt}-${event.action}`}>
-                        <td>{event.createdAt}</td>
+                        <td>
+                          <LocalTime dateTime={event.createdAt} />
+                        </td>
                         <td>{event.action}</td>
                         <td>{event.status}</td>
                         <td>{event.message ?? "-"}</td>

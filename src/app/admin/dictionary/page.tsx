@@ -1,5 +1,6 @@
 import { DictionaryUpdateButton } from "@/components/dictionary-update-button";
 import { LegalTermForm } from "@/components/legal-term-form";
+import { LocalTime } from "@/components/local-time";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { latestDictionaryImport } from "@/lib/dictionary";
@@ -62,7 +63,11 @@ export default function AdminDictionaryPage() {
               <p>
                 상태: {latest.status} · 반영 수:{" "}
                 {latest.imported_count.toLocaleString("ko-KR")} · 완료 시각:{" "}
-                {latest.completed_at ?? "-"}
+                {latest.completed_at ? (
+                  <LocalTime dateTime={latest.completed_at} />
+                ) : (
+                  "-"
+                )}
                 {latest.failure_reason
                   ? ` · 오류: ${latest.failure_reason}`
                   : ""}
@@ -90,7 +95,9 @@ export default function AdminDictionaryPage() {
                   <tbody>
                     {events.map((event) => (
                       <tr key={`${event.createdAt}-${event.action}`}>
-                        <td>{event.createdAt}</td>
+                        <td>
+                          <LocalTime dateTime={event.createdAt} />
+                        </td>
                         <td>{event.action}</td>
                         <td>{event.status}</td>
                         <td>{event.message ?? "-"}</td>

@@ -10,6 +10,7 @@ import {
   ShieldIcon,
 } from "@/components/icons";
 import { LandingSearch } from "@/components/landing-search";
+import { LocalTime } from "@/components/local-time";
 import { AppShell, serviceShortcuts } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncExternalCatalog } from "@/lib/external-law";
@@ -172,7 +173,9 @@ export default async function Home() {
                     <div className={styles.meta}>
                       <span>{judgment.caseNumber}</span>
                       <span>{judgment.courtName}</span>
-                      <span>{judgment.decidedOn}</span>
+                      <span>
+                        <LocalTime dateOnly dateTime={judgment.decidedOn} />
+                      </span>
                     </div>
                   </div>
                   <a
