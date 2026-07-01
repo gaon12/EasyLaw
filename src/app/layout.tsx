@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import { TermExplainer } from "@/components/term-explainer";
 import { getSiteUrl, siteDescription, siteName } from "@/lib/metadata";
@@ -62,8 +63,12 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
-        <script src="/theme-init.js" />
-        <script type="application/ld+json" suppressHydrationWarning>
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
+        <Script
+          id="easylaw-structured-data"
+          strategy="beforeInteractive"
+          type="application/ld+json"
+        >
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
@@ -79,7 +84,7 @@ export default function RootLayout({
               priceCurrency: "KRW",
             },
           })}
-        </script>
+        </Script>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" />
         <link
           crossOrigin="anonymous"
