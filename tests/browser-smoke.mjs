@@ -253,6 +253,18 @@ try {
   await page.getByRole("heading", { name: "용어 사전 관리" }).waitFor();
   await page.getByRole("button", { name: "표준국어대사전 업데이트" }).waitFor();
 
+  await page.goto(`${baseUrl}/admin/ai`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "AI 설정" }).waitFor();
+  const aiSubNav = page.getByRole("navigation", {
+    name: "AI 설정 하위 메뉴",
+  });
+  await aiSubNav.getByRole("link", { name: "모델 API" }).click();
+  await page.waitForURL(`${baseUrl}/admin/ai/llm`);
+  await page.getByRole("heading", { name: "모델 API" }).waitFor();
+  await aiSubNav.getByRole("link", { name: "도구 연결" }).click();
+  await page.waitForURL(`${baseUrl}/admin/ai/mcp`);
+  await page.getByRole("heading", { name: "도구 연결" }).waitFor();
+
   await page.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
   if ((await page.locator('main a[href="/admin/llm"]').count()) !== 0) {
     throw new Error(
@@ -525,7 +537,7 @@ try {
   await page.getByRole("heading", { name: "판결문 검색 결과" }).waitFor();
   if (
     (await page
-      .getByRole("heading", { name: "판결문 이해 작업대" })
+      .getByRole("heading", { exact: true, name: "판결문 검색" })
       .count()) !== 0
   ) {
     throw new Error("Catalog search results still showed the workspace first.");
