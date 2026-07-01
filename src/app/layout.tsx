@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
+import { ReadingProgress } from "@/components/reading-progress";
 import { TermExplainer } from "@/components/term-explainer";
 import { getSiteUrl, siteDescription, siteName } from "@/lib/metadata";
 import "./globals.css";
@@ -98,6 +99,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <ReadingProgress />
         {children}
         <TermExplainer />
       </body>
