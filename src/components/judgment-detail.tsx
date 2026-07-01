@@ -1,5 +1,6 @@
 import styles from "@/app/page.module.css";
 import { LocalTime } from "@/components/local-time";
+import { parseJudgmentDocument } from "@/lib/judgment-document";
 import { displayJudgmentCaseType } from "@/lib/judgment-search";
 import type { EasyReadAnalysis, JudgmentDetail } from "@/lib/types";
 
@@ -14,9 +15,12 @@ export function JudgmentDetailView({
 }) {
   const sourceAvailable = !privateDocument && Boolean(judgment.sourceUrl);
   const caseTypeLabel = displayJudgmentCaseType(judgment.caseType);
+  const documentSections = judgment.originalText
+    ? parseJudgmentDocument(judgment.originalText)
+    : [];
 
   return (
-    <main className={styles.main}>
+    <main className={`${styles.main} ${styles.viewerMain}`}>
       <section className={styles.judgmentViewerHero}>
         <div>
           <span className={styles.badge}>
@@ -52,6 +56,16 @@ export function JudgmentDetailView({
             <a href="#easy-explanation">쉬운 설명</a>
             <a href="#judgment-info">판결 정보</a>
           </nav>
+          {documentSections.length > 0 && (
+            <div className={styles.viewerSectionNav}>
+              <strong>본문 구성</strong>
+              {documentSections.slice(0, 8).map((section) => (
+                <a href={`#${section.id}`} key={section.id}>
+                  {section.title}
+                </a>
+              ))}
+            </div>
+          )}
           <dl className={styles.viewerMetaList}>
             <div>
               <dt>사건번호</dt>
@@ -83,8 +97,40 @@ export function JudgmentDetailView({
               </p>
             </div>
           </header>
-          {judgment.originalText ? (
-            <div className={styles.viewerText}>{judgment.originalText}</div>
+          {documentSections.length > 0 ? (
+            <div className={styles.viewerText}>
+              {documentSections.map((section) => (
+                <section
+                  className={
+                    section.kind === "order"
+                      ? styles.judgmentDocumentOrder
+                      : styles.judgmentDocumentSection
+                  }
+                  id={section.id}
+                  key={section.id}
+                >
+                  <h3>{section.title}</h3>
+                  {section.paragraphs.length > 0 ? (
+                    <div className={styles.judgmentParagraphs}>
+                      {section.paragraphs.map((paragraph, index) => (
+                        <p
+                          className={
+                            paragraph.kind === "numbered"
+                              ? styles.judgmentParagraphNumbered
+                              : styles.judgmentParagraph
+                          }
+                          key={`${section.id}-${index}`}
+                        >
+                          {paragraph.text}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className={styles.judgmentParagraph}>내용 없음</p>
+                  )}
+                </section>
+              ))}
+            </div>
           ) : (
             <div className={styles.viewerEmpty}>
               <strong>본문을 아직 가져오지 못했어요.</strong>
