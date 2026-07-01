@@ -52,6 +52,7 @@ function isExplanation(value: unknown): value is Explanation {
 
 export function TermExplainer() {
   const [term, setTerm] = useState("");
+  const [context, setContext] = useState("");
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const [explanation, setExplanation] = useState<Explanation | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -65,7 +66,11 @@ export function TermExplainer() {
       }
       const selection = window.getSelection();
       const text = selection?.toString().trim().replace(/\s+/g, " ") ?? "";
-      if (!text || text.length < 2 || text.length > 30) {
+      const target = selection?.anchorNode?.parentElement;
+      if (target?.closest("input, textarea, select, button, a")) {
+        return;
+      }
+      if (!text || text.length < 2 || text.length > 80) {
         return;
       }
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
@@ -74,6 +79,8 @@ export function TermExplainer() {
         return;
       }
       setTerm(text);
+      const nextContext = selectionContext(selection);
+      setContext(nextContext);
       setPosition({
         left: Math.min(rect.left + window.scrollX, window.innerWidth - 360),
         top: rect.bottom + window.scrollY + 10,
@@ -81,7 +88,7 @@ export function TermExplainer() {
       setExplanation(null);
       setStatus("loading");
       const params = new URLSearchParams({
-        context: selectionContext(selection),
+        context: nextContext,
         term: text,
       });
       void fetch(`/api/terms/explain?${params}`)
@@ -168,11 +175,21 @@ export function TermExplainer() {
                 MCP 엔드포인트를 연결하면 확장 설명을 붙일 수 있어요.
               </small>
             )}
+            <a className={styles.termAiLink} href={researchHref(term, context)}>
+              AI 질문으로 이어가기
+            </a>
           </section>
         </>
       )}
     </aside>
   );
+}
+
+function researchHref(term: string, context: string) {
+  const query = context
+    ? `"${term}"이 이 문맥에서 무슨 뜻인지 설명해줘: ${context}`
+    : `"${term}"의 법률 문맥상 의미를 설명해줘`;
+  return `/research?q=${encodeURIComponent(query.slice(0, 500))}`;
 }
 
 function selectionContext(selection: Selection | null) {

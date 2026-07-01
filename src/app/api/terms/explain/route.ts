@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
   context: z.string().trim().max(500).optional(),
-  term: z.string().trim().min(1).max(40),
+  term: z.string().trim().min(1).max(80),
 });
 
 export async function GET(request: Request) {
