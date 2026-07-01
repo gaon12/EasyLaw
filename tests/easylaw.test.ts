@@ -36,6 +36,7 @@ import {
   completeGenerationJob,
   createOrAttachGenerationJob,
 } from "../src/lib/jobs";
+import { parseJudgmentDocument } from "../src/lib/judgment-document";
 import { buildResearchPlan } from "../src/lib/legal-research";
 import { sendReadyNotifications } from "../src/lib/notifications";
 import {
@@ -321,6 +322,27 @@ test("open law parser normalizes public case records", () => {
     },
   );
   assert.ok(records[0].sourceUrl?.startsWith("https://www.law.go.kr/"));
+});
+
+test("judgment document parser splits bracket headings and numbered reasons", () => {
+  const sections = parseJudgmentDocument(
+    "【원고, 피상고인】 원고<br/>【주    문】<br/>상고를 모두 기각한다.<br/><br/>【이    유】 1. 사안의 개요<br/>가. 원고는 손해배상을 청구하였다.",
+  );
+
+  assert.deepEqual(
+    sections.map((section) => ({
+      kind: section.kind,
+      title: section.title,
+    })),
+    [
+      { kind: "meta", title: "원고, 피상고인" },
+      { kind: "order", title: "주문" },
+      { kind: "reason", title: "이유" },
+    ],
+  );
+  assert.equal(sections[1].paragraphs[0].text, "상고를 모두 기각한다.");
+  assert.equal(sections[2].paragraphs[0].kind, "numbered");
+  assert.equal(sections[2].paragraphs[1].kind, "numbered");
 });
 
 test("public request origin respects reverse proxy headers", () => {
