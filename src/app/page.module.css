@@ -2499,13 +2499,13 @@
 
 .modalBackdrop {
   position: fixed;
-  z-index: 80;
+  z-index: 160;
   inset: 0;
   display: grid;
   place-items: center;
   padding: 20px;
-  background: oklch(0.2 0.03 260 / 0.48);
-  backdrop-filter: blur(8px);
+  background: oklch(0.22 0.025 260 / 0.38);
+  backdrop-filter: blur(5px);
 }
 
 .authModal {
@@ -2541,36 +2541,70 @@
 }
 
 .progressModal {
-  width: min(560px, 100%);
+  width: min(540px, calc(100vw - 32px));
   display: grid;
-  gap: 18px;
+  gap: 16px;
   padding: 24px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 20px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
   background: var(--bg-surface);
-  box-shadow: var(--shadow-soft);
+  color: var(--fg-default);
+  box-shadow: 0 22px 70px oklch(0.18 0.035 260 / 0.3);
+}
+
+.progressModalHeader {
+  display: grid;
+  gap: 8px;
+}
+
+.progressModalTop,
+.progressMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progressModalTop strong {
+  color: var(--fg-brand);
+  font-size: 22px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
 }
 
 .progressModal h2 {
-  margin-top: 10px;
   color: var(--fg-strong);
   font-family: var(--font-display);
-  font-size: 25px;
+  font-size: 24px;
   font-weight: 850;
+  line-height: 1.25;
 }
 
 .progressModal p {
-  margin-top: 8px;
   color: var(--fg-secondary);
   font-size: 15px;
   line-height: 1.65;
 }
 
+.progressMeta {
+  border-radius: var(--radius-8);
+  padding: 10px 12px;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.progressMeta span:first-child {
+  color: var(--fg-strong);
+}
+
 .progressTrack {
-  height: 10px;
+  height: 12px;
   overflow: hidden;
   border-radius: var(--radius-full);
   background: var(--bg-muted);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
 }
 
 .progressTrack span {
@@ -2583,16 +2617,62 @@
 
 .progressSteps {
   display: grid;
-  gap: 8px;
-  padding-left: 20px;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
   color: var(--fg-tertiary);
   font-size: 14px;
   line-height: 1.5;
 }
 
-.progressStepActive {
+.progressStep {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.progressStep::before {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  color: var(--fg-tertiary);
+  content: "";
+}
+
+.progressStepCurrent {
+  color: var(--fg-strong);
+  font-weight: 850;
+}
+
+.progressStepCurrent::before {
+  border-color: var(--fg-brand);
+  background: var(--bg-brand-subtle);
+  box-shadow: inset 0 0 0 5px var(--bg-surface);
+}
+
+.progressStepDone {
   color: var(--fg-brand);
   font-weight: 850;
+}
+
+.progressStepDone::before {
+  border-color: var(--fg-brand);
+  background: var(--bg-brand);
+  color: white;
+  content: "✓";
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.progressHint {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 750;
 }
 
 .globalErrorShell {

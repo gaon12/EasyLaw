@@ -111,6 +111,16 @@ export function DictionaryUpdateButton() {
     }
   }
 
+  function progressStepClass(index: number) {
+    if (status === "loading" && index === stageIndex) {
+      return `${styles.progressStep} ${styles.progressStepCurrent}`;
+    }
+    if (index < stageIndex || (status !== "loading" && index <= stageIndex)) {
+      return `${styles.progressStep} ${styles.progressStepDone}`;
+    }
+    return styles.progressStep;
+  }
+
   const noticeClass =
     status === "success"
       ? styles.settingsNoticeSuccess
@@ -145,8 +155,11 @@ export function DictionaryUpdateButton() {
             className={styles.progressModal}
             role="dialog"
           >
-            <div>
-              <span className={styles.badge}>사전 업데이트</span>
+            <div className={styles.progressModalHeader}>
+              <div className={styles.progressModalTop}>
+                <span className={styles.badge}>사전 업데이트</span>
+                <strong>{Math.round(progress)}%</strong>
+              </div>
               <h2 id="dictionary-update-progress-title">
                 {status === "loading"
                   ? "공개 사전 데이터를 반영하고 있어요"
@@ -157,43 +170,58 @@ export function DictionaryUpdateButton() {
               <p>{message}</p>
             </div>
 
+            <div className={styles.progressMeta}>
+              <span>{updateStages[stageIndex]}</span>
+              <span>{runningSourceLabel(runningSource)}</span>
+            </div>
+
             <div
               aria-label={`진행률 ${Math.round(progress)}%`}
-              className={styles.progressTrack}
-              role="progressbar"
               aria-valuemax={100}
               aria-valuemin={0}
               aria-valuenow={Math.round(progress)}
+              className={styles.progressTrack}
+              role="progressbar"
             >
               <span style={{ width: `${progress}%` }} />
             </div>
 
             <ol className={styles.progressSteps}>
               {updateStages.map((stage, index) => (
-                <li
-                  className={
-                    index <= stageIndex ? styles.progressStepActive : undefined
-                  }
-                  key={stage}
-                >
+                <li className={progressStepClass(index)} key={stage}>
                   {stage}
                 </li>
               ))}
             </ol>
 
             <div className={styles.authModalActions}>
-              <button
-                className={styles.secondaryButton}
-                disabled={status === "loading"}
-                onClick={() => setModalOpen(false)}
-                type="button"
-              >
-                닫기
-              </button>
+              {status === "loading" ? (
+                <span className={styles.progressHint}>
+                  반영이 끝날 때까지 기다려 주세요.
+                </span>
+              ) : (
+                <button
+                  className={styles.secondaryButton}
+                  onClick={() => setModalOpen(false)}
+                  type="button"
+                >
+                  닫기
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+function runningSourceLabel(source: UpdateSource | null) {
+  if (source === "basic") {
+    return "한국어기초사전";
+  }
+  if (source === "standard") {
+    return "표준국어대사전";
+  }
+  return "전체";
 }
