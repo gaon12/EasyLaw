@@ -1,15 +1,22 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { AccountSecurityCenter } from "@/components/account-security-center";
 import { AppShell } from "@/components/site-chrome";
+import { getAccountSecurityState } from "@/lib/auth";
+import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
+import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import styles from "../page.module.css";
 
 type SecurityPageProps = {
   searchParams: Promise<{
+    next?: string | string[];
     reason?: string | string[];
   }>;
 };
 
 export const metadata = pageMetadata({
-  title: "계정 보호 설정",
+  title: "계정 보안 설정",
   description: "EasyLaw 계정의 로그인 확인, 2차 인증, 복구 코드를 관리합니다.",
   robots: { index: false, follow: false },
 });
@@ -18,10 +25,34 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function safeNextPath(value: string | undefined) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return undefined;
+  }
+  return value;
+}
+
 export default async function SecurityPage({
   searchParams,
 }: SecurityPageProps) {
-  const reason = firstParam((await searchParams).reason);
+  const params = await searchParams;
+  const reason = firstParam(params.reason);
+  const nextPath = safeNextPath(firstParam(params.next));
+  const db = getDatabase();
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
+
+  if (!user) {
+    const loginParams = new URLSearchParams({
+      next: "/security",
+      reason: "login_required",
+    });
+    redirect(`/login?${loginParams.toString()}`);
+  }
+
+  const securityState = getAccountSecurityState(db, user.id);
+  if (!securityState) {
+    redirect("/login?reason=login_required");
+  }
 
   return (
     <AppShell>
@@ -31,34 +62,22 @@ export default async function SecurityPage({
             <div>
               {reason === "totp_required" && (
                 <output className={styles.authNotice}>
-                  관리 기능은 2차 인증을 켠 뒤 사용할 수 있어요. 계정을 먼저
-                  단단하게 잠가볼게요.
+                  관리 기능은 2차 인증을 켠 계정만 사용할 수 있어요. 아래에서
+                  인증 앱을 등록한 뒤 이어서 이동할 수 있습니다.
                 </output>
               )}
-              <h1>계정 보호 설정</h1>
+              <h1>계정 보안 설정</h1>
               <p>
-                로그인 확인, 2차 인증, 복구 코드를 조용히 관리하는 곳이에요.
-                과한 경고보다 필요한 선택지를 명확하게 보여줍니다.
+                로그인 확인, 2차 인증, 복구 코드를 한곳에서 관리합니다. 현재
+                계정 상태를 확인하고 필요한 보안 조치를 바로 실행할 수 있어요.
               </p>
             </div>
             <span className={styles.badge}>계정 설정</span>
           </div>
-          <div className={styles.contentGrid}>
-            <article className={styles.contentCard}>
-              <h2 className={styles.panelTitle}>내 계정</h2>
-              <p>
-                내 문서와 알림을 쓰는 계정은 이메일 확인을 기본으로 사용해요.
-                원하면 2차 인증과 복구 코드를 추가할 수 있습니다.
-              </p>
-            </article>
-            <article className={styles.contentCard}>
-              <h2 className={styles.panelTitle}>조직과 관리 권한</h2>
-              <p>
-                조직 소유자와 관리 권한 계정은 문서 접근 범위가 넓기 때문에 2차
-                인증을 사용합니다. 설정 상태는 관리센터에서 확인할 수 있어요.
-              </p>
-            </article>
-          </div>
+          <AccountSecurityCenter
+            initialState={securityState}
+            nextPath={nextPath}
+          />
         </section>
       </main>
     </AppShell>

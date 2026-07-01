@@ -1,4 +1,4 @@
-import { createTotpEnrollment } from "@/lib/auth";
+import { regenerateRecoveryCodes } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
 import { authenticatedUser } from "../../_shared";
 
@@ -10,10 +10,13 @@ export async function POST() {
   if (!user) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (user.totpEnabled) {
-    return Response.json({ error: "already_enabled" }, { status: 409 });
+
+  const result = regenerateRecoveryCodes(getDatabase(), user.id);
+  if (!result.ok) {
+    return Response.json(result, {
+      status: result.reason === "totp_not_enabled" ? 409 : 404,
+    });
   }
 
-  const enrollment = await createTotpEnrollment(getDatabase(), user.id);
-  return Response.json(enrollment);
+  return Response.json(result);
 }

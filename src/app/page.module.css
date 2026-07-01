@@ -680,6 +680,141 @@
   gap: 16px;
 }
 
+.securityCenterGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.securityCardHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.securityCardHeader .panelTitle {
+  margin-bottom: 0;
+}
+
+.securityMeta {
+  display: grid;
+  gap: 12px;
+}
+
+.securityMeta div {
+  display: grid;
+  gap: 3px;
+}
+
+.securityMeta dt {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.securityMeta dd {
+  color: var(--fg-strong);
+  font-size: 16px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.securityActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.securityNotice,
+.securityError {
+  display: block;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-8);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.securityNotice {
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+}
+
+.securityError {
+  background: color-mix(in oklch, var(--fg-danger) 12%, var(--bg-surface));
+  color: var(--fg-danger);
+}
+
+.securityEnrollment {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.securityEnrollment > div {
+  display: grid;
+  gap: 12px;
+}
+
+.securityQr {
+  width: 184px;
+  height: 184px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-8);
+  background: white;
+}
+
+.securityDetails {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-8);
+  background: var(--bg-muted);
+}
+
+.securityDetails summary {
+  cursor: pointer;
+  color: var(--fg-brand);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.securityDetails code {
+  color: var(--fg-strong);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.recoveryCodeList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.recoveryCodeList li {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-8);
+  background: var(--bg-muted);
+  padding: 0 12px;
+}
+
+.recoveryCodeList code {
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
 .contentCard,
 .noticePanel,
 .banner {
@@ -3411,6 +3546,7 @@
 @media (max-width: 980px) {
   .portalGrid,
   .contentGrid,
+  .securityCenterGrid,
   .resultGrid,
   .authGrid,
   .researchLayout,
@@ -3562,11 +3698,21 @@
   .loginServices,
   .serviceCards,
   .guideTabs,
+  .recoveryCodeList,
   .catalog,
   .adminGrid,
   .harnessSteps,
   .wikiCardGrid {
     grid-template-columns: 1fr;
+  }
+
+  .securityEnrollment {
+    grid-template-columns: 1fr;
+  }
+
+  .securityQr {
+    width: 164px;
+    height: 164px;
   }
 
   .wikiHero,

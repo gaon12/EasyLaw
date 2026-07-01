@@ -23,6 +23,25 @@ type UserRow = {
   totp_secret_ciphertext: string | null;
 };
 
+export type AccountSecurityState = {
+  user: {
+    email: string;
+    displayName: string;
+    role: string;
+  };
+  authentication: {
+    emailVerifiedAt: string | null;
+    magicLinkVerifiedAt: string | null;
+    totpEnabled: boolean;
+    totpRequired: boolean;
+    totpVerifiedAt: string | null;
+  };
+  recoveryCodes: {
+    total: number;
+    unused: number;
+  };
+};
+
 export function ensureUser(
   db: SqliteDatabase,
   email: string,
@@ -307,6 +326,78 @@ export function consumeRecoveryCode(
     targetId: userId,
   });
   return { ok: true as const };
+}
+
+export function getAccountSecurityState(
+  db: SqliteDatabase,
+  userId: string,
+): AccountSecurityState | null {
+  const user = db
+    .prepare<[string], UserRow>("SELECT * FROM users WHERE id = ?")
+    .get(userId);
+  if (!user) {
+    return null;
+  }
+
+  const authMethods = db
+    .prepare<[string], { kind: string; verified_at: string | null }>(
+      `SELECT kind, verified_at
+        FROM user_auth_methods
+        WHERE user_id = ?`,
+    )
+    .all(userId);
+  const verifiedAtByKind = new Map(
+    authMethods.map((method) => [method.kind, method.verified_at]),
+  );
+  const recoveryCounts = db
+    .prepare<[string], { total: number; unused: number | null }>(
+      `SELECT
+          COUNT(*) total,
+          SUM(CASE WHEN used_at IS NULL THEN 1 ELSE 0 END) unused
+        FROM user_recovery_codes
+        WHERE user_id = ?`,
+    )
+    .get(userId);
+
+  return {
+    authentication: {
+      emailVerifiedAt: verifiedAtByKind.get("email") ?? null,
+      magicLinkVerifiedAt: verifiedAtByKind.get("magic_link") ?? null,
+      totpEnabled: user.totp_enabled === 1,
+      totpRequired: user.totp_required === 1,
+      totpVerifiedAt: verifiedAtByKind.get("totp") ?? null,
+    },
+    recoveryCodes: {
+      total: recoveryCounts?.total ?? 0,
+      unused: recoveryCounts?.unused ?? 0,
+    },
+    user: {
+      displayName: user.display_name,
+      email: user.email,
+      role: user.role,
+    },
+  };
+}
+
+export function regenerateRecoveryCodes(db: SqliteDatabase, userId: string) {
+  const user = db
+    .prepare<[string], UserRow>("SELECT * FROM users WHERE id = ?")
+    .get(userId);
+  if (!user) {
+    return { ok: false as const, reason: "not_found" };
+  }
+  if (user.totp_enabled !== 1) {
+    return { ok: false as const, reason: "totp_not_enabled" };
+  }
+
+  const recoveryCodes = replaceRecoveryCodes(db, userId);
+  auditLog(db, {
+    actorUserId: userId,
+    action: "recovery_codes.regenerated",
+    targetType: "user",
+    targetId: userId,
+  });
+  return { ok: true as const, recoveryCodes };
 }
 
 export function assertManagementAccess(
