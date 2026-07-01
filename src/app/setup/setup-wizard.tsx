@@ -38,6 +38,18 @@ const stageNumber: Record<Stage, number> = {
 
 const progressSteps = ["service", "admin", "email", "security"];
 
+type UnlockResponse = {
+  status: InstallationStatus;
+};
+
+type EnrollmentResponse = {
+  enrollment: Enrollment;
+};
+
+type CompleteResponse = {
+  recoveryCodes: string[];
+};
+
 function initialStage(status: SetupStatus): Stage {
   if (!status.sessionAuthenticated) {
     return "unlock";
@@ -66,15 +78,67 @@ function errorMessage(error: string | undefined) {
   return messages[error ?? ""] ?? "요청을 처리하지 못했어요.";
 }
 
-async function postJson(path: string, body?: unknown) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isInstallationStatus(value: unknown): value is InstallationStatus {
+  return (
+    value === "pending" ||
+    value === "email_pending" ||
+    value === "totp_pending" ||
+    value === "complete"
+  );
+}
+
+function isEnrollment(value: unknown): value is Enrollment {
+  return (
+    isRecord(value) &&
+    typeof value.otpauthUrl === "string" &&
+    typeof value.qrDataUrl === "string"
+  );
+}
+
+function isUnlockResponse(value: unknown): value is UnlockResponse {
+  return isRecord(value) && isInstallationStatus(value.status);
+}
+
+function isEnrollmentResponse(value: unknown): value is EnrollmentResponse {
+  return isRecord(value) && isEnrollment(value.enrollment);
+}
+
+function isCompleteResponse(value: unknown): value is CompleteResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.recoveryCodes) &&
+    value.recoveryCodes.every((code) => typeof code === "string")
+  );
+}
+
+function isOkResponse(value: unknown): value is Record<string, unknown> {
+  return isRecord(value);
+}
+
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  isExpected: (value: unknown) => value is T,
+) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const data = await response.json();
+  const data: unknown = await response.json();
   if (!response.ok) {
-    throw new Error(data.error ?? "request_failed");
+    throw new Error(
+      isRecord(data) && typeof data.error === "string"
+        ? data.error
+        : "request_failed",
+    );
+  }
+  if (!isExpected(data)) {
+    throw new Error("invalid_response");
   }
   return data;
 }
@@ -106,9 +170,16 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
     }
     fetch("/api/setup/enrollment")
       .then(async (response) => {
-        const data = await response.json();
+        const data: unknown = await response.json();
         if (!response.ok) {
-          throw new Error(data.error);
+          throw new Error(
+            isRecord(data) && typeof data.error === "string"
+              ? data.error
+              : "request_failed",
+          );
+        }
+        if (!isEnrollmentResponse(data)) {
+          throw new Error("invalid_response");
         }
         setEnrollment(data.enrollment);
       })
@@ -135,7 +206,11 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   function unlock(event: FormEvent) {
     event.preventDefault();
     void submit(async () => {
-      const data = await postJson("/api/setup/unlock", { code: setupCode });
+      const data = await postJson(
+        "/api/setup/unlock",
+        { code: setupCode },
+        isUnlockResponse,
+      );
       setMessage("");
       setStage(
         initialStage({
@@ -149,10 +224,14 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   function configure(event: FormEvent) {
     event.preventDefault();
     void submit(async () => {
-      await postJson("/api/setup/configure", {
-        ...config,
-        skipApiTest,
-      });
+      await postJson(
+        "/api/setup/configure",
+        {
+          ...config,
+          skipApiTest,
+        },
+        isOkResponse,
+      );
       setMessage("인증 코드를 이메일로 보냈어요.");
       setStage("email_pending");
     }, "메일 발송 설정을 확인하고 있어요.");
@@ -160,12 +239,16 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
 
   function testEmailConfiguration() {
     void submit(async () => {
-      await postJson("/api/setup/test-email", {
-        adminEmail: config.adminEmail,
-        resendApiKey: config.resendApiKey,
-        fromName: config.fromName,
-        fromAddress: config.fromAddress,
-      });
+      await postJson(
+        "/api/setup/test-email",
+        {
+          adminEmail: config.adminEmail,
+          resendApiKey: config.resendApiKey,
+          fromName: config.fromName,
+          fromAddress: config.fromAddress,
+        },
+        isOkResponse,
+      );
       setApiTestPassed(true);
       setSkipApiTest(false);
       setMessage("테스트 메일을 보냈어요. API 키와 발신 정보를 확인했습니다.");
@@ -175,9 +258,13 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   function verifyEmail(event: FormEvent) {
     event.preventDefault();
     void submit(async () => {
-      const data = await postJson("/api/setup/verify-email", {
-        code: emailCode,
-      });
+      const data = await postJson(
+        "/api/setup/verify-email",
+        {
+          code: emailCode,
+        },
+        isEnrollmentResponse,
+      );
       setEnrollment(data.enrollment);
       setMessage("");
       setStage("totp_pending");
@@ -187,7 +274,11 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
   function verifyAuthenticator(event: FormEvent) {
     event.preventDefault();
     void submit(async () => {
-      const data = await postJson("/api/setup/complete", { code: authCode });
+      const data = await postJson(
+        "/api/setup/complete",
+        { code: authCode },
+        isCompleteResponse,
+      );
       setRecoveryCodes(data.recoveryCodes);
       setMessage("");
       setStage("complete");
@@ -449,7 +540,11 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                   disabled={busy}
                   onClick={() =>
                     void submit(async () => {
-                      await postJson("/api/setup/resend-email");
+                      await postJson(
+                        "/api/setup/resend-email",
+                        undefined,
+                        isOkResponse,
+                      );
                       setMessage("새 인증 코드를 보냈어요.");
                     })
                   }

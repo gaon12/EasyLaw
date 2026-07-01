@@ -40,7 +40,12 @@ export function AdminSettingsForm({
         setStatus("idle");
         try {
           const formData = new FormData(event.currentTarget);
-          const settings = Object.fromEntries(formData.entries());
+          const settings: Record<string, string> = {};
+          for (const [key, value] of formData.entries()) {
+            if (typeof value === "string") {
+              settings[key] = value;
+            }
+          }
           const response = await fetch("/api/admin/settings", {
             body: JSON.stringify({ scope, settings }),
             headers: { "Content-Type": "application/json" },
@@ -61,6 +66,17 @@ export function AdminSettingsForm({
         }
       }}
     >
+      <output
+        className={
+          status === "success"
+            ? styles.settingsNoticeSuccess
+            : status === "error"
+              ? styles.settingsNoticeError
+              : styles.settingsNotice
+        }
+      >
+        {message}
+      </output>
       {fields.map((field) => (
         <label
           className={styles.settingsField}
@@ -103,17 +119,6 @@ export function AdminSettingsForm({
         >
           {isSaving ? "저장 중" : "설정 저장"}
         </button>
-        <output
-          className={
-            status === "success"
-              ? styles.settingsNoticeSuccess
-              : status === "error"
-                ? styles.settingsNoticeError
-                : styles.settingsNotice
-          }
-        >
-          {message}
-        </output>
       </div>
     </form>
   );

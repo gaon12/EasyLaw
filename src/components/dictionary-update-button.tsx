@@ -5,6 +5,22 @@ import styles from "@/app/page.module.css";
 
 type UpdateSource = "all" | "basic" | "standard";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isDictionaryUpdateResponse(
+  value: unknown,
+): value is { importedCount: number } {
+  return isRecord(value) && typeof value.importedCount === "number";
+}
+
+function responseMessage(value: unknown, fallback: string) {
+  return isRecord(value) && typeof value.message === "string"
+    ? value.message
+    : fallback;
+}
+
 export function DictionaryUpdateButton() {
   const [message, setMessage] = useState(
     "한국어기초사전과 표준국어대사전 ZIP을 내려받아 JSON을 DB에 반영합니다.",
@@ -29,10 +45,15 @@ export function DictionaryUpdateButton() {
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const data = await response.json();
+      const data: unknown = await response.json();
       if (!response.ok) {
         setStatus("error");
-        setMessage(data.message ?? "사전 업데이트에 실패했어요.");
+        setMessage(responseMessage(data, "사전 업데이트에 실패했어요."));
+        return;
+      }
+      if (!isDictionaryUpdateResponse(data)) {
+        setStatus("error");
+        setMessage("사전 업데이트 응답 형식을 확인하지 못했어요.");
         return;
       }
       setStatus("success");
@@ -49,24 +70,7 @@ export function DictionaryUpdateButton() {
   }
 
   return (
-    <div className={styles.settingsActions}>
-      {[
-        ["all", "전체 업데이트"],
-        ["basic", "한국어기초사전 업데이트"],
-        ["standard", "표준국어대사전 업데이트"],
-      ].map(([source, label]) => (
-        <button
-          className={
-            source === "all" ? styles.primaryButton : styles.secondaryButton
-          }
-          disabled={status === "loading"}
-          key={source}
-          onClick={() => void update(source as UpdateSource)}
-          type="button"
-        >
-          {runningSource === source ? "업데이트 중" : label}
-        </button>
-      ))}
+    <div className={styles.settingsForm}>
       <output
         className={
           status === "success"
@@ -78,6 +82,25 @@ export function DictionaryUpdateButton() {
       >
         {message}
       </output>
+      <div className={styles.settingsActions}>
+        {[
+          ["all", "전체 업데이트"],
+          ["basic", "한국어기초사전 업데이트"],
+          ["standard", "표준국어대사전 업데이트"],
+        ].map(([source, label]) => (
+          <button
+            className={
+              source === "all" ? styles.primaryButton : styles.secondaryButton
+            }
+            disabled={status === "loading"}
+            key={source}
+            onClick={() => void update(source as UpdateSource)}
+            type="button"
+          >
+            {runningSource === source ? "업데이트 중" : label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

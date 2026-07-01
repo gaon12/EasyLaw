@@ -18,6 +18,38 @@ type Explanation = {
   term: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isDefinition(
+  value: unknown,
+): value is Explanation["definitions"][number] {
+  return (
+    isRecord(value) &&
+    typeof value.definition === "string" &&
+    (typeof value.partOfSpeech === "string" || value.partOfSpeech === null) &&
+    typeof value.senseNo === "string" &&
+    (value.source === "legal" ||
+      value.source === "basic" ||
+      value.source === "standard") &&
+    typeof value.word === "string"
+  );
+}
+
+function isExplanation(value: unknown): value is Explanation {
+  return (
+    isRecord(value) &&
+    typeof value.aiAvailable === "boolean" &&
+    typeof value.aiExplanation === "string" &&
+    Array.isArray(value.definitions) &&
+    value.definitions.every(isDefinition) &&
+    typeof value.plain === "string" &&
+    typeof value.priority === "string" &&
+    typeof value.term === "string"
+  );
+}
+
 export function TermExplainer() {
   const [term, setTerm] = useState("");
   const [position, setPosition] = useState({ left: 0, top: 0 });
@@ -53,11 +85,18 @@ export function TermExplainer() {
         term: text,
       });
       void fetch(`/api/terms/explain?${params}`)
-        .then((response) => {
+        .then(async (response) => {
           if (!response.ok) {
             throw new Error("term lookup failed");
           }
-          return response.json() as Promise<Explanation>;
+          const data: unknown = await response.json();
+          return data;
+        })
+        .then((data) => {
+          if (!isExplanation(data)) {
+            throw new Error("invalid term lookup response");
+          }
+          return data;
         })
         .then((data) => {
           setExplanation(data);

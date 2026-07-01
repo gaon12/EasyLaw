@@ -10,6 +10,20 @@ type AuthEmailFormProps = {
 
 type AuthStatus = "idle" | "loading" | "success" | "error";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isAuthenticatedSession(
+  value: unknown,
+): value is { authenticated: boolean } {
+  return isRecord(value) && typeof value.authenticated === "boolean";
+}
+
+function rateLimited(value: unknown) {
+  return isRecord(value) && value.reason === "rate_limited";
+}
+
 export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -28,8 +42,8 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
         const response = await fetch("/api/auth/session", {
           cache: "no-store",
         });
-        const data = await response.json();
-        if (!disposed && data.authenticated === true) {
+        const data: unknown = await response.json();
+        if (!disposed && isAuthenticatedSession(data) && data.authenticated) {
           window.location.assign(safeNextPath(nextPath));
         }
       } catch (_error) {
@@ -82,11 +96,11 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const data = await response.json();
+      const data: unknown = await response.json();
       if (!response.ok) {
         setStatus("error");
         setMessage(
-          data.reason === "rate_limited"
+          rateLimited(data)
             ? "요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요."
             : "인증 링크를 만들지 못했어요. 입력값을 확인해 주세요.",
         );

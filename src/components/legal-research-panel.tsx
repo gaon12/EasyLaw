@@ -32,6 +32,26 @@ type ResearchRequest = {
   query: string;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+async function readErrorBody(response: Response) {
+  return response.json().catch(() => null) as Promise<unknown>;
+}
+
+function errorCode(value: unknown) {
+  return isRecord(value) && typeof value.error === "string"
+    ? value.error
+    : undefined;
+}
+
+function errorBodyMessage(value: unknown, fallback: string) {
+  return isRecord(value) && typeof value.message === "string"
+    ? value.message
+    : fallback;
+}
+
 export function LegalResearchPanel({
   initialQuery = "",
 }: {
@@ -90,22 +110,25 @@ export function LegalResearchPanel({
         });
 
         if (!response.ok || !response.body) {
+          const errorBody = await readErrorBody(response);
           if (response.status === 403) {
-            const data = await response.json().catch(() => null);
-            if (data?.error === "captcha_required") {
+            if (errorCode(errorBody) === "captcha_required") {
               setErrorMessage(
-                data.message ??
+                errorBodyMessage(
+                  errorBody,
                   "보안 확인을 완료하면 질문을 계속 처리할 수 있어요.",
+                ),
               );
               setStatus("captcha");
               return;
             }
           }
           if (response.status === 429 || response.status === 401) {
-            const data = await response.json().catch(() => null);
             setErrorMessage(
-              data?.message ??
+              errorBodyMessage(
+                errorBody,
                 "비회원 이용 한도를 넘었어요. 잠시 후 다시 시도하거나 로그인해 주세요.",
+              ),
             );
           } else if (response.status === 400) {
             setErrorMessage(

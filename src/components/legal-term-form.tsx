@@ -51,6 +51,17 @@ export function LegalTermForm() {
         void save();
       }}
     >
+      <output
+        className={
+          status === "success"
+            ? styles.settingsNoticeSuccess
+            : status === "error"
+              ? styles.settingsNoticeError
+              : styles.settingsNotice
+        }
+      >
+        {message}
+      </output>
       <label className={styles.settingsField} htmlFor="legal-term-word">
         <span className={styles.label}>용어</span>
         <input
@@ -81,17 +92,6 @@ export function LegalTermForm() {
         >
           {status === "loading" ? "저장 중" : "법률 용어 저장"}
         </button>
-        <output
-          className={
-            status === "success"
-              ? styles.settingsNoticeSuccess
-              : status === "error"
-                ? styles.settingsNoticeError
-                : styles.settingsNotice
-          }
-        >
-          {message}
-        </output>
       </div>
     </form>
   );
