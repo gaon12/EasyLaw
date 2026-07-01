@@ -770,6 +770,12 @@ try {
 
   await page.locator('a[href="/catalog"]').first().click();
   await page.locator("main article").first().waitFor();
+  await page.getByRole("link", { name: "판결문 보기" }).first().click();
+  await page.getByRole("heading", { name: "판결문 본문" }).waitFor();
+  const publicJudgmentText = await page.locator("main").innerText();
+  if (/공개 출처|원문 출처/.test(publicJudgmentText)) {
+    throw new Error("Public judgment detail exposed public source text.");
+  }
 
   for (const path of ["/login", "/signup", "/admin", "/org", "/me"]) {
     await page.goto(`${baseUrl}${path}`, { waitUntil: "networkidle" });

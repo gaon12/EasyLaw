@@ -22,7 +22,6 @@ export function JudgmentDetailView({
     title?: string;
   }>;
 }) {
-  const sourceAvailable = !privateDocument && Boolean(judgment.sourceUrl);
   const caseTypeLabel = displayJudgmentCaseType(judgment.caseType);
   const documentText =
     judgment.originalText ??
@@ -106,7 +105,7 @@ export function JudgmentDetailView({
                   <p>
                     {hasOriginalText
                       ? "쉬운 설명 생성 여부와 관계없이 확보된 판결문 본문을 먼저 보여줘요."
-                      : "상세 본문을 아직 받지 못한 경우에도 공개 출처의 판결 요지를 먼저 보여줘요."}
+                      : "상세 본문을 아직 받지 못한 경우에는 확보된 판결 요지를 먼저 보여줘요."}
                   </p>
                 </div>
               </header>
@@ -114,10 +113,10 @@ export function JudgmentDetailView({
                 <div className={styles.viewerText}>
                   {!hasOriginalText && (
                     <div className={styles.viewerFallbackNotice}>
-                      <strong>공개 출처의 판결 요지를 표시하고 있어요.</strong>
+                      <strong>판결 요지를 표시하고 있어요.</strong>
                       <p>
-                        원문 전문은 출처에서 추가 확인할 수 있고, EasyLaw는
-                        가능한 경우 자동으로 본문을 가져와 저장합니다.
+                        EasyLaw는 가능한 경우 자동으로 상세 본문을 가져와
+                        저장합니다.
                       </p>
                     </div>
                   )}
@@ -164,20 +163,7 @@ export function JudgmentDetailView({
               ) : (
                 <div className={styles.viewerEmpty}>
                   <strong>표시할 판결문 내용을 아직 확보하지 못했어요.</strong>
-                  <p>
-                    공개 출처가 제공되는 판결문은 원문 출처에서 바로 확인할 수
-                    있어요. 기본 판결 정보와 전심 링크는 계속 볼 수 있습니다.
-                  </p>
-                  {sourceAvailable && (
-                    <a
-                      className={styles.secondaryButton}
-                      href={judgment.sourceUrl ?? undefined}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      원문 출처 열기
-                    </a>
-                  )}
+                  <p>기본 판결 정보와 전심 링크는 계속 볼 수 있습니다.</p>
                 </div>
               )}
             </article>
@@ -216,8 +202,8 @@ export function JudgmentDetailView({
                 <div className={styles.viewerEmpty}>
                   <strong>쉬운 설명은 아직 준비 중이에요.</strong>
                   <p>
-                    그래도 판결문 본문, 사건번호, 법원, 선고일, 공개 출처는 먼저
-                    확인할 수 있습니다.
+                    그래도 판결문 본문, 사건번호, 법원, 선고일은 먼저 확인할 수
+                    있습니다.
                   </p>
                 </div>
               )}
@@ -274,22 +260,6 @@ export function JudgmentDetailView({
             <div>
               <dt>종류</dt>
               <dd>{caseTypeLabel}</dd>
-            </div>
-            <div>
-              <dt>공개 출처</dt>
-              <dd>
-                {sourceAvailable ? (
-                  <a
-                    href={judgment.sourceUrl ?? undefined}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    새 창에서 보기
-                  </a>
-                ) : (
-                  "없음"
-                )}
-              </dd>
             </div>
           </dl>
         </section>
