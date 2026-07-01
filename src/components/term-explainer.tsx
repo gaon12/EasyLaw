@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 
@@ -17,6 +18,8 @@ type Explanation = {
   priority: string;
   term: string;
 };
+
+const termExplainerRoutes = ["/p/", "/cp/", "/guide", "/research"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -51,6 +54,12 @@ function isExplanation(value: unknown): value is Explanation {
 }
 
 export function TermExplainer() {
+  const pathname = usePathname();
+  const enabled = termExplainerRoutes.some((route) =>
+    route.endsWith("/")
+      ? (pathname ?? "").startsWith(route)
+      : pathname === route,
+  );
   const [term, setTerm] = useState("");
   const [context, setContext] = useState("");
   const [position, setPosition] = useState({ left: 0, top: 0 });
@@ -59,6 +68,11 @@ export function TermExplainer() {
   const ignoreCloseRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled) {
+      setTerm("");
+      return;
+    }
+
     function handlePointerUp() {
       if (ignoreCloseRef.current) {
         ignoreCloseRef.current = false;
@@ -126,9 +140,9 @@ export function TermExplainer() {
       document.removeEventListener("pointerup", handlePointerUp);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [enabled]);
 
-  if (!term) {
+  if (!enabled || !term) {
     return null;
   }
 
