@@ -113,10 +113,19 @@ async function waitForServer() {
 }
 
 const hydrationMessages = [];
+const browserConsoleErrors = [];
 
 function trackHydrationWarnings(page) {
   page.on("console", (message) => {
     const text = message.text();
+    if (message.type() === "error") {
+      const location = message.location();
+      if (!isExpectedMissingRoute(location.url)) {
+        browserConsoleErrors.push(
+          location.url ? `${text}\n${location.url}` : text,
+        );
+      }
+    }
     if (
       (message.type() === "error" || message.type() === "warning") &&
       (text.includes("A tree hydrated") ||
@@ -126,6 +135,20 @@ function trackHydrationWarnings(page) {
       hydrationMessages.push(text);
     }
   });
+  page.on("pageerror", (error) => {
+    browserConsoleErrors.push(error.message);
+  });
+  page.on("response", (response) => {
+    if (response.status() === 404 && !isExpectedMissingRoute(response.url())) {
+      browserConsoleErrors.push(`404 response: ${response.url()}`);
+    }
+  });
+}
+
+function isExpectedMissingRoute(url) {
+  return (
+    url.includes("/missing-direct-page") || url.includes("/missing-from-home")
+  );
 }
 
 try {
@@ -141,6 +164,21 @@ try {
   if (new URL(page.url()).pathname !== "/setup") {
     throw new Error(
       "Unconfigured service did not redirect to the setup wizard.",
+    );
+  }
+  const cdnResources = await page
+    .locator(
+      'head link[href*="cdn."], head link[href*="jsdelivr"], head script[src*="cdn."], head script[src*="jsdelivr"]',
+    )
+    .evaluateAll((elements) =>
+      elements.map(
+        (element) =>
+          element.getAttribute("href") ?? element.getAttribute("src"),
+      ),
+    );
+  if (cdnResources.length > 0) {
+    throw new Error(
+      `Page head loaded CDN resources: ${cdnResources.join(", ")}`,
     );
   }
   if ((await page.request.get(`${baseUrl}/api/judgments`)).status() !== 503) {
@@ -765,6 +803,11 @@ try {
 
   if (hydrationMessages.length > 0) {
     throw new Error(`Hydration warning was logged:\n${hydrationMessages[0]}`);
+  }
+  if (browserConsoleErrors.length > 0) {
+    throw new Error(
+      `Browser console error was logged:\n${browserConsoleErrors[0]}`,
+    );
   }
 
   await browser.close();

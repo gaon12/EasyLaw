@@ -27,12 +27,11 @@
   --radius-16: 16px;
   --radius-full: 999px;
   --font-sans:
-    "Pretendard JP", "Pretendard Variable", Pretendard, -apple-system,
-    BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR",
-    "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
+    -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
   --font-display:
-    "Wanted Sans Variable", "Wanted Sans", "Pretendard JP",
-    "Pretendard Variable", system-ui, sans-serif;
+    -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {

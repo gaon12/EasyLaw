@@ -86,17 +86,6 @@ export default function RootLayout({
             },
           })}
         </Script>
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-        <link
-          crossOrigin="anonymous"
-          href="https://cdn.jsdelivr.net/npm/wanted-sans@1.0.3/fonts/webfonts/variable/split/WantedSansVariable.css"
-          rel="stylesheet"
-        />
-        <link
-          crossOrigin="anonymous"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
-          rel="stylesheet"
-        />
       </head>
       <body>
         <ReadingProgress />
