@@ -10,8 +10,8 @@
   height: 4px;
   position: fixed;
   z-index: 120;
-  top: 0;
   right: 0;
+  bottom: 0;
   left: 0;
   background: transparent;
   pointer-events: none;
@@ -21,7 +21,7 @@
   height: 100%;
   display: block;
   background: var(--bg-brand);
-  box-shadow: 0 0 14px color-mix(in oklch, var(--bg-brand) 55%, transparent);
+  box-shadow: 0 -2px 14px color-mix(in oklch, var(--bg-brand) 55%, transparent);
 }
 
 .visuallyHidden {
