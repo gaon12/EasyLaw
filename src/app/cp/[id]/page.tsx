@@ -3,8 +3,13 @@ import { notFound } from "next/navigation";
 import { JudgmentDetailView } from "@/components/judgment-detail";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
+import { extractRelatedCaseReferences } from "@/lib/judgment-relations";
 import { pageMetadata } from "@/lib/metadata";
-import { getCustomJudgmentById, getLatestAnalysis } from "@/lib/queries";
+import {
+  getCustomJudgmentById,
+  getLatestAnalysis,
+  getPublicJudgmentsByCaseNumbers,
+} from "@/lib/queries";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +33,16 @@ export default async function CustomJudgmentPage({
   if (!judgment) {
     notFound();
   }
+  const relatedReferences = extractRelatedCaseReferences(
+    judgment.originalText,
+    judgment.caseNumber,
+  );
+  const linkedJudgments = new Map(
+    getPublicJudgmentsByCaseNumbers(
+      db,
+      relatedReferences.map((reference) => reference.caseNumber),
+    ).map((relatedJudgment) => [relatedJudgment.caseNumber, relatedJudgment]),
+  );
 
   return (
     <AppShell>
@@ -35,6 +50,16 @@ export default async function CustomJudgmentPage({
         analysis={getLatestAnalysis(db, judgment.id)}
         judgment={judgment}
         privateDocument
+        relatedJudgments={relatedReferences.map((reference) => {
+          const linkedJudgment = linkedJudgments.get(reference.caseNumber);
+          return {
+            ...reference,
+            href: linkedJudgment
+              ? `/p/${encodeURIComponent(linkedJudgment.id)}`
+              : `/catalog?q=${encodeURIComponent(reference.caseNumber)}`,
+            title: linkedJudgment?.title,
+          };
+        })}
       />
     </AppShell>
   );

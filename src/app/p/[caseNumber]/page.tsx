@@ -6,10 +6,12 @@ import {
   ensurePublicJudgmentOriginalText,
   syncExternalCatalog,
 } from "@/lib/external-law";
+import { extractRelatedCaseReferences } from "@/lib/judgment-relations";
 import { pageMetadata } from "@/lib/metadata";
 import {
   getLatestAnalysis,
   getPublicJudgmentByIdentifier,
+  getPublicJudgmentsByCaseNumbers,
 } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -50,12 +52,32 @@ export default async function PublicJudgmentPage({
   }
   await ensurePublicJudgmentOriginalText(db, judgment);
   judgment = getPublicJudgmentByIdentifier(db, caseNumber) ?? judgment;
+  const relatedReferences = extractRelatedCaseReferences(
+    judgment.originalText,
+    judgment.caseNumber,
+  );
+  const linkedJudgments = new Map(
+    getPublicJudgmentsByCaseNumbers(
+      db,
+      relatedReferences.map((reference) => reference.caseNumber),
+    ).map((relatedJudgment) => [relatedJudgment.caseNumber, relatedJudgment]),
+  );
 
   return (
     <AppShell>
       <JudgmentDetailView
         analysis={getLatestAnalysis(db, judgment.id)}
         judgment={judgment}
+        relatedJudgments={relatedReferences.map((reference) => {
+          const linkedJudgment = linkedJudgments.get(reference.caseNumber);
+          return {
+            ...reference,
+            href: linkedJudgment
+              ? `/p/${encodeURIComponent(linkedJudgment.id)}`
+              : `/catalog?q=${encodeURIComponent(reference.caseNumber)}`,
+            title: linkedJudgment?.title,
+          };
+        })}
       />
     </AppShell>
   );

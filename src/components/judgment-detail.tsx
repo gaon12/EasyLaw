@@ -8,10 +8,18 @@ export function JudgmentDetailView({
   analysis,
   judgment,
   privateDocument = false,
+  relatedJudgments = [],
 }: {
   analysis: EasyReadAnalysis | null;
   judgment: JudgmentDetail;
   privateDocument?: boolean;
+  relatedJudgments?: Array<{
+    caseNumber: string;
+    excerpt: string;
+    href: string;
+    label: string;
+    title?: string;
+  }>;
 }) {
   const sourceAvailable = !privateDocument && Boolean(judgment.sourceUrl);
   const caseTypeLabel = displayJudgmentCaseType(judgment.caseType);
@@ -54,6 +62,7 @@ export function JudgmentDetailView({
           <nav>
             <a href="#original-document">판결문</a>
             <a href="#easy-explanation">쉬운 설명</a>
+            {relatedJudgments.length > 0 && <a href="#related-cases">전심</a>}
             <a href="#judgment-info">판결 정보</a>
           </nav>
           {documentSections.length > 0 && (
@@ -195,6 +204,29 @@ export function JudgmentDetailView({
             </div>
           )}
         </aside>
+
+        {relatedJudgments.length > 0 && (
+          <section className={styles.viewerRelated} id="related-cases">
+            <header className={styles.viewerPanelHeader}>
+              <span className={styles.badge}>전심</span>
+              <div>
+                <h2>함께 볼 판결문</h2>
+                <p>
+                  본문에서 확인한 원심·제1심 사건번호를 바로 이어 볼 수 있어요.
+                </p>
+              </div>
+            </header>
+            <div className={styles.relatedCaseList}>
+              {relatedJudgments.map((related) => (
+                <a href={related.href} key={related.caseNumber}>
+                  <span>{related.label}</span>
+                  <strong>{related.caseNumber}</strong>
+                  <small>{related.title ?? related.excerpt}</small>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className={styles.viewerInfo} id="judgment-info">
           <header className={styles.viewerPanelHeader}>

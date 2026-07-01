@@ -37,6 +37,7 @@ import {
   createOrAttachGenerationJob,
 } from "../src/lib/jobs";
 import { parseJudgmentDocument } from "../src/lib/judgment-document";
+import { extractRelatedCaseReferences } from "../src/lib/judgment-relations";
 import { buildResearchPlan } from "../src/lib/legal-research";
 import { sendReadyNotifications } from "../src/lib/notifications";
 import {
@@ -356,6 +357,21 @@ test("judgment document parser splits bracket headings and numbered reasons", ()
     text: "가. 관련 법리",
   });
   assert.equal(sections[2].blocks[2].kind, "paragraph");
+});
+
+test("judgment relation parser extracts lower court case numbers", () => {
+  const references = extractRelatedCaseReferences(
+    "【원심판결】 서울중앙지법 2024. 1. 23. 선고 2023나4119 판결<br/>【이 유】 현재 사건은 2024다222212이다.",
+    "2024다222212",
+  );
+
+  assert.deepEqual(references, [
+    {
+      caseNumber: "2023나4119",
+      excerpt: "【원심판결】 서울중앙지법 2024. 1. 23. 선고 2023나4119 판결",
+      label: "원심판결",
+    },
+  ]);
 });
 
 test("public request origin respects reverse proxy headers", () => {
