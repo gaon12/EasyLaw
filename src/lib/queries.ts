@@ -163,6 +163,21 @@ export function getPublicJudgmentByCaseNumber(
   return row ? mapJudgmentDetail(row) : null;
 }
 
+export function getPublicJudgmentByIdentifier(
+  db: SqliteDatabase,
+  identifier: string,
+) {
+  const row = db
+    .prepare<[string, string], JudgmentDetailRow>(
+      `${judgmentDetailSql}
+       WHERE judgments.visibility = 'public'
+         AND (judgments.id = ? OR judgments.case_number = ?)
+       LIMIT 1`,
+    )
+    .get(identifier, identifier);
+  return row ? mapJudgmentDetail(row) : null;
+}
+
 export function getCustomJudgmentById(
   db: SqliteDatabase,
   id: string,

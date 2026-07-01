@@ -315,11 +315,14 @@ function parseOpenLawItem(item: unknown): ExternalJudgmentRecord | null {
     stringValue(item, "id");
   const caseNumber =
     stringValue(item, "사건번호") ?? stringValue(item, "caseNumber");
-  const title =
-    stringValue(item, "사건명") ??
-    stringValue(item, "판례명") ??
-    stringValue(item, "title") ??
-    caseNumber;
+  const caseName = stringValue(item, "사건명");
+  const summary = stringValue(item, "판시사항") ?? stringValue(item, "summary");
+  const title = buildOpenLawTitle({
+    fallbackTitle:
+      stringValue(item, "판례명") ?? stringValue(item, "title") ?? caseNumber,
+    caseName,
+    summary,
+  });
   const courtName =
     stringValue(item, "법원명") ?? stringValue(item, "courtName") ?? "법원";
   const decidedOn = normalizeDate(
@@ -343,8 +346,27 @@ function parseOpenLawItem(item: unknown): ExternalJudgmentRecord | null {
     title,
     sourceUrl,
     caseType: classifyCaseType(caseNumber, title),
-    summary: stringValue(item, "판시사항") ?? stringValue(item, "summary"),
+    summary,
   };
+}
+
+function buildOpenLawTitle(input: {
+  caseName: string | undefined;
+  fallbackTitle: string | undefined;
+  summary: string | undefined;
+}) {
+  const title = input.caseName ?? input.fallbackTitle;
+  if (!title) {
+    return undefined;
+  }
+
+  const leadingMarker = input.summary?.match(
+    /^\s*(\([^()\n]{1,40}\)|\[[^[\]\n]{1,40}\]|【[^】\n]{1,40}】)\s*/,
+  )?.[1];
+  if (!input.caseName || !leadingMarker || title.startsWith(leadingMarker)) {
+    return title;
+  }
+  return `${leadingMarker} ${title}`;
 }
 
 function upsertJudgmentSource(

@@ -19,8 +19,9 @@ export const metadata = pageMetadata({
 export default async function CatalogPage({
   searchParams,
 }: PageProps<"/catalog">) {
-  const { q } = await searchParams;
+  const { q, view } = await searchParams;
   const initialQuery = typeof q === "string" ? q : "";
+  const isRecentView = view === "recent" && !initialQuery;
   const db = getDatabase();
   await syncExternalCatalog(db);
   const allJudgments = getPublicJudgments(db);
@@ -42,10 +43,17 @@ export default async function CatalogPage({
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>{initialQuery ? "판결문 검색 결과" : "판결문 검색"}</h1>
+              <h1>
+                {initialQuery
+                  ? "판결문 검색 결과"
+                  : isRecentView
+                    ? "공개 판결문 전체 보기"
+                    : "판결문 검색"}
+              </h1>
               <p>
-                사건번호, 법원명, 판결문 제목으로 공개 판결문을 바로 찾아요.
-                직접 붙여넣은 내 문서는 로그인 후 비공개로 저장할 수 있어요.
+                {isRecentView
+                  ? "최근 공개된 판결문을 최신순으로 모아 볼 수 있어요."
+                  : "사건번호, 법원명, 판결문 제목으로 공개 판결문을 바로 찾아요. 직접 붙여넣은 내 문서는 로그인 후 비공개로 저장할 수 있어요."}
               </p>
             </div>
             <span className={styles.badge}>확인된 정보 우선</span>
@@ -67,7 +75,7 @@ export default async function CatalogPage({
           <JudgmentExplorer
             initialJudgments={judgments}
             initialQuery={initialQuery}
-            showWorkspace={!initialQuery}
+            showWorkspace={!initialQuery && !isRecentView}
           />
         </section>
       </main>

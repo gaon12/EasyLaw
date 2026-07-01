@@ -38,7 +38,10 @@ import {
 } from "../src/lib/jobs";
 import { buildResearchPlan } from "../src/lib/legal-research";
 import { sendReadyNotifications } from "../src/lib/notifications";
-import { getPublicJudgments } from "../src/lib/queries";
+import {
+  getPublicJudgmentByIdentifier,
+  getPublicJudgments,
+} from "../src/lib/queries";
 import { getPublicRequestOrigin } from "../src/lib/request-origin";
 import { checkAnonymousAccess } from "../src/lib/security/anonymous-access";
 import { decryptSecret } from "../src/lib/security/crypto";
@@ -219,6 +222,10 @@ test("external catalog creates public pending judgments", async () => {
     const judgments = getPublicJudgments(db);
     assert.ok(judgments.length >= 3);
     assert.equal(judgments[0].visibility, "public");
+    assert.equal(
+      getPublicJudgmentByIdentifier(db, judgments[0].id)?.caseNumber,
+      judgments[0].caseNumber,
+    );
     assert.ok(
       judgments.every((item) => item.sourceProvider === "korean-law-mcp"),
     );
@@ -283,6 +290,7 @@ test("open law parser normalizes public case records", () => {
           사건명: "손해배상",
           사건번호: "2024가단1234",
           법원명: "서울중앙지방법원",
+          판시사항: "(심리불속행) 원심 판단을 수긍한 사안",
           선고일자: "20240501",
           판례상세링크: "/DRF/lawService.do?OC=test&target=prec&ID=1",
           판례일련번호: "123456",
@@ -298,12 +306,14 @@ test("open law parser normalizes public case records", () => {
       courtName: records[0].courtName,
       decidedOn: records[0].decidedOn,
       sourceProvider: records[0].sourceProvider,
+      title: records[0].title,
     },
     {
       caseNumber: "2024가단1234",
       courtName: "서울중앙지방법원",
       decidedOn: "2024-05-01",
       sourceProvider: "open-law",
+      title: "(심리불속행) 손해배상",
     },
   );
   assert.ok(records[0].sourceUrl?.startsWith("https://www.law.go.kr/"));

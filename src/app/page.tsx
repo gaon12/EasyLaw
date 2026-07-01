@@ -159,7 +159,7 @@ export default async function Home() {
                 <h2>최근 공개 판결문</h2>
                 <p>사건번호나 법원명으로 바로 열람할 수 있는 판결문이에요.</p>
               </div>
-              <a className={styles.secondaryButton} href="/catalog">
+              <a className={styles.secondaryButton} href="/catalog?view=recent">
                 전체 보기
               </a>
             </div>
@@ -177,7 +177,7 @@ export default async function Home() {
                   </div>
                   <a
                     className={styles.primaryButton}
-                    href={`/p/${encodeURIComponent(judgment.caseNumber)}`}
+                    href={`/p/${encodeURIComponent(judgment.id)}`}
                   >
                     판결문 보기
                   </a>

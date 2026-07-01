@@ -6,7 +6,7 @@ import { syncExternalCatalog } from "@/lib/external-law";
 import { pageMetadata } from "@/lib/metadata";
 import {
   getLatestAnalysis,
-  getPublicJudgmentByCaseNumber,
+  getPublicJudgmentByIdentifier,
 } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function generateMetadata({
   const { caseNumber } = await params;
   const db = getDatabase();
   await syncExternalCatalog(db);
-  const judgment = getPublicJudgmentByCaseNumber(db, caseNumber);
+  const judgment = getPublicJudgmentByIdentifier(db, caseNumber);
 
   if (!judgment) {
     return pageMetadata({
@@ -31,7 +31,7 @@ export async function generateMetadata({
   return pageMetadata({
     title: `${judgment.caseNumber} ${judgment.title}`,
     description: `${judgment.courtName} ${judgment.decidedOn} 판결의 핵심 내용과 쉬운 설명을 확인하세요.`,
-    path: `/p/${encodeURIComponent(judgment.caseNumber)}`,
+    path: `/p/${encodeURIComponent(judgment.id)}`,
   });
 }
 
@@ -41,7 +41,7 @@ export default async function PublicJudgmentPage({
   const { caseNumber } = await params;
   const db = getDatabase();
   await syncExternalCatalog(db);
-  const judgment = getPublicJudgmentByCaseNumber(db, caseNumber);
+  const judgment = getPublicJudgmentByIdentifier(db, caseNumber);
   if (!judgment) {
     notFound();
   }

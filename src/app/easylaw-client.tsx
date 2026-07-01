@@ -322,7 +322,7 @@ export function JudgmentExplorer({
               <div className={styles.buttonRow}>
                 <a
                   className={styles.primaryButton}
-                  href={`/p/${encodeURIComponent(judgment.caseNumber)}`}
+                  href={`/p/${encodeURIComponent(judgment.id)}`}
                 >
                   판결문 보기
                 </a>
