@@ -313,6 +313,17 @@ try {
   await page.goto(`${baseUrl}/admin/dictionary`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "용어 사전 관리" }).waitFor();
   await page.getByRole("button", { name: "표준국어대사전 업데이트" }).waitFor();
+  const dictionaryAdminText = await page.locator("main").innerText();
+  if (/GET ZIP|POST ZIP|JSON만|DB에/.test(dictionaryAdminText)) {
+    throw new Error("Dictionary administration exposed import internals.");
+  }
+  if (
+    !dictionaryAdminText.includes("최신 뜻풀이를 가져와 로컬 사전에 반영합니다")
+  ) {
+    throw new Error(
+      "Dictionary administration did not explain the update clearly.",
+    );
+  }
 
   await page.goto(`${baseUrl}/admin/ai`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "AI 설정" }).waitFor();

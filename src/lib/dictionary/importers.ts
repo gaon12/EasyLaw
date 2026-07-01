@@ -21,7 +21,7 @@ export async function updateDictionarySource(
   const importId = startDictionaryImport(db, { source, sourceUrl });
   logIntegrationEvent(db, {
     action: `${source}.download`,
-    message: "사전 데이터 다운로드를 시작했습니다.",
+    message: "사전 데이터를 가져오기 시작했습니다.",
     metadata: { importId, source },
     service: "dictionary",
     status: "success",
@@ -36,7 +36,7 @@ export async function updateDictionarySource(
       message:
         importedCount > 0
           ? `${importedCount.toLocaleString("ko-KR")}개 뜻풀이를 반영했습니다.`
-          : "다운로드는 완료됐지만 새로 반영된 뜻풀이가 없습니다.",
+          : "가져오기는 완료됐지만 새로 반영된 뜻풀이가 없습니다.",
       metadata: { importId, importedCount, source },
       service: "dictionary",
       status: importedCount > 0 ? "success" : "skipped",

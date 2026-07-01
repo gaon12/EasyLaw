@@ -668,6 +668,114 @@ test("standard dictionary JSON entries are normalized for lookup", () => {
   );
 });
 
+test("basic dictionary LMF JSON entries are normalized for lookup", () => {
+  const terms = extractDictionaryTerms({
+    LexicalResource: {
+      Lexicon: {
+        LexicalEntry: [
+          {
+            Lemma: { feat: { att: "writtenForm", val: "가" } },
+            Sense: [
+              {
+                Equivalent: [
+                  {
+                    feat: [
+                      { att: "language", val: "영어" },
+                      { att: "definition", val: "A translated definition." },
+                    ],
+                  },
+                ],
+                att: "id",
+                feat: {
+                  att: "definition",
+                  val: "어떤 장소나 물건의 둘레나 끝부분.",
+                },
+                val: "1",
+              },
+            ],
+            feat: [
+              { att: "partOfSpeech", val: "명사" },
+              { att: "origin", val: "可" },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.deepEqual(
+    terms.map((term) => ({
+      definition: term.definition,
+      origin: term.origin,
+      partOfSpeech: term.partOfSpeech,
+      senseNo: term.senseNo,
+      word: term.word,
+    })),
+    [
+      {
+        definition: "어떤 장소나 물건의 둘레나 끝부분.",
+        origin: "可",
+        partOfSpeech: "명사",
+        senseNo: "1",
+        word: "가",
+      },
+    ],
+  );
+});
+
+test("standard dictionary nested word_info entries are normalized for lookup", () => {
+  const terms = extractDictionaryTerms({
+    channel: {
+      item: [
+        {
+          target_code: 17979,
+          word_info: {
+            original_language_info: [
+              { language_type: "한자", original_language: "決論" },
+              { language_type: "고유어", original_language: "하다" },
+            ],
+            pos_info: [
+              {
+                comm_pattern_info: [
+                  {
+                    sense_info: [
+                      {
+                        definition: "의론에서 가부와 시비를 따져 결정하다.",
+                        sense_code: 523883,
+                      },
+                    ],
+                  },
+                ],
+                pos: "동사",
+              },
+            ],
+            word: "결론-하다01",
+          },
+        },
+      ],
+    },
+  });
+
+  assert.deepEqual(
+    terms.map((term) => ({
+      definition: term.definition,
+      origin: term.origin,
+      partOfSpeech: term.partOfSpeech,
+      senseNo: term.senseNo,
+      word: term.word,
+    })),
+    [
+      {
+        definition: "의론에서 가부와 시비를 따져 결정하다.",
+        origin: "決論 하다",
+        partOfSpeech: "동사",
+        senseNo: "523883",
+        word: "결론하다",
+      },
+    ],
+  );
+});
+
 test("term explanations prefer legal terms over public dictionaries", () => {
   const { db, cleanup } = withDb();
   try {

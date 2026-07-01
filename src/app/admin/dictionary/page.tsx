@@ -47,8 +47,8 @@ export default function AdminDictionaryPage() {
           <div className={styles.contentCard}>
             <h2 className={styles.panelTitle}>공개 사전 데이터 업데이트</h2>
             <p>
-              한국어기초사전은 GET ZIP, 표준국어대사전은 POST ZIP으로 받은 뒤
-              JSON만 DB에 저장합니다. 반영이 끝나면 임시 파일은 삭제합니다.
+              한국어기초사전과 표준국어대사전의 최신 뜻풀이를 가져와 로컬 사전에
+              반영합니다. 업데이트가 끝나면 검색과 용어 설명에 바로 사용됩니다.
             </p>
             <DictionaryUpdateButton />
           </div>
@@ -145,7 +145,7 @@ function latestDictionaryStatus(input: {
 
 function latestDictionaryResult(input: { imported_count: number }) {
   if (input.imported_count === 0) {
-    return "다운로드는 끝났지만 새로 저장된 뜻풀이가 없습니다.";
+    return "가져오기는 끝났지만 새로 저장된 뜻풀이가 없습니다.";
   }
   return `${input.imported_count.toLocaleString("ko-KR")}개 뜻풀이를 저장했습니다.`;
 }
@@ -154,9 +154,15 @@ function dictionaryEventDisplay(input: {
   message: string | null;
   status: string;
 }) {
+  if (input.message === "사전 데이터 다운로드를 시작했습니다.") {
+    return {
+      message: "사전 데이터를 가져오기 시작했습니다.",
+      status: input.status,
+    };
+  }
   if (input.status === "success" && input.message?.startsWith("0개 뜻풀이")) {
     return {
-      message: "다운로드는 완료됐지만 새로 반영된 뜻풀이가 없습니다.",
+      message: "가져오기는 완료됐지만 새로 반영된 뜻풀이가 없습니다.",
       status: "skipped",
     };
   }

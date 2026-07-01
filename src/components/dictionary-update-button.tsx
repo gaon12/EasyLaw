@@ -7,10 +7,10 @@ type UpdateSource = "all" | "basic" | "standard";
 
 const updateStages = [
   "업데이트 요청 준비",
-  "사전 ZIP 다운로드",
-  "압축 해제 및 JSON 확인",
-  "뜻풀이 DB 반영",
-  "임시 파일 정리",
+  "사전 데이터 가져오기",
+  "자료 확인",
+  "뜻풀이 저장",
+  "마무리",
 ] as const;
 
 const updateOptions: { label: string; source: UpdateSource }[] = [
@@ -37,7 +37,7 @@ function responseMessage(value: unknown, fallback: string) {
 
 export function DictionaryUpdateButton() {
   const [message, setMessage] = useState(
-    "한국어기초사전과 표준국어대사전 ZIP을 내려받아 JSON만 DB에 반영합니다.",
+    "한국어기초사전과 표준국어대사전의 최신 뜻풀이를 로컬 사전에 반영합니다.",
   );
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "empty" | "error"
@@ -74,7 +74,7 @@ export function DictionaryUpdateButton() {
     setStageIndex(0);
     setProgress(8);
     setMessage(
-      "사전 데이터를 내려받고 있어요. 반영이 끝나면 임시 파일을 삭제합니다.",
+      "사전 데이터를 가져오고 있어요. 완료되면 검색과 용어 설명에 바로 반영됩니다.",
     );
     try {
       const response = await fetch("/api/admin/dictionary/update", {
@@ -105,7 +105,7 @@ export function DictionaryUpdateButton() {
       } else {
         setStatus("empty");
         setMessage(
-          "다운로드는 끝났지만 새로 반영된 뜻풀이가 없어요. 최근 작업 기록에서 원본 데이터 상태를 확인해 주세요.",
+          "가져오기는 끝났지만 새로 반영된 뜻풀이가 없어요. 최근 작업 기록에서 원본 데이터 상태를 확인해 주세요.",
         );
       }
     } catch (_error) {
