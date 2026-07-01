@@ -12,6 +12,8 @@ import {
   consumeRecoveryCode,
   createMagicLink,
   createTotpEnrollment,
+  disableTotp,
+  ensureUser,
   getAccountSecurityState,
   regenerateRecoveryCodes,
   verifyTotpEnrollment,
@@ -655,11 +657,63 @@ test("TOTP enrollment, recovery code, and management access policy", async () =>
       total: 10,
       unused: 10,
     });
+    assert.deepEqual(await disableTotp(db, admin.id, code), {
+      ok: false,
+      reason: "totp_required",
+    });
     assert.equal(
       consumeRecoveryCode(
         db,
         admin.id,
         verified.ok ? verified.recoveryCodes[1] : "",
+      ).ok,
+      false,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test("optional accounts can disable 2FA and invalidate recovery codes", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    const user = ensureUser(db, "optional-2fa@example.com");
+    await createTotpEnrollment(db, user.id);
+    const enrolled = db
+      .prepare<[string], { totp_secret_ciphertext: string }>(
+        "SELECT totp_secret_ciphertext FROM users WHERE id = ?",
+      )
+      .get(user.id);
+    assert.ok(enrolled);
+
+    const secret = decryptSecret(enrolled.totp_secret_ciphertext);
+    const code = await generate({ secret });
+    const verified = await verifyTotpEnrollment(db, user.id, code);
+    assert.equal(verified.ok, true);
+    const enabledState = getAccountSecurityState(db, user.id);
+    assert.equal(enabledState?.authentication.totpCanDisable, true);
+    assert.equal(enabledState?.authentication.totpEnabled, true);
+    assert.equal(enabledState?.authentication.totpRequired, false);
+    assert.ok(enabledState?.authentication.totpVerifiedAt);
+
+    assert.deepEqual(await disableTotp(db, user.id, code), { ok: true });
+    assert.deepEqual(getAccountSecurityState(db, user.id)?.recoveryCodes, {
+      total: 0,
+      unused: 0,
+    });
+    assert.deepEqual(getAccountSecurityState(db, user.id)?.authentication, {
+      emailVerifiedAt: null,
+      magicLinkVerifiedAt: null,
+      totpCanDisable: false,
+      totpEnabled: false,
+      totpRequired: false,
+      totpVerifiedAt: null,
+    });
+    assert.equal(
+      consumeRecoveryCode(
+        db,
+        user.id,
+        verified.ok ? verified.recoveryCodes[0] : "",
       ).ok,
       false,
     );

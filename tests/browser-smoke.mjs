@@ -50,14 +50,49 @@ child.stderr.on("data", (chunk) => {
   output += chunk.toString();
 });
 
-function stopDevServer() {
+async function stopDevServer() {
+  if (child.exitCode !== null) {
+    return;
+  }
+
+  const closed = new Promise((resolve) => {
+    child.once("close", resolve);
+  });
   if (process.platform === "win32" && child.pid) {
     spawnSync("taskkill.exe", ["/pid", String(child.pid), "/T", "/F"], {
       stdio: "ignore",
     });
-    return;
+  } else {
+    child.kill();
   }
-  child.kill();
+  await Promise.race([
+    closed,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+  child.stdout.destroy();
+  child.stderr.destroy();
+  child.removeAllListeners();
+  child.unref();
+}
+
+function cleanupTempDir() {
+  try {
+    rmSync(tempDir, {
+      force: true,
+      maxRetries: 5,
+      recursive: true,
+      retryDelay: 200,
+    });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? error.code
+        : "";
+    if (process.platform !== "win32" || !["EBUSY", "EPERM"].includes(code)) {
+      throw error;
+    }
+    console.warn(`Browser test temp cleanup was deferred: ${tempDir}`);
+  }
 }
 
 async function waitForServer() {
@@ -198,6 +233,14 @@ try {
   await page.goto(`${baseUrl}/security`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "계정 보안 설정" }).waitFor();
   await page.getByText("first@example.com", { exact: true }).waitFor();
+  await page.getByText("현재 권한은 2FA가 필수", { exact: false }).waitFor();
+  if (
+    (await page
+      .getByRole("button", { exact: true, name: "2FA 끄기" })
+      .count()) !== 0
+  ) {
+    throw new Error("Required administrator account could disable 2FA.");
+  }
   await page.getByRole("button", { name: "복구 코드 재발급" }).click();
   await page
     .getByText("복구 코드를 새로 만들었어요", { exact: false })
@@ -592,6 +635,6 @@ try {
 
   await browser.close();
 } finally {
-  stopDevServer();
-  rmSync(tempDir, { force: true, recursive: true });
+  await stopDevServer();
+  cleanupTempDir();
 }
