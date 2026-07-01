@@ -1726,16 +1726,16 @@
 }
 
 .viewerMain {
-  width: min(1480px, calc(100% - 48px));
+  width: min(1180px, calc(100% - 48px));
 }
 
 .judgmentViewerHero {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 18px;
+  align-items: flex-start;
   margin-top: 20px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .judgmentViewerHero h1 {
@@ -1754,23 +1754,13 @@
   line-height: 1.55;
 }
 
-.viewerActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .judgmentViewer {
   display: grid;
-  grid-template-columns: 190px minmax(680px, 1fr) 300px;
-  gap: 14px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
   align-items: start;
 }
 
-.viewerRail,
-.viewerDocument,
-.viewerInsight,
 .viewerInfo {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-12);
@@ -1781,24 +1771,49 @@
   position: sticky;
   top: 16px;
   display: grid;
-  gap: 18px;
+  gap: 12px;
+}
+
+.viewerRailPanel {
+  display: grid;
+  gap: 10px;
   padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+}
+
+.viewerRailTitle {
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 850;
 }
 
 .viewerRail nav {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .viewerRail nav a {
-  min-height: 38px;
+  min-height: 36px;
   display: flex;
   align-items: center;
+  position: relative;
   border-radius: var(--radius-8);
-  padding: 0 10px;
+  padding: 0 10px 0 14px;
   color: var(--fg-strong);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
+}
+
+.viewerRail nav a::before {
+  width: 3px;
+  height: 16px;
+  position: absolute;
+  left: 6px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  content: "";
 }
 
 .viewerRail nav a:hover {
@@ -1806,11 +1821,13 @@
   color: var(--fg-brand);
 }
 
+.viewerRail nav a:hover::before {
+  background: var(--bg-brand);
+}
+
 .viewerSectionNav {
   display: grid;
-  gap: 4px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-subtle);
+  gap: 5px;
 }
 
 .viewerSectionNav strong {
@@ -1858,8 +1875,47 @@
 .viewerMetaList dd,
 .viewerInfoGrid dd {
   color: var(--fg-default);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.45;
+}
+
+.viewerTabs {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+}
+
+.viewerTabList {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-muted);
+}
+
+.viewerTabList button {
+  min-height: 42px;
+  flex: 1 1 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--fg-secondary);
+  font-size: 15px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.viewerTabList button:hover {
+  background: var(--bg-surface);
+  color: var(--fg-brand);
+}
+
+.viewerTabList button[aria-selected="true"] {
+  border-color: var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  box-shadow: 0 1px 2px oklch(0.28 0.03 260 / 0.06);
 }
 
 .viewerDocument,
@@ -1873,16 +1929,24 @@
 }
 
 .viewerInsight {
-  position: sticky;
-  top: 16px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--bg-brand-subtle) 34%, var(--bg-surface));
+}
+
+.viewerInsight::before {
+  display: block;
+  height: 4px;
+  margin: -22px -22px 18px;
+  background: var(--bg-brand);
+  content: "";
 }
 
 .viewerInfo {
-  grid-column: 2 / 4;
+  grid-column: 2;
 }
 
 .viewerRelated {
-  grid-column: 2 / 4;
+  grid-column: 2;
   padding: 22px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-12);
@@ -2161,6 +2225,86 @@
 .noticeArticle time {
   color: var(--fg-tertiary);
   font-size: 13px;
+}
+
+.listExplorer {
+  display: grid;
+  gap: 12px;
+}
+
+.listToolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.listSearchField {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 6px;
+}
+
+.listSearchField span {
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.listSearchField input {
+  min-height: 42px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-8);
+  padding: 0 12px;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 14px;
+}
+
+.listSearchField input::placeholder {
+  color: var(--fg-tertiary);
+}
+
+.listPager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.listPager button {
+  min-height: 36px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-8);
+  padding: 0 12px;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.listPager button:not(:disabled):hover {
+  background: var(--bg-muted);
+  color: var(--fg-brand);
+}
+
+.listPager button:disabled {
+  color: var(--fg-tertiary);
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.tableCellLine {
+  display: block;
+}
+
+.tableCellLine + .tableCellLine {
+  margin-top: 4px;
+  color: var(--fg-secondary);
 }
 
 .wikiArticle,
@@ -3532,14 +3676,12 @@
 
 @media (max-width: 1240px) {
   .judgmentViewer {
-    grid-template-columns: 180px minmax(0, 1fr);
+    grid-template-columns: 210px minmax(0, 1fr);
   }
 
-  .viewerInsight,
   .viewerRelated,
   .viewerInfo {
     grid-column: 2;
-    position: static;
   }
 }
 
@@ -3556,8 +3698,7 @@
     grid-template-columns: 1fr;
   }
 
-  .viewerRail,
-  .viewerInsight {
+  .viewerRail {
     position: static;
   }
 
@@ -3580,10 +3721,6 @@
   }
 
   .viewerInfo {
-    grid-column: auto;
-  }
-
-  .viewerInsight {
     grid-column: auto;
   }
 
@@ -3734,6 +3871,19 @@
     flex-direction: column;
   }
 
+  .listToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .listSearchField {
+    width: 100%;
+  }
+
+  .listPager {
+    justify-content: space-between;
+  }
+
   .viewerMain {
     width: min(100% - 20px, 1160px);
   }
@@ -3745,15 +3895,6 @@
 
   .judgmentViewerHero h1 {
     font-size: 26px;
-  }
-
-  .viewerActions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .viewerActions a {
-    flex: 1 1 150px;
   }
 
   .viewerDocument,

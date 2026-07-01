@@ -1,6 +1,7 @@
 import { AdminDictionarySubnav } from "@/components/admin-dictionary-subnav";
 import { DictionaryUpdateButton } from "@/components/dictionary-update-button";
 import { LegalTermManager } from "@/components/legal-term-manager";
+import { SearchableTable } from "@/components/list-explorer";
 import { LocalTime } from "@/components/local-time";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
@@ -89,34 +90,21 @@ export default function AdminDictionaryPage() {
         <section className={styles.section} id="dictionary-events">
           <div className={styles.contentCard}>
             <h2 className={styles.panelTitle}>최근 작업 기록</h2>
-            {events.length > 0 ? (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>시각</th>
-                      <th>동작</th>
-                      <th>상태</th>
-                      <th>메시지</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {events.map((event) => (
-                      <tr key={`${event.createdAt}-${event.action}`}>
-                        <td>
-                          <LocalTime dateTime={event.createdAt} />
-                        </td>
-                        <td>{event.action}</td>
-                        <td>{event.status}</td>
-                        <td>{event.message ?? "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p>아직 사전 작업 기록이 없어요.</p>
-            )}
+            <SearchableTable
+              columns={["시각", "동작", "상태", "메시지"]}
+              emptyMessage="표시할 사전 작업 기록이 없어요."
+              rows={events.map((event) => ({
+                cells: [
+                  { kind: "datetime", value: event.createdAt },
+                  event.action,
+                  event.status,
+                  event.message,
+                ],
+                id: `${event.createdAt}-${event.action}`,
+                searchText: `${event.createdAt} ${event.action} ${event.status} ${event.message ?? ""}`,
+              }))}
+              searchLabel="작업 기록 검색"
+            />
           </div>
         </section>
       </main>

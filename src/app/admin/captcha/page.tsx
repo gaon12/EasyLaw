@@ -1,5 +1,5 @@
 import { AdminSettingsForm } from "@/components/admin-settings-form";
-import { LocalTime } from "@/components/local-time";
+import { SearchableTable } from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { CAPTCHA_ALGORITHMS, getCaptchaSettings } from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
@@ -100,34 +100,21 @@ export default function AdminCaptchaPage() {
         <section className={styles.section}>
           <div className={styles.contentCard}>
             <h2 className={styles.panelTitle}>최근 검증 기록</h2>
-            {events.length > 0 ? (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>시각</th>
-                      <th>동작</th>
-                      <th>상태</th>
-                      <th>메시지</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {events.map((event) => (
-                      <tr key={`${event.createdAt}-${event.action}`}>
-                        <td>
-                          <LocalTime dateTime={event.createdAt} />
-                        </td>
-                        <td>{event.action}</td>
-                        <td>{event.status}</td>
-                        <td>{event.message ?? "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p>아직 CAPTCHA 발급 또는 검증 기록이 없어요.</p>
-            )}
+            <SearchableTable
+              columns={["시각", "동작", "상태", "메시지"]}
+              emptyMessage="표시할 CAPTCHA 기록이 없어요."
+              rows={events.map((event) => ({
+                cells: [
+                  { kind: "datetime", value: event.createdAt },
+                  event.action,
+                  event.status,
+                  event.message,
+                ],
+                id: `${event.createdAt}-${event.action}`,
+                searchText: `${event.createdAt} ${event.action} ${event.status} ${event.message ?? ""}`,
+              }))}
+              searchLabel="검증 기록 검색"
+            />
           </div>
         </section>
       </main>

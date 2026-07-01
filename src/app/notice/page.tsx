@@ -1,3 +1,4 @@
+import { SearchableBoardList } from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { notices } from "@/lib/content";
 import { pageMetadata } from "@/lib/metadata";
@@ -20,15 +21,18 @@ export default function NoticeListPage() {
               <p>EasyLaw의 새로운 소식과 운영 안내를 확인하세요.</p>
             </div>
           </div>
-          <div className={styles.boardList}>
-            {notices.map((notice) => (
-              <a href={`/notice/${notice.id}`} key={notice.id}>
-                <span>{notice.id}</span>
-                <strong>{notice.title}</strong>
-                <time>{notice.publishedOn}</time>
-              </a>
-            ))}
-          </div>
+          <SearchableBoardList
+            emptyMessage="검색 조건에 맞는 공지사항이 없어요."
+            rows={notices.map((notice) => ({
+              href: `/notice/${notice.id}`,
+              id: notice.id,
+              label: notice.id,
+              meta: notice.publishedOn,
+              searchText: `${notice.id} ${notice.title} ${notice.publishedOn}`,
+              title: notice.title,
+            }))}
+            searchLabel="공지 검색"
+          />
         </section>
       </main>
     </AppShell>

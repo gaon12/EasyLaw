@@ -1,5 +1,5 @@
 import { AdminSettingsForm } from "@/components/admin-settings-form";
-import { LocalTime } from "@/components/local-time";
+import { SearchableTable } from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { listIntegrationEvents } from "@/lib/integration-events";
@@ -57,47 +57,24 @@ export default function AdminOpenLawPage() {
         <section className={styles.section}>
           <div className={styles.contentCard}>
             <h2 className={styles.panelTitle}>최근 호출 기록</h2>
-            <IntegrationEventTable events={events} />
+            <SearchableTable
+              columns={["시각", "동작", "상태", "메시지"]}
+              emptyMessage="표시할 공개법령 API 호출 기록이 없어요."
+              rows={events.map((event) => ({
+                cells: [
+                  { kind: "datetime", value: event.createdAt },
+                  event.action,
+                  event.status,
+                  event.message,
+                ],
+                id: `${event.createdAt}-${event.action}`,
+                searchText: `${event.createdAt} ${event.action} ${event.status} ${event.message ?? ""}`,
+              }))}
+              searchLabel="호출 기록 검색"
+            />
           </div>
         </section>
       </main>
     </AppShell>
-  );
-}
-
-function IntegrationEventTable({
-  events,
-}: {
-  events: ReturnType<typeof listIntegrationEvents>;
-}) {
-  if (events.length === 0) {
-    return <p>아직 공개법령 API 호출 기록이 없어요.</p>;
-  }
-
-  return (
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>시각</th>
-            <th>동작</th>
-            <th>상태</th>
-            <th>메시지</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((event) => (
-            <tr key={`${event.createdAt}-${event.action}`}>
-              <td>
-                <LocalTime dateTime={event.createdAt} />
-              </td>
-              <td>{event.action}</td>
-              <td>{event.status}</td>
-              <td>{event.message ?? "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }

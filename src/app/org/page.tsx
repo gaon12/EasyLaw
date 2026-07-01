@@ -1,3 +1,7 @@
+import {
+  SearchableCardList,
+  SearchableTable,
+} from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
@@ -70,24 +74,24 @@ export default function OrganizationPage() {
             </div>
             <span className={styles.badge}>소유자 + 멤버</span>
           </div>
-          <div className={styles.catalog}>
-            {orgs.map((org) => (
-              <article className={styles.judgmentCard} key={org.id}>
-                <div>
-                  <span className={styles.statusPending}>조직</span>
-                  <h3>{org.name}</h3>
-                  <div className={styles.meta}>
-                    <span>/{org.slug}</span>
-                    <span>{org.owner_email}</span>
-                  </div>
-                </div>
-                <p className={styles.notice}>
-                  소유자 2차 인증:{" "}
-                  {org.owner_totp_enabled ? "등록됨" : "필수 등록 필요"}
-                </p>
-              </article>
-            ))}
-          </div>
+          <SearchableCardList
+            emptyMessage="검색 조건에 맞는 조직이 없어요."
+            rows={orgs.map((org) => {
+              const ownerTotpStatus = org.owner_totp_enabled
+                ? "등록됨"
+                : "필수 등록 필요";
+              return {
+                badgeClassName: styles.statusPending,
+                badgeLabel: "조직",
+                body: `소유자 2차 인증: ${ownerTotpStatus}`,
+                id: org.id,
+                meta: [`/${org.slug}`, org.owner_email],
+                searchText: `${org.name} ${org.slug} ${org.owner_email} ${ownerTotpStatus}`,
+                title: org.name,
+              };
+            })}
+            searchLabel="조직 검색"
+          />
         </section>
 
         <section className={styles.section}>
@@ -97,30 +101,26 @@ export default function OrganizationPage() {
               <p>조직 공유 결과와 초대, 보안 상태를 이 화면에서 확장해요.</p>
             </div>
           </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>조직</th>
-                  <th>이메일</th>
-                  <th>역할</th>
-                  <th>2차 인증</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.map((member) => (
-                  <tr key={`${member.organization_name}-${member.email}`}>
-                    <td>{member.organization_name}</td>
-                    <td>{member.email}</td>
-                    <td>{member.role}</td>
-                    <td>
-                      {member.totp_enabled ? "사용 중" : "권장 또는 필수"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SearchableTable
+            columns={["조직", "이메일", "역할", "2차 인증"]}
+            emptyMessage="검색 조건에 맞는 구성원이 없어요."
+            rows={members.map((member) => {
+              const totpStatus = member.totp_enabled
+                ? "사용 중"
+                : "권장 또는 필수";
+              return {
+                cells: [
+                  member.organization_name,
+                  member.email,
+                  member.role,
+                  totpStatus,
+                ],
+                id: `${member.organization_name}-${member.email}`,
+                searchText: `${member.organization_name} ${member.email} ${member.role} ${totpStatus}`,
+              };
+            })}
+            searchLabel="구성원 검색"
+          />
         </section>
       </main>
     </AppShell>

@@ -1,4 +1,4 @@
-﻿import { LocalTime } from "@/components/local-time";
+﻿import { SearchableTable } from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { syncExternalCatalog } from "@/lib/external-law";
@@ -64,28 +64,20 @@ export default async function AdminPage() {
               </p>
             </div>
           </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>이메일</th>
-                  <th>역할</th>
-                  <th>2차 인증</th>
-                  <th>필수 여부</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.users.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.email}</td>
-                    <td>{user.role}</td>
-                    <td>{user.totp_enabled ? "사용 중" : "미등록"}</td>
-                    <td>{user.totp_required ? "필수" : "권장"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SearchableTable
+            columns={["이메일", "역할", "2차 인증", "필수 여부"]}
+            emptyMessage="검색 조건에 맞는 사용자가 없어요."
+            rows={rows.users.map((user) => {
+              const totpStatus = user.totp_enabled ? "사용 중" : "미등록";
+              const requiredStatus = user.totp_required ? "필수" : "권장";
+              return {
+                cells: [user.email, user.role, totpStatus, requiredStatus],
+                id: user.id,
+                searchText: `${user.email} ${user.role} ${totpStatus} ${requiredStatus}`,
+              };
+            })}
+            searchLabel="사용자 검색"
+          />
         </section>
 
         <section className={styles.section}>
@@ -98,32 +90,21 @@ export default async function AdminPage() {
               </p>
             </div>
           </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>판결문</th>
-                  <th>작업 상태</th>
-                  <th>시도</th>
-                  <th>실패 사유</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.jobs.map((job) => (
-                  <tr key={job.id}>
-                    <td>
-                      {job.case_number}
-                      <br />
-                      {job.title}
-                    </td>
-                    <td>{job.status}</td>
-                    <td>{job.attempts}</td>
-                    <td>{job.failure_reason ?? "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SearchableTable
+            columns={["판결문", "작업 상태", "시도", "실패 사유"]}
+            emptyMessage="검색 조건에 맞는 생성 작업이 없어요."
+            rows={rows.jobs.map((job) => ({
+              cells: [
+                { kind: "lines", lines: [job.case_number, job.title] },
+                job.status,
+                job.attempts,
+                job.failure_reason,
+              ],
+              id: job.id,
+              searchText: `${job.case_number} ${job.title} ${job.status} ${job.failure_reason ?? ""}`,
+            }))}
+            searchLabel="생성 큐 검색"
+          />
         </section>
 
         <section className={styles.section}>
@@ -135,31 +116,23 @@ export default async function AdminPage() {
               </p>
             </div>
           </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>시각</th>
-                  <th>동작</th>
-                  <th>대상</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.auditLogs.map((log) => (
-                  <tr key={`${log.action}-${log.created_at}`}>
-                    <td>
-                      <LocalTime dateTime={log.created_at} />
-                    </td>
-                    <td>{log.action}</td>
-                    <td>
-                      {log.target_type}
-                      {log.target_id ? ` / ${log.target_id}` : ""}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SearchableTable
+            columns={["시각", "동작", "대상"]}
+            emptyMessage="검색 조건에 맞는 감사 로그가 없어요."
+            rows={rows.auditLogs.map((log, index) => {
+              const target = `${log.target_type}${log.target_id ? ` / ${log.target_id}` : ""}`;
+              return {
+                cells: [
+                  { kind: "datetime", value: log.created_at },
+                  log.action,
+                  target,
+                ],
+                id: `${log.created_at}-${log.action}-${index}`,
+                searchText: `${log.created_at} ${log.action} ${target}`,
+              };
+            })}
+            searchLabel="감사 로그 검색"
+          />
         </section>
       </main>
     </AppShell>

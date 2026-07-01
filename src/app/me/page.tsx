@@ -1,4 +1,7 @@
-import { LocalTime } from "@/components/local-time";
+import {
+  SearchableCardList,
+  SearchableTable,
+} from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
@@ -63,33 +66,29 @@ export default function MePage() {
             </div>
             <span className={styles.badge}>이메일 인증 + 2차 인증 권장</span>
           </div>
-          <div className={styles.catalog}>
-            {users.map((user) => (
-              <article className={styles.judgmentCard} key={user.id}>
-                <div>
-                  <span
-                    className={
-                      user.totp_enabled
-                        ? styles.statusReady
-                        : styles.statusPending
-                    }
-                  >
-                    {user.totp_enabled ? "2차 인증 사용 중" : "2차 인증 권장"}
-                  </span>
-                  <h3>{user.display_name}</h3>
-                  <div className={styles.meta}>
-                    <span>{user.email}</span>
-                    <span>{user.role}</span>
-                  </div>
-                </div>
-                <p className={styles.notice}>
-                  {user.totp_required
-                    ? "관리 기능을 사용하려면 2차 인증이 필요해요."
-                    : "계정 설정에서 2차 인증과 복구 코드를 등록하면 더 안전해요."}
-                </p>
-              </article>
-            ))}
-          </div>
+          <SearchableCardList
+            emptyMessage="검색 조건에 맞는 계정이 없어요."
+            rows={users.map((user) => {
+              const badgeLabel = user.totp_enabled
+                ? "2차 인증 사용 중"
+                : "2차 인증 권장";
+              const body = user.totp_required
+                ? "관리 기능을 사용하려면 2차 인증이 필요해요."
+                : "계정 설정에서 2차 인증과 복구 코드를 등록하면 더 안전해요.";
+              return {
+                badgeClassName: user.totp_enabled
+                  ? styles.statusReady
+                  : styles.statusPending,
+                badgeLabel,
+                body,
+                id: user.id,
+                meta: [user.email, user.role],
+                searchText: `${user.display_name} ${user.email} ${user.role} ${badgeLabel}`,
+                title: user.display_name,
+              };
+            })}
+            searchLabel="계정 검색"
+          />
         </section>
 
         <section className={styles.section}>
@@ -99,30 +98,21 @@ export default function MePage() {
               <p>생성 완료 이메일은 판결문 생성 작업과 중복 없이 연결해요.</p>
             </div>
           </div>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>이메일</th>
-                  <th>유형</th>
-                  <th>상태</th>
-                  <th>생성일</th>
-                </tr>
-              </thead>
-              <tbody>
-                {notifications.map((notice) => (
-                  <tr key={`${notice.email}-${notice.created_at}`}>
-                    <td>{notice.email}</td>
-                    <td>{notice.type}</td>
-                    <td>{notice.status}</td>
-                    <td>
-                      <LocalTime dateTime={notice.created_at} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SearchableTable
+            columns={["이메일", "유형", "상태", "생성일"]}
+            emptyMessage="검색 조건에 맞는 알림 구독이 없어요."
+            rows={notifications.map((notice) => ({
+              cells: [
+                notice.email,
+                notice.type,
+                notice.status,
+                { kind: "datetime", value: notice.created_at },
+              ],
+              id: `${notice.email}-${notice.created_at}`,
+              searchText: `${notice.email} ${notice.type} ${notice.status} ${notice.created_at}`,
+            }))}
+            searchLabel="알림 검색"
+          />
         </section>
       </main>
     </AppShell>
