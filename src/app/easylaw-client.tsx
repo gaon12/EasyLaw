@@ -10,19 +10,100 @@ import {
   CUSTOM_JUDGMENT_TITLE_MAX_LENGTH,
   JUDGMENT_SEARCH_QUERY_MAX_LENGTH,
 } from "@/lib/input-limits";
+import { judgmentSearchTagExamples } from "@/lib/judgment-search";
+import type { JudgmentListItem } from "@/lib/types";
 import styles from "./page.module.css";
 
-type Judgment = {
-  id: string;
-  title: string;
-  caseNumber: string;
-  courtName: string;
-  decidedOn: string;
-  caseType: string;
-  status: "pending" | "ready" | "needs_review";
-  latestJobStatus: string | null;
-  notificationCount: number;
+type Judgment = Pick<
+  JudgmentListItem,
+  | "caseNumber"
+  | "caseType"
+  | "courtName"
+  | "decidedOn"
+  | "id"
+  | "latestJobStatus"
+  | "notificationCount"
+  | "status"
+  | "title"
+>;
+
+type JudgmentSearchResponse = {
+  count: number;
+  judgments: Judgment[];
 };
+
+type NotifyResponse = {
+  jobId: string;
+};
+
+type CustomJudgmentResponse = {
+  href: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function stringField(value: unknown, key: string) {
+  return isRecord(value) && typeof value[key] === "string"
+    ? value[key]
+    : undefined;
+}
+
+function apiMessage(value: unknown, fallback: string) {
+  return stringField(value, "message") ?? fallback;
+}
+
+function isJudgment(value: unknown): value is Judgment {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.caseNumber === "string" &&
+    typeof value.courtName === "string" &&
+    typeof value.decidedOn === "string" &&
+    typeof value.caseType === "string" &&
+    isJudgmentStatus(value.status) &&
+    (typeof value.latestJobStatus === "string" ||
+      value.latestJobStatus === null) &&
+    typeof value.notificationCount === "number"
+  );
+}
+
+function isJudgmentStatus(value: unknown): value is Judgment["status"] {
+  return value === "pending" || value === "ready" || value === "needs_review";
+}
+
+function isJudgmentSearchResponse(
+  value: unknown,
+): value is JudgmentSearchResponse {
+  return (
+    isRecord(value) &&
+    typeof value.count === "number" &&
+    Array.isArray(value.judgments) &&
+    value.judgments.every(isJudgment)
+  );
+}
+
+function isNotifyResponse(value: unknown): value is NotifyResponse {
+  return isRecord(value) && typeof value.jobId === "string";
+}
+
+function isCustomJudgmentResponse(
+  value: unknown,
+): value is CustomJudgmentResponse {
+  return isRecord(value) && typeof value.href === "string";
+}
+
+function withSearchTag(query: string, tag: string) {
+  const key = tag.slice(0, tag.indexOf(":"));
+  const remainingTokens = query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => !token.startsWith(`${key}:`));
+  return [...remainingTokens, tag].join(" ");
+}
 
 export function JudgmentExplorer({
   compact = false,
@@ -96,12 +177,17 @@ export function JudgmentExplorer({
           query,
         }),
       });
-      const data = await response.json();
+      const data: unknown = await response.json();
 
-      if (response.status === 403 && data.error === "captcha_required") {
+      if (
+        response.status === 403 &&
+        stringField(data, "error") === "captcha_required"
+      ) {
         setCaptchaPrompt(
-          data.message ??
+          apiMessage(
+            data,
             "보안 확인을 완료하면 판결문 검색을 계속할 수 있어요.",
+          ),
         );
         setCaptchaResetKey((current) => current + 1);
         setMessage("보안 확인이 필요해요.");
@@ -109,13 +195,19 @@ export function JudgmentExplorer({
       }
       if (response.status === 429 || response.status === 401) {
         setMessage(
-          data.message ??
+          apiMessage(
+            data,
             "비회원 이용 한도를 넘었어요. 잠시 후 다시 시도하거나 로그인해 주세요.",
+          ),
         );
         return;
       }
       if (!response.ok) {
         setMessage("검색 요청을 처리하지 못했어요. 입력값을 확인해 주세요.");
+        return;
+      }
+      if (!isJudgmentSearchResponse(data)) {
+        setMessage("검색 응답 형식을 확인하지 못했어요. 다시 시도해 주세요.");
         return;
       }
 
@@ -146,10 +238,14 @@ export function JudgmentExplorer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      const data = await response.json();
+      const data: unknown = await response.json();
 
       if (!response.ok) {
         setMessage("알림 등록에 실패했어요. 이메일 주소를 확인해 주세요.");
+        return;
+      }
+      if (!isNotifyResponse(data)) {
+        setMessage("알림 응답 형식을 확인하지 못했어요. 다시 시도해 주세요.");
         return;
       }
 
@@ -170,7 +266,7 @@ export function JudgmentExplorer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: customTitle, text: customText }),
       });
-      const data = await response.json();
+      const data: unknown = await response.json();
 
       if (response.status === 401) {
         authRedirectRef.current = true;
@@ -179,6 +275,10 @@ export function JudgmentExplorer({
       }
       if (!response.ok) {
         setMessage("제목과 판결문 내용을 확인해 주세요.");
+        return;
+      }
+      if (!isCustomJudgmentResponse(data)) {
+        setMessage("저장 응답 형식을 확인하지 못했어요. 다시 시도해 주세요.");
         return;
       }
       window.location.assign(data.href);
@@ -200,7 +300,7 @@ export function JudgmentExplorer({
       />
       {!compact && showWorkspace && (
         <div className={styles.workspace}>
-          <h2>판결문 이해 작업대</h2>
+          <h2>판결문 검색</h2>
           <p>
             사건번호나 판결문 제목을 검색하고, 아직 생성되지 않은 결과는 이메일
             알림을 신청할 수 있어요.
@@ -211,8 +311,20 @@ export function JudgmentExplorer({
                 <h3>공개 판결문 찾기</h3>
                 <p>
                   사건번호, 법원명, 판결문 제목으로 공개된 판결문을 검색해요.
-                  알림 이메일은 생성 대기 문서가 준비됐을 때만 사용합니다.
+                  `연도:2024-2026`, `종류:민사`처럼 태그를 붙이면 조건을 좁힐 수
+                  있어요. 알림 이메일은 생성 대기 문서가 준비됐을 때만
+                  사용합니다.
                 </p>
+                <p className={styles.workspaceStatus}>{message}</p>
+                {captchaPrompt && (
+                  <div className={styles.workspaceNotice}>
+                    <p>{captchaPrompt}</p>
+                    <AltchaCaptcha
+                      onVerified={(payload) => void search(payload)}
+                      resetKey={captchaResetKey}
+                    />
+                  </div>
+                )}
               </div>
               <label className={styles.label} htmlFor="judgment-query">
                 {questionMode
@@ -227,10 +339,27 @@ export function JudgmentExplorer({
                 placeholder={
                   questionMode
                     ? "어떤 일이 있었고 무엇이 궁금한지 적어보세요"
-                    : "예: 2023구합54112"
+                    : "예: 손해배상 연도:2024-2026 종류:민사"
                 }
                 value={query}
               />
+              <fieldset className={styles.searchTagRow}>
+                <legend className={styles.visuallyHidden}>
+                  검색 태그 예시
+                </legend>
+                {judgmentSearchTagExamples.map((tag) => (
+                  <button
+                    className={styles.searchTag}
+                    key={tag}
+                    onClick={() =>
+                      setQuery((current) => withSearchTag(current, tag))
+                    }
+                    type="button"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </fieldset>
               <label className={styles.label} htmlFor="notify-email">
                 완료 알림 이메일
               </label>
@@ -252,16 +381,6 @@ export function JudgmentExplorer({
                   {isLoading ? "조회 중" : "판결문 확인하기"}
                 </button>
               </div>
-              {captchaPrompt && (
-                <div className={styles.inlineNotice}>
-                  <p>{captchaPrompt}</p>
-                  <AltchaCaptcha
-                    onVerified={(payload) => void search(payload)}
-                    resetKey={captchaResetKey}
-                  />
-                </div>
-              )}
-              <p className={styles.inlineNotice}>{message}</p>
             </section>
             <section className={styles.workspaceSection} id="custom-judgment">
               <div className={styles.workspaceSectionHeader}>

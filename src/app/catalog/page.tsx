@@ -2,6 +2,10 @@
 import { getDatabase } from "@/lib/db";
 import { syncExternalCatalog } from "@/lib/external-law";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
+import {
+  matchesJudgmentSearch,
+  parseJudgmentSearchQuery,
+} from "@/lib/judgment-search";
 import { pageMetadata } from "@/lib/metadata";
 import { getPublicJudgments } from "@/lib/queries";
 import { JudgmentExplorer } from "../easylaw-client";
@@ -25,15 +29,10 @@ export default async function CatalogPage({
   const db = getDatabase();
   await syncExternalCatalog(db);
   const allJudgments = getPublicJudgments(db);
-  const normalizedQuery = initialQuery.trim().toLowerCase();
-  const judgments = normalizedQuery
+  const filters = parseJudgmentSearchQuery(initialQuery);
+  const judgments = initialQuery.trim()
     ? allJudgments.filter((judgment) =>
-        [
-          judgment.caseNumber,
-          judgment.courtName,
-          judgment.title,
-          judgment.caseType,
-        ].some((value) => value.toLowerCase().includes(normalizedQuery)),
+        matchesJudgmentSearch(judgment, filters),
       )
     : allJudgments;
 

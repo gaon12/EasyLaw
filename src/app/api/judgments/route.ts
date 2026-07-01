@@ -13,6 +13,10 @@ import {
 } from "@/lib/external-law";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import { createOrAttachGenerationJob } from "@/lib/jobs";
+import {
+  matchesJudgmentSearch,
+  parseJudgmentSearchQuery,
+} from "@/lib/judgment-search";
 import { getPublicJudgments } from "@/lib/queries";
 import {
   anonymousLimitResponse,
@@ -70,7 +74,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const records = await searchExternalJudgments(db, body.data.query);
+    const filters = parseJudgmentSearchQuery(body.data.query);
+    const records = filters.text
+      ? await searchExternalJudgments(db, filters.text)
+      : [];
     for (const record of records) {
       const judgmentId = upsertJudgmentFromExternal(db, record);
       if (body.data.email) {
@@ -78,10 +85,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const judgments = getPublicJudgments(db).filter((judgment) =>
+      matchesJudgmentSearch(judgment, filters),
+    );
+
     return applyAnonymousCookie(
       Response.json({
-        count: records.length,
-        judgments: getPublicJudgments(db),
+        count: judgments.length,
+        judgments,
       }),
       access,
     );
