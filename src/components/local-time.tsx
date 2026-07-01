@@ -27,7 +27,6 @@ export function LocalTime({ dateTime, dateOnly = false }: LocalTimeProps) {
         hour: "2-digit",
         minute: "2-digit",
         month: "short",
-        timeZoneName: "short",
         year: "numeric",
       }).format(date),
     );
@@ -47,7 +46,6 @@ function formatUtc(value: string, dateOnly: boolean) {
     minute: dateOnly ? undefined : "2-digit",
     month: "short",
     timeZone: "UTC",
-    timeZoneName: dateOnly ? undefined : "short",
     year: "numeric",
   }).format(date);
 }

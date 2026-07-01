@@ -6,6 +6,15 @@
   background: var(--bg-canvas);
 }
 
+.visuallyHidden {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .govHeader {
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
@@ -154,8 +163,8 @@
   top: calc(100% + 8px);
   right: 0;
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 16px;
+  padding: 16px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-16);
   background: var(--bg-surface);
@@ -165,7 +174,7 @@
 .preferencePanel label,
 .preferencePanel fieldset {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   border: 0;
   padding: 0;
 }
@@ -193,6 +202,7 @@
 
 .preferencePanel legend {
   grid-column: 1 / -1;
+  margin-bottom: 2px;
 }
 
 .preferencePanel button {
@@ -358,6 +368,13 @@
   color: var(--fg-brand);
   font-size: 14px;
   font-weight: 800;
+}
+
+.subNav a:hover,
+.subNavActive {
+  border-color: transparent;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
 }
 
 .main {
@@ -1206,6 +1223,36 @@
   line-height: 1.55;
 }
 
+.workspaceStatus {
+  width: fit-content;
+  margin-top: 2px;
+  border-radius: var(--radius-full);
+  padding: 7px 11px;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.workspaceNotice {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+  border-radius: var(--radius-8);
+  padding: 12px 14px;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.workspaceNotice p {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
 .label {
   color: var(--fg-strong);
   font-size: 14px;
@@ -1273,6 +1320,32 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.searchTagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -2px;
+  border: 0;
+  padding: 0;
+}
+
+.searchTag {
+  min-height: 34px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  padding: 0 12px;
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.searchTag:hover {
+  border-color: transparent;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
 }
 
 .inlineNotice {
