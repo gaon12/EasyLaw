@@ -32,7 +32,11 @@ export function LocalTime({ dateTime, dateOnly = false }: LocalTimeProps) {
     );
   }, [dateOnly, dateTime]);
 
-  return <time dateTime={normalizeDateTime(dateTime)}>{label}</time>;
+  return (
+    <time dateTime={normalizeDateTime(dateTime)} suppressHydrationWarning>
+      {label}
+    </time>
+  );
 }
 
 function formatUtc(value: string, dateOnly: boolean) {
