@@ -51,7 +51,6 @@ export function AdminJudgmentCollectionPanel({
             await submitRequest({
               action: "save",
               settings: {
-                display: formData.get("display"),
                 enabled: formData.get("enabled") === "on",
                 intervalMinutes: formData.get("intervalMinutes"),
                 query: formData.get("query"),
@@ -115,19 +114,9 @@ export function AdminJudgmentCollectionPanel({
             type="number"
           />
         </label>
-        <label className={styles.settingsField} htmlFor="collection-display">
-          <span className={styles.label}>한 번에 가져올 건수</span>
-          <input
-            className={styles.input}
-            defaultValue={status.display}
-            id="collection-display"
-            max={100}
-            min={1}
-            name="display"
-            required
-            type="number"
-          />
-        </label>
+        <p>
+          수집은 공개 판례 검색 결과 전체를 페이지 단위로 끝까지 가져옵니다.
+        </p>
         <div className={styles.settingsActions}>
           <button
             className={styles.primaryButton}

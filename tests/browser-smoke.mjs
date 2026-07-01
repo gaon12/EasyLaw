@@ -292,8 +292,14 @@ try {
       "Administration navigation did not expose CAPTCHA settings.",
     );
   }
-  await page.goto(`${baseUrl}/admin/open-law`, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "공개법령 API 설정" }).waitFor();
+  await page.goto(`${baseUrl}/admin/judgments/open-law`, {
+    waitUntil: "networkidle",
+  });
+  await page.getByRole("heading", { name: "판결문 API 설정" }).waitFor();
+  await page
+    .getByRole("navigation", { name: "판결문 데이터 하위 메뉴" })
+    .getByRole("link", { name: "API 설정" })
+    .waitFor();
   if ((await page.getByLabel("OC 키").count()) !== 1) {
     throw new Error("Open Law administration page did not expose the OC key.");
   }
@@ -332,18 +338,30 @@ try {
       "Administration overview still exposed duplicate action buttons.",
     );
   }
-  await page.goto(`${baseUrl}/admin/judgment-collection`, {
+  await page.goto(`${baseUrl}/admin/judgments/collection`, {
     waitUntil: "networkidle",
   });
-  await page.getByRole("heading", { name: "판결문 수집" }).waitFor();
+  await page.getByRole("heading", { name: "판결문 자동 수집" }).waitFor();
   await page.getByLabel("검색어").waitFor();
+  if ((await page.getByLabel("한 번에 가져올 건수").count()) !== 0) {
+    throw new Error("Judgment collection still exposed a per-run limit.");
+  }
   await page.getByRole("button", { name: "지금 수집" }).waitFor();
   if (
     (await page
-      .locator('nav a[aria-current="page"][href="/admin/judgment-collection"]')
+      .locator('nav a[aria-current="page"][href="/admin/judgments"]')
       .count()) !== 1
   ) {
     throw new Error("Judgment collection navigation was not active.");
+  }
+  if (
+    (await page
+      .locator(
+        'nav[aria-label="판결문 데이터 하위 메뉴"] a[aria-current="page"][href="/admin/judgments/collection"]',
+      )
+      .count()) !== 1
+  ) {
+    throw new Error("Judgment collection subnavigation was not active.");
   }
 
   const loginChallengeContext = await browser.newContext();

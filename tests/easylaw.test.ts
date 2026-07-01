@@ -344,11 +344,14 @@ test("manual judgment collection stores fetched public judgments", async () => {
   const originalFetch = globalThis.fetch;
   try {
     setSetting(db, "open_law_oc", "test-oc");
-    globalThis.fetch = async () =>
-      new Response(
-        JSON.stringify({
-          PrecSearch: {
-            prec: [
+    const requestedPages: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const page = url.searchParams.get("page") ?? "1";
+      requestedPages.push(page);
+      const prec =
+        page === "1"
+          ? [
               {
                 caseNumber: "2026Da1001",
                 courtName: "Supreme Court",
@@ -357,17 +360,26 @@ test("manual judgment collection stores fetched public judgments", async () => {
                 precSeq: "auto-1",
                 title: "Collected damages judgment",
               },
-            ],
-          },
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-          status: 200,
-        },
-      );
+            ]
+          : page === "2"
+            ? [
+                {
+                  caseNumber: "2026Da1002",
+                  courtName: "Supreme Court",
+                  decidedOn: "20260702",
+                  detailLink: "/DRF/lawService.do?target=prec&ID=auto-2",
+                  precSeq: "auto-2",
+                  title: "Collected warranty judgment",
+                },
+              ]
+            : [];
+      return new Response(JSON.stringify({ PrecSearch: { prec } }), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
 
     updateJudgmentCollectionSettings(db, {
-      display: 1,
       enabled: true,
       intervalMinutes: 10,
       query: "damages",
@@ -378,24 +390,32 @@ test("manual judgment collection stores fetched public judgments", async () => {
     });
     assert.equal(result.ok, true);
     assert.ok(result.ok);
-    assert.equal(result.importedCount, 1);
-    assert.equal(result.createdCount, 1);
+    assert.deepEqual(requestedPages, ["1", "2", "3"]);
+    assert.equal(result.importedCount, 2);
+    assert.equal(result.createdCount, 2);
 
-    const collected = getPublicJudgments(db).find(
+    const openLawJudgments = getPublicJudgments(db).filter(
       (judgment) => judgment.sourceProvider === "open-law",
+    );
+    const collected = openLawJudgments.find(
+      (judgment) => judgment.caseNumber === "2026Da1001",
+    );
+    const secondCollected = openLawJudgments.find(
+      (judgment) => judgment.caseNumber === "2026Da1002",
     );
     assert.equal(collected?.caseNumber, "2026Da1001");
     assert.equal(collected?.title, "Collected damages judgment");
+    assert.equal(secondCollected?.title, "Collected warranty judgment");
 
     const status = getJudgmentCollectionStatus(db);
     assert.equal(status.status, "success");
-    assert.equal(status.lastImportedCount, 1);
+    assert.equal(status.lastImportedCount, 2);
     assert.ok(status.nextRunAt);
 
     const runs = listJudgmentCollectionRuns(db);
     assert.equal(runs[0]?.trigger, "manual");
     assert.equal(runs[0]?.status, "success");
-    assert.equal(runs[0]?.createdCount, 1);
+    assert.equal(runs[0]?.createdCount, 2);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();

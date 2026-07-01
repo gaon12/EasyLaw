@@ -8,19 +8,17 @@ import { logIntegrationEvent } from "./integration-events";
 import { newId } from "./security/crypto";
 import { deleteSetting, getSetting, setSetting } from "./settings";
 import { addMinutesIso, nowIso } from "./time";
+import type { ExternalJudgmentRecord } from "./types";
 
 const SERVICE = "judgment-collection";
 const DEFAULT_QUERY = "손해배상";
-const DEFAULT_DISPLAY = 20;
+const COLLECTION_PAGE_SIZE = 100;
 const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
 const MAX_INTERVAL_MINUTES = 10_080;
-const MIN_DISPLAY = 1;
-const MAX_DISPLAY = 100;
 const STALE_RUNNING_RUN_MS = 30 * 60_000;
 
 const settingKeys = {
-  display: "judgment_collection_display",
   enabled: "judgment_collection_enabled",
   intervalMinutes: "judgment_collection_interval_minutes",
   lastCompletedAt: "judgment_collection_last_completed_at",
@@ -33,7 +31,6 @@ const settingKeys = {
 } as const;
 
 export type JudgmentCollectionSettings = {
-  display: number;
   enabled: boolean;
   intervalMinutes: number;
   query: string;
@@ -114,11 +111,6 @@ export function updateJudgmentCollectionSettings(
 ) {
   const current = getJudgmentCollectionSettings(db);
   const settings = {
-    display: clampInteger(
-      input.display ?? current.display,
-      MIN_DISPLAY,
-      MAX_DISPLAY,
-    ),
     enabled: input.enabled ?? current.enabled,
     intervalMinutes: clampInteger(
       input.intervalMinutes ?? current.intervalMinutes,
@@ -131,7 +123,6 @@ export function updateJudgmentCollectionSettings(
   setSetting(db, settingKeys.enabled, settings.enabled ? "true" : "false");
   setSetting(db, settingKeys.intervalMinutes, String(settings.intervalMinutes));
   setSetting(db, settingKeys.query, settings.query);
-  setSetting(db, settingKeys.display, String(settings.display));
   setSetting(db, settingKeys.nextRunAt, nextRunAtFromSettings(settings));
 
   logIntegrationEvent(db, {
@@ -265,7 +256,7 @@ async function runJudgmentCollectionInternal(
     runId,
     input.trigger,
     settings.query,
-    settings.display,
+    COLLECTION_PAGE_SIZE,
     input.actorUserId ?? null,
     startedAt,
   );
@@ -273,8 +264,7 @@ async function runJudgmentCollectionInternal(
   setSetting(db, settingKeys.lastRunAt, startedAt);
 
   try {
-    const records = await fetchOpenLawJudgments(db, settings.query, {
-      display: settings.display,
+    const records = await fetchAllOpenLawJudgments(db, settings.query, {
       forceRefresh: input.forceRefresh,
     });
     let createdCount = 0;
@@ -315,6 +305,7 @@ async function runJudgmentCollectionInternal(
       message: `${records.length} judgment records were collected.`,
       metadata: {
         createdCount,
+        pageSize: COLLECTION_PAGE_SIZE,
         query: settings.query,
         trigger: input.trigger,
         updatedCount,
@@ -374,12 +365,6 @@ function getJudgmentCollectionSettings(
   db: SqliteDatabase,
 ): JudgmentCollectionSettings {
   return {
-    display: parseIntegerSetting(
-      getSetting(db, settingKeys.display),
-      DEFAULT_DISPLAY,
-      MIN_DISPLAY,
-      MAX_DISPLAY,
-    ),
     enabled: getSetting(db, settingKeys.enabled) === "true",
     intervalMinutes: parseIntegerSetting(
       getSetting(db, settingKeys.intervalMinutes),
@@ -389,6 +374,45 @@ function getJudgmentCollectionSettings(
     ),
     query: normalizeQuery(getSetting(db, settingKeys.query) ?? DEFAULT_QUERY),
   };
+}
+
+async function fetchAllOpenLawJudgments(
+  db: SqliteDatabase,
+  query: string,
+  options: { forceRefresh?: boolean },
+) {
+  const records: ExternalJudgmentRecord[] = [];
+  const seen = new Set<string>();
+  let page = 1;
+
+  while (true) {
+    const pageRecords = await fetchOpenLawJudgments(db, query, {
+      display: COLLECTION_PAGE_SIZE,
+      forceRefresh: options.forceRefresh,
+      page,
+    });
+    if (pageRecords.length === 0) {
+      break;
+    }
+
+    let addedCount = 0;
+    for (const record of pageRecords) {
+      const key = `${record.sourceProvider}:${record.externalId}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      records.push(record);
+      addedCount += 1;
+    }
+
+    if (addedCount === 0) {
+      break;
+    }
+    page += 1;
+  }
+
+  return records;
 }
 
 function hasJudgmentSource(

@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 const saveRequestSchema = z.object({
   action: z.literal("save"),
   settings: z.object({
-    display: z.coerce.number().int().min(1).max(100),
     enabled: z.boolean(),
     intervalMinutes: z.coerce.number().int().min(10).max(10_080),
     query: z.string().trim().min(1).max(100),
