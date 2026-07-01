@@ -1,13 +1,20 @@
-export type JudgmentDocumentParagraph = {
-  kind: "normal" | "numbered";
-  text: string;
-};
+export type JudgmentDocumentBlock =
+  | {
+      kind: "heading";
+      level: 3 | 4 | 5;
+      text: string;
+    }
+  | {
+      kind: "paragraph";
+      numbered: boolean;
+      text: string;
+    };
 
 export type JudgmentDocumentSection = {
   id: string;
   kind: "meta" | "order" | "reason" | "default";
   title: string;
-  paragraphs: JudgmentDocumentParagraph[];
+  blocks: JudgmentDocumentBlock[];
 };
 
 const headingAliases: Record<string, string> = {
@@ -57,7 +64,7 @@ export function parseJudgmentDocument(
           id: "section-1",
           kind: "default",
           title: "판결문",
-          paragraphs: splitParagraphs(originalText),
+          blocks: splitBlocks(originalText),
         },
       ];
 }
@@ -98,8 +105,8 @@ function pushSection(
   sections: JudgmentDocumentSection[],
   section: MutableSection,
 ) {
-  const paragraphs = linesToParagraphs(section.lines);
-  if (paragraphs.length === 0 && sections.length > 0) {
+  const blocks = linesToBlocks(section.lines);
+  if (blocks.length === 0 && sections.length > 0) {
     return;
   }
 
@@ -108,7 +115,7 @@ function pushSection(
     id: `section-${sections.length + 1}`,
     kind: sectionKind(title),
     title,
-    paragraphs,
+    blocks,
   });
 }
 
@@ -125,18 +132,49 @@ function sectionKind(title: string): JudgmentDocumentSection["kind"] {
   return "default";
 }
 
-function linesToParagraphs(lines: string[]): JudgmentDocumentParagraph[] {
-  return lines.map((line) => ({
-    kind: numberedLinePattern.test(line) ? "numbered" : "normal",
-    text: line,
-  }));
+function linesToBlocks(lines: string[]): JudgmentDocumentBlock[] {
+  return lines.map(lineToBlock);
 }
 
-function splitParagraphs(text: string): JudgmentDocumentParagraph[] {
-  return normalizeJudgmentText(text).map((line) => ({
-    kind: numberedLinePattern.test(line) ? "numbered" : "normal",
+function splitBlocks(text: string): JudgmentDocumentBlock[] {
+  return normalizeJudgmentText(text).map(lineToBlock);
+}
+
+function lineToBlock(line: string): JudgmentDocumentBlock {
+  const headingLevel = headingLevelFromNumberedLine(line);
+  if (headingLevel) {
+    return {
+      kind: "heading",
+      level: headingLevel,
+      text: line,
+    };
+  }
+
+  return {
+    kind: "paragraph",
+    numbered: numberedLinePattern.test(line),
     text: line,
-  }));
+  };
+}
+
+function headingLevelFromNumberedLine(line: string): 3 | 4 | 5 | null {
+  if (!isShortHeadingLine(line)) {
+    return null;
+  }
+  if (/^\d+\.\s+\S/.test(line)) {
+    return 3;
+  }
+  if (/^[가-힣]\.\s+\S/.test(line)) {
+    return 4;
+  }
+  if (/^\d+\)\s+\S/.test(line)) {
+    return 5;
+  }
+  return null;
+}
+
+function isShortHeadingLine(line: string) {
+  return line.length <= 44 && !/[。.!?]$/.test(line);
 }
 
 function decodeHtmlEntities(value: string) {

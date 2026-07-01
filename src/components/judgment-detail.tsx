@@ -110,20 +110,28 @@ export function JudgmentDetailView({
                   key={section.id}
                 >
                   <h3>{section.title}</h3>
-                  {section.paragraphs.length > 0 ? (
+                  {section.blocks.length > 0 ? (
                     <div className={styles.judgmentParagraphs}>
-                      {section.paragraphs.map((paragraph, index) => (
-                        <p
-                          className={
-                            paragraph.kind === "numbered"
-                              ? styles.judgmentParagraphNumbered
-                              : styles.judgmentParagraph
-                          }
-                          key={`${section.id}-${index}`}
-                        >
-                          {paragraph.text}
-                        </p>
-                      ))}
+                      {section.blocks.map((block, index) =>
+                        block.kind === "heading" ? (
+                          <DocumentHeading
+                            key={`${section.id}-${index}`}
+                            level={block.level}
+                            text={block.text}
+                          />
+                        ) : (
+                          <p
+                            className={
+                              block.numbered
+                                ? styles.judgmentParagraphNumbered
+                                : styles.judgmentParagraph
+                            }
+                            key={`${section.id}-${index}`}
+                          >
+                            {block.text}
+                          </p>
+                        ),
+                      )}
                     </div>
                   ) : (
                     <p className={styles.judgmentParagraph}>내용 없음</p>
@@ -236,4 +244,21 @@ export function JudgmentDetailView({
       </section>
     </main>
   );
+}
+
+function DocumentHeading({ level, text }: { level: 3 | 4 | 5; text: string }) {
+  const className =
+    level === 3
+      ? styles.judgmentBlockHeading3
+      : level === 4
+        ? styles.judgmentBlockHeading4
+        : styles.judgmentBlockHeading5;
+
+  if (level === 3) {
+    return <h4 className={className}>{text}</h4>;
+  }
+  if (level === 4) {
+    return <h5 className={className}>{text}</h5>;
+  }
+  return <h6 className={className}>{text}</h6>;
 }

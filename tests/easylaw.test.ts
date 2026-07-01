@@ -326,7 +326,7 @@ test("open law parser normalizes public case records", () => {
 
 test("judgment document parser splits bracket headings and numbered reasons", () => {
   const sections = parseJudgmentDocument(
-    "【원고, 피상고인】 원고<br/>【주    문】<br/>상고를 모두 기각한다.<br/><br/>【이    유】 1. 사안의 개요<br/>가. 원고는 손해배상을 청구하였다.",
+    "【원고, 피상고인】 원고<br/>【주    문】<br/>상고를 모두 기각한다.<br/><br/>【이    유】 1. 사안의 개요<br/>가. 관련 법리<br/>1) 통신비밀보호법 제3조 제1항은 공개되지 아니한 타인 간의 대화를 녹음하지 못한다고 규정하고 있다.",
   );
 
   assert.deepEqual(
@@ -340,9 +340,22 @@ test("judgment document parser splits bracket headings and numbered reasons", ()
       { kind: "reason", title: "이유" },
     ],
   );
-  assert.equal(sections[1].paragraphs[0].text, "상고를 모두 기각한다.");
-  assert.equal(sections[2].paragraphs[0].kind, "numbered");
-  assert.equal(sections[2].paragraphs[1].kind, "numbered");
+  assert.deepEqual(sections[1].blocks[0], {
+    kind: "paragraph",
+    numbered: false,
+    text: "상고를 모두 기각한다.",
+  });
+  assert.deepEqual(sections[2].blocks[0], {
+    kind: "heading",
+    level: 3,
+    text: "1. 사안의 개요",
+  });
+  assert.deepEqual(sections[2].blocks[1], {
+    kind: "heading",
+    level: 4,
+    text: "가. 관련 법리",
+  });
+  assert.equal(sections[2].blocks[2].kind, "paragraph");
 });
 
 test("public request origin respects reverse proxy headers", () => {

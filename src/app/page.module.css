@@ -1775,6 +1775,41 @@
   gap: 9px;
 }
 
+.judgmentBlockHeading3,
+.judgmentBlockHeading4,
+.judgmentBlockHeading5 {
+  color: var(--fg-strong);
+  line-height: 1.45;
+}
+
+.judgmentBlockHeading3 {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.judgmentBlockHeading3:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.judgmentBlockHeading4 {
+  margin-top: 8px;
+  color: var(--fg-brand);
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.judgmentBlockHeading5 {
+  margin-top: 4px;
+  color: var(--fg-secondary);
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .judgmentParagraph,
 .judgmentParagraphNumbered {
   color: var(--fg-default);
