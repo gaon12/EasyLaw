@@ -69,18 +69,32 @@ export default function AdminDictionaryPage() {
           <div className={styles.contentCard}>
             <h2 className={styles.panelTitle}>최근 업데이트</h2>
             {latest ? (
-              <p>
-                상태: {latest.status} · 반영 수:{" "}
-                {latest.imported_count.toLocaleString("ko-KR")} · 완료 시각:{" "}
-                {latest.completed_at ? (
-                  <LocalTime dateTime={latest.completed_at} />
-                ) : (
-                  "-"
+              <div className={styles.securityMeta}>
+                <div>
+                  <dt>상태</dt>
+                  <dd>{latestDictionaryStatus(latest)}</dd>
+                </div>
+                <div>
+                  <dt>완료 시각</dt>
+                  <dd>
+                    {latest.completed_at ? (
+                      <LocalTime dateTime={latest.completed_at} />
+                    ) : (
+                      "-"
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>반영 결과</dt>
+                  <dd>{latestDictionaryResult(latest)}</dd>
+                </div>
+                {latest.failure_reason && (
+                  <div>
+                    <dt>오류</dt>
+                    <dd>{latest.failure_reason}</dd>
+                  </div>
                 )}
-                {latest.failure_reason
-                  ? ` · 오류: ${latest.failure_reason}`
-                  : ""}
-              </p>
+              </div>
             ) : (
               <p>아직 업데이트 이력이 없어요.</p>
             )}
@@ -93,16 +107,19 @@ export default function AdminDictionaryPage() {
             <SearchableTable
               columns={["시각", "동작", "상태", "메시지"]}
               emptyMessage="표시할 사전 작업 기록이 없어요."
-              rows={events.map((event) => ({
-                cells: [
-                  { kind: "datetime", value: event.createdAt },
-                  event.action,
-                  event.status,
-                  event.message,
-                ],
-                id: `${event.createdAt}-${event.action}`,
-                searchText: `${event.createdAt} ${event.action} ${event.status} ${event.message ?? ""}`,
-              }))}
+              rows={events.map((event) => {
+                const displayEvent = dictionaryEventDisplay(event);
+                return {
+                  cells: [
+                    { kind: "datetime", value: event.createdAt },
+                    event.action,
+                    displayEvent.status,
+                    displayEvent.message,
+                  ],
+                  id: `${event.createdAt}-${event.action}`,
+                  searchText: `${event.createdAt} ${event.action} ${displayEvent.status} ${displayEvent.message ?? ""}`,
+                };
+              })}
               searchLabel="작업 기록 검색"
             />
           </div>
@@ -110,4 +127,41 @@ export default function AdminDictionaryPage() {
       </main>
     </AppShell>
   );
+}
+
+function latestDictionaryStatus(input: {
+  failure_reason: string | null;
+  imported_count: number;
+  status: string;
+}) {
+  if (input.failure_reason || input.status === "failed") {
+    return "실패";
+  }
+  if (input.imported_count === 0) {
+    return "완료 · 새 항목 없음";
+  }
+  return "완료";
+}
+
+function latestDictionaryResult(input: { imported_count: number }) {
+  if (input.imported_count === 0) {
+    return "다운로드는 끝났지만 새로 저장된 뜻풀이가 없습니다.";
+  }
+  return `${input.imported_count.toLocaleString("ko-KR")}개 뜻풀이를 저장했습니다.`;
+}
+
+function dictionaryEventDisplay(input: {
+  message: string | null;
+  status: string;
+}) {
+  if (input.status === "success" && input.message?.startsWith("0개 뜻풀이")) {
+    return {
+      message: "다운로드는 완료됐지만 새로 반영된 뜻풀이가 없습니다.",
+      status: "skipped",
+    };
+  }
+  return {
+    message: input.message,
+    status: input.status,
+  };
 }

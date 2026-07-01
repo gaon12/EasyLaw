@@ -40,7 +40,7 @@ export function DictionaryUpdateButton() {
     "한국어기초사전과 표준국어대사전 ZIP을 내려받아 JSON만 DB에 반영합니다.",
   );
   const [status, setStatus] = useState<
-    "idle" | "loading" | "success" | "error"
+    "idle" | "loading" | "success" | "empty" | "error"
   >("idle");
   const [runningSource, setRunningSource] = useState<UpdateSource | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -97,10 +97,17 @@ export function DictionaryUpdateButton() {
       }
       setStageIndex(updateStages.length - 1);
       setProgress(100);
-      setStatus("success");
-      setMessage(
-        `${data.importedCount.toLocaleString("ko-KR")}개의 뜻풀이를 반영했어요.`,
-      );
+      if (data.importedCount > 0) {
+        setStatus("success");
+        setMessage(
+          `${data.importedCount.toLocaleString("ko-KR")}개의 뜻풀이를 반영했어요.`,
+        );
+      } else {
+        setStatus("empty");
+        setMessage(
+          "다운로드는 끝났지만 새로 반영된 뜻풀이가 없어요. 최근 작업 기록에서 원본 데이터 상태를 확인해 주세요.",
+        );
+      }
     } catch (_error) {
       setStatus("error");
       setProgress(100);
@@ -165,7 +172,9 @@ export function DictionaryUpdateButton() {
                   ? "공개 사전 데이터를 반영하고 있어요"
                   : status === "success"
                     ? "업데이트가 끝났어요"
-                    : "업데이트를 마치지 못했어요"}
+                    : status === "empty"
+                      ? "반영된 뜻풀이가 없어요"
+                      : "업데이트를 마치지 못했어요"}
               </h2>
               <p>{message}</p>
             </div>

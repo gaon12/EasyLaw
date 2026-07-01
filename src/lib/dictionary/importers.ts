@@ -33,10 +33,13 @@ export async function updateDictionarySource(
     completeDictionaryImport(db, { importId, importedCount });
     logIntegrationEvent(db, {
       action: `${source}.import`,
-      message: `${importedCount.toLocaleString("ko-KR")}개 뜻풀이를 반영했습니다.`,
+      message:
+        importedCount > 0
+          ? `${importedCount.toLocaleString("ko-KR")}개 뜻풀이를 반영했습니다.`
+          : "다운로드는 완료됐지만 새로 반영된 뜻풀이가 없습니다.",
       metadata: { importId, importedCount, source },
       service: "dictionary",
-      status: "success",
+      status: importedCount > 0 ? "success" : "skipped",
     });
     return { importId, importedCount, ok: true as const, source };
   } catch (error) {
