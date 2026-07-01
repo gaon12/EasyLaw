@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
 import { LoginRequiredModal } from "@/components/auth-required-link";
+import { LocalTime } from "@/components/local-time";
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import {
   CUSTOM_JUDGMENT_TEXT_MAX_LENGTH,
@@ -205,85 +206,105 @@ export function JudgmentExplorer({
             알림을 신청할 수 있어요.
           </p>
           <div className={styles.workspaceBody}>
-            <label className={styles.label} htmlFor="judgment-query">
-              {questionMode
-                ? "궁금한 법률 상황"
-                : "사건번호, 법원명, 판결문 제목"}
-            </label>
-            <input
-              className={styles.input}
-              id="judgment-query"
-              maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                questionMode
-                  ? "어떤 일이 있었고 무엇이 궁금한지 적어보세요"
-                  : "예: 2023구합54112"
-              }
-              value={query}
-            />
-            <label className={styles.label} htmlFor="notify-email">
-              완료 알림 이메일
-            </label>
-            <input
-              className={styles.input}
-              id="notify-email"
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              type="email"
-              value={email}
-            />
-            <div id="custom-judgment" className={styles.customDocumentHeading}>
-              <strong>내 판결문으로 시작하기</strong>
-              <span>로그인한 계정만 볼 수 있는 고유 주소로 저장됩니다.</span>
-            </div>
-            <input
-              className={styles.input}
-              maxLength={CUSTOM_JUDGMENT_TITLE_MAX_LENGTH}
-              onChange={(event) => setCustomTitle(event.target.value)}
-              placeholder="문서 제목"
-              value={customTitle}
-            />
-            <textarea
-              aria-label="커스텀 판결문 내용"
-              className={styles.textarea}
-              maxLength={CUSTOM_JUDGMENT_TEXT_MAX_LENGTH}
-              onChange={(event) => setCustomText(event.target.value)}
-              placeholder="판결문 내용을 복사해 붙여넣으세요."
-              value={customText}
-            />
-            <div className={styles.buttonRow}>
-              <button
-                className={styles.primaryButton}
-                disabled={isLoading}
-                onClick={() => void search()}
-                type="button"
-              >
-                {isLoading ? "조회 중" : "판결문 확인하기"}
-              </button>
-              <button
-                className={styles.secondaryButton}
-                disabled={
-                  isLoading ||
-                  customTitle.trim().length < 2 ||
-                  customText.trim().length < 20
+            <section className={styles.workspaceSection}>
+              <div className={styles.workspaceSectionHeader}>
+                <h3>공개 판결문 찾기</h3>
+                <p>
+                  사건번호, 법원명, 판결문 제목으로 공개된 판결문을 검색해요.
+                  알림 이메일은 생성 대기 문서가 준비됐을 때만 사용합니다.
+                </p>
+              </div>
+              <label className={styles.label} htmlFor="judgment-query">
+                {questionMode
+                  ? "궁금한 법률 상황"
+                  : "사건번호, 법원명, 판결문 제목"}
+              </label>
+              <input
+                className={styles.input}
+                id="judgment-query"
+                maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={
+                  questionMode
+                    ? "어떤 일이 있었고 무엇이 궁금한지 적어보세요"
+                    : "예: 2023구합54112"
                 }
-                onClick={createCustomJudgment}
-                type="button"
-              >
-                비공개 판결문 저장
-              </button>
-            </div>
-            {captchaPrompt && (
-              <>
-                <p className={styles.notice}>{captchaPrompt}</p>
-                <AltchaCaptcha
-                  onVerified={(payload) => void search(payload)}
-                  resetKey={captchaResetKey}
-                />
-              </>
-            )}
-            <p className={styles.notice}>{message}</p>
+                value={query}
+              />
+              <label className={styles.label} htmlFor="notify-email">
+                완료 알림 이메일
+              </label>
+              <input
+                className={styles.input}
+                id="notify-email"
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                type="email"
+                value={email}
+              />
+              <div className={styles.buttonRow}>
+                <button
+                  className={styles.primaryButton}
+                  disabled={isLoading}
+                  onClick={() => void search()}
+                  type="button"
+                >
+                  {isLoading ? "조회 중" : "판결문 확인하기"}
+                </button>
+              </div>
+              {captchaPrompt && (
+                <div className={styles.inlineNotice}>
+                  <p>{captchaPrompt}</p>
+                  <AltchaCaptcha
+                    onVerified={(payload) => void search(payload)}
+                    resetKey={captchaResetKey}
+                  />
+                </div>
+              )}
+              <p className={styles.inlineNotice}>{message}</p>
+            </section>
+            <section className={styles.workspaceSection} id="custom-judgment">
+              <div className={styles.workspaceSectionHeader}>
+                <h3>내 판결문으로 시작하기</h3>
+                <p>
+                  공개 목록에 없는 판결문은 직접 붙여넣어 비공개 문서로
+                  저장해요. 저장한 문서는 로그인한 계정만 볼 수 있습니다.
+                </p>
+              </div>
+              <label className={styles.label} htmlFor="custom-title">
+                문서 제목
+              </label>
+              <input
+                className={styles.input}
+                id="custom-title"
+                maxLength={CUSTOM_JUDGMENT_TITLE_MAX_LENGTH}
+                onChange={(event) => setCustomTitle(event.target.value)}
+                placeholder="예: 손해배상 판결문"
+                value={customTitle}
+              />
+              <textarea
+                aria-label="커스텀 판결문 내용"
+                className={styles.textarea}
+                maxLength={CUSTOM_JUDGMENT_TEXT_MAX_LENGTH}
+                onChange={(event) => setCustomText(event.target.value)}
+                placeholder="판결문 내용을 복사해 붙여넣으세요."
+                value={customText}
+              />
+              <div className={styles.buttonRow}>
+                <button
+                  className={styles.secondaryButton}
+                  disabled={
+                    isLoading ||
+                    customTitle.trim().length < 2 ||
+                    customText.trim().length < 20
+                  }
+                  onClick={createCustomJudgment}
+                  type="button"
+                >
+                  비공개 판결문 저장
+                </button>
+              </div>
+            </section>
           </div>
         </div>
       )}
@@ -311,7 +332,9 @@ export function JudgmentExplorer({
               <div className={styles.meta}>
                 <span>{judgment.caseNumber}</span>
                 <span>{judgment.courtName}</span>
-                <span>{judgment.decidedOn}</span>
+                <span>
+                  <LocalTime dateOnly dateTime={judgment.decidedOn} />
+                </span>
               </div>
             </div>
             <div>

@@ -155,7 +155,7 @@ try {
   }
   await page.getByRole("link", { name: "EasyLaw 시작하기" }).click();
   await page.waitForURL(baseUrl);
-  await page.getByRole("link", { name: "최고 관리자" }).waitFor();
+  await page.getByRole("button", { name: "최고 관리자" }).waitFor();
   const faviconResponse = await page.request.get(`${baseUrl}/favicon.ico`);
   if (!faviconResponse.ok()) {
     throw new Error("Favicon was not served from /favicon.ico.");
@@ -181,6 +181,13 @@ try {
       name: "최고 관리자님, 무엇을 이해해볼까요?",
     })
     .waitFor();
+  await page.getByRole("button", { name: "최고 관리자" }).click();
+  await page.getByRole("menuitem", { name: "내 문서함" }).waitFor();
+  await page.getByRole("menuitem", { name: "계정 보안 설정" }).waitFor();
+  await page.mouse.click(20, 20);
+  if ((await page.getByRole("menuitem", { name: "로그아웃" }).count()) !== 0) {
+    throw new Error("Account menu did not close after an outside click.");
+  }
   if ((await page.locator('a[href="/login"]').count()) !== 0) {
     throw new Error("Installed administrator was not shown as signed in.");
   }
@@ -430,6 +437,15 @@ try {
   await anonymousPage
     .getByLabel("언어와 글자 크기 설정", { exact: true })
     .click();
+  const languageOptions = await anonymousPage
+    .getByLabel("언어", { exact: true })
+    .locator("option")
+    .evaluateAll((options) =>
+      options.map((option) => option.textContent?.trim()),
+    );
+  if (languageOptions.join("|") !== "한국어|English|日本語") {
+    throw new Error("Language options did not use readable labels.");
+  }
   await anonymousPage.getByLabel("언어", { exact: true }).selectOption("en");
   if (
     (await anonymousPage.title()) !== "Understand Judgments Clearly | EasyLaw"
@@ -454,6 +470,10 @@ try {
   await anonymousPage
     .getByLabel("언어와 글자 크기 설정", { exact: true })
     .click();
+  await anonymousPage.mouse.click(20, 20);
+  if ((await anonymousPage.getByLabel("언어", { exact: true }).count()) !== 0) {
+    throw new Error("Reading preferences did not close after outside click.");
+  }
 
   await anonymousPage.setViewportSize({ width: 390, height: 844 });
   if (

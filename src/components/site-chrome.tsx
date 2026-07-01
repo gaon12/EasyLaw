@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import styles from "@/app/page.module.css";
+import { AccountMenu } from "@/components/account-menu";
 import {
   BellIcon,
   BuildingIcon,
@@ -35,9 +36,8 @@ const signedInNav = [
 
 const adminNav = [
   { href: "/admin", key: "admin.home", label: "관리 개요" },
-  { href: "/admin/llm", key: "admin.llm", label: "LLM API" },
+  { href: "/admin/ai", key: "admin.ai", label: "AI 설정" },
   { href: "/admin/open-law", key: "admin.openLaw", label: "공개법령 API" },
-  { href: "/admin/mcp", key: "admin.mcp", label: "MCP 설정" },
   { href: "/admin/captcha", key: "admin.captcha", label: "CAPTCHA" },
   { href: "/admin/dictionary", key: "admin.dictionary", label: "용어 사전" },
   { href: "/admin#jobs", key: "admin.jobs", label: "사용자·작업" },
@@ -97,12 +97,11 @@ export async function AppHeader({
             <span data-i18n="nav.research">AI 질문</span>
           </a>
           {sessionUser ? (
-            <a className={styles.accountLink} href="/me">
-              <span aria-hidden="true">
-                {sessionUser.displayName.slice(0, 1)}
-              </span>
-              {sessionUser.displayName}
-            </a>
+            <AccountMenu
+              canSeeAdmin={canSeeAdmin}
+              displayName={sessionUser.displayName}
+              email={sessionUser.email}
+            />
           ) : (
             <>
               <a href="/login" data-i18n="nav.login">

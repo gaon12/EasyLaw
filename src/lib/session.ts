@@ -25,6 +25,22 @@ export function createUserSession(db: SqliteDatabase, userId: string) {
   return { token, expiresAt };
 }
 
+export function revokeUserSession(
+  db: SqliteDatabase,
+  token: string | undefined,
+) {
+  if (!token) {
+    return;
+  }
+
+  db.prepare(
+    `UPDATE user_sessions
+      SET revoked_at = ?
+      WHERE token_hash = ?
+        AND revoked_at IS NULL`,
+  ).run(nowIso(), hashToken(token));
+}
+
 export function getSessionUser(
   db: SqliteDatabase,
   token: string | undefined,

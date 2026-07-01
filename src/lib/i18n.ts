@@ -6,6 +6,7 @@ export const translations = {
   ko: {
     "action.theme": "테마",
     "admin.captcha": "CAPTCHA",
+    "admin.ai": "AI 설정",
     "admin.dictionary": "용어 사전",
     "admin.home": "관리 개요",
     "admin.jobs": "사용자·작업",
@@ -31,6 +32,7 @@ export const translations = {
   en: {
     "action.theme": "Theme",
     "admin.captcha": "CAPTCHA",
+    "admin.ai": "AI Settings",
     "admin.dictionary": "Dictionary",
     "admin.home": "Admin",
     "admin.jobs": "Users & Jobs",
@@ -56,6 +58,7 @@ export const translations = {
   ja: {
     "action.theme": "テーマ",
     "admin.captcha": "CAPTCHA",
+    "admin.ai": "AI設定",
     "admin.dictionary": "用語辞典",
     "admin.home": "管理概要",
     "admin.jobs": "利用者・作業",

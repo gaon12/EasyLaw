@@ -92,7 +92,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 18px;
   color: var(--fg-strong);
   font-size: 15px;
   font-weight: 700;
@@ -126,7 +126,7 @@
   position: relative;
 }
 
-.preferenceMenu summary {
+.preferenceButton {
   min-width: 70px;
   height: 40px;
   display: inline-flex;
@@ -143,11 +143,7 @@
   cursor: pointer;
 }
 
-.preferenceMenu summary::-webkit-details-marker {
-  display: none;
-}
-
-.preferenceMenu summary:hover {
+.preferenceButton:hover {
   background: var(--bg-muted);
 }
 
@@ -215,6 +211,88 @@
   color: white;
 }
 
+.accountMenu {
+  position: relative;
+}
+
+.accountButton {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--fg-strong);
+  font-weight: 800;
+}
+
+.accountAvatar {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-brand);
+  color: white;
+  font-size: 12px;
+}
+
+.accountPanel {
+  width: 220px;
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.accountPanel a,
+.accountPanel button {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: var(--radius-8);
+  padding: 0 10px;
+  background: transparent;
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 750;
+  text-align: left;
+}
+
+.accountPanel a:hover,
+.accountPanel button:hover {
+  background: var(--bg-muted);
+}
+
+.accountSummary {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+
+.accountSummary strong {
+  color: var(--fg-strong);
+  font-size: 14px;
+}
+
+.accountSummary span {
+  overflow: hidden;
+  color: var(--fg-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
 .mainNav {
   min-height: 64px;
   display: flex;
@@ -260,6 +338,26 @@
 
 .mainNav a.navActive::after {
   background: var(--bg-brand);
+}
+
+.subNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.subNav a {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  padding: 0 14px;
+  background: var(--bg-surface);
+  color: var(--fg-brand);
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .main {
@@ -1079,8 +1177,33 @@
 
 .workspaceBody {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   margin-top: 16px;
+}
+
+.workspaceSection {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+}
+
+.workspaceSectionHeader {
+  display: grid;
+  gap: 6px;
+}
+
+.workspaceSectionHeader h3 {
+  color: var(--fg-strong);
+  font-size: 18px;
+}
+
+.workspaceSectionHeader p {
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .label {
@@ -1149,7 +1272,18 @@
 .buttonRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+}
+
+.inlineNotice {
+  display: grid;
+  gap: 12px;
+  border-radius: var(--radius-8);
+  padding: 12px 14px;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.55;
 }
 
 .notice {
@@ -1293,6 +1427,18 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-16);
   background: var(--bg-surface);
+}
+
+.blockHeading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.blockHeading p {
+  color: var(--fg-secondary);
+  font-size: 14px;
 }
 
 .resultBlock h3 {
@@ -2637,7 +2783,13 @@
     gap: 8px;
   }
 
-  .headerActions a {
+  .accountPanel,
+  .preferencePanel {
+    width: min(220px, calc(100vw - 24px));
+    right: 0;
+  }
+
+  .headerActions > a {
     display: none;
   }
 
