@@ -30,6 +30,7 @@ export type ExternalJudgmentRecord = {
   sourceUrl?: string;
   caseType: "civil" | "criminal" | "administrative" | "family";
   summary?: string;
+  originalText?: string;
 };
 
 export type JudgmentListItem = {

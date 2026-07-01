@@ -20,6 +20,8 @@ const sampleExternalRecords: ExternalJudgmentRecord[] = [
     sourceUrl: "https://jpri.scourt.go.kr",
     caseType: "administrative",
     summary: "취소소송 요건과 행정 처분 판단 구조를 보여주는 판결 예시",
+    originalText:
+      "원고는 영업정지 처분의 취소를 구하였고, 법원은 처분 사유와 절차, 비례 원칙 위반 여부를 중심으로 판단하였습니다.",
   },
   {
     sourceProvider: "korean-law-mcp",
@@ -31,6 +33,8 @@ const sampleExternalRecords: ExternalJudgmentRecord[] = [
     sourceUrl: "https://jpri.scourt.go.kr",
     caseType: "criminal",
     summary: "형사 사건 Easy-Read 작성을 위한 기반 샘플",
+    originalText:
+      "피고인의 행위가 특수절도죄의 구성요건에 해당하는지, 공모 관계와 양형 사유가 무엇인지 판단한 형사 판결 예시입니다.",
   },
   {
     sourceProvider: "korean-law-mcp",
@@ -42,6 +46,8 @@ const sampleExternalRecords: ExternalJudgmentRecord[] = [
     sourceUrl: "https://jpri.scourt.go.kr",
     caseType: "civil",
     summary: "민사 사건 Easy-Read 작성을 위한 기반 샘플",
+    originalText:
+      "원고는 손해배상을 청구하였고, 법원은 손해 발생, 인과관계, 배상 범위를 나누어 판단한 민사 판결 예시입니다.",
   },
 ];
 
@@ -121,6 +127,7 @@ export function upsertJudgmentFromExternal(
           case_type = ?,
           source_url = ?,
           source_trust = 'external_verified',
+          original_text = COALESCE(?, original_text),
           updated_at = ?
         WHERE id = ?`,
     ).run(
@@ -130,6 +137,7 @@ export function upsertJudgmentFromExternal(
       record.title,
       record.caseType,
       record.sourceUrl ?? null,
+      record.originalText ?? null,
       now,
       existing.id,
     );
@@ -142,8 +150,8 @@ export function upsertJudgmentFromExternal(
     `INSERT INTO judgments
       (id, case_number, court_name, decided_on, title, case_type, status,
         visibility, source_provider, source_external_id, source_url,
-        source_trust, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        source_trust, original_text, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     record.caseNumber,
@@ -157,6 +165,7 @@ export function upsertJudgmentFromExternal(
     record.externalId,
     record.sourceUrl ?? null,
     "external_verified",
+    record.originalText ?? null,
     now,
     now,
   );
@@ -289,6 +298,32 @@ export async function fetchOpenLawJudgments(
   }
 }
 
+export async function ensurePublicJudgmentOriginalText(
+  db: SqliteDatabase,
+  input: {
+    id: string;
+    originalText: string | null;
+    sourceUrl: string | null;
+    sourceProvider: string;
+  },
+) {
+  if (input.originalText || input.sourceProvider !== OPEN_LAW_PROVIDER) {
+    return input.originalText;
+  }
+
+  const originalText = await fetchOpenLawOriginalText(db, input.sourceUrl);
+  if (!originalText) {
+    return null;
+  }
+
+  db.prepare(
+    `UPDATE judgments
+      SET original_text = ?, updated_at = ?
+      WHERE id = ?`,
+  ).run(originalText, nowIso(), input.id);
+  return originalText;
+}
+
 export function parseOpenLawSearchResponse(
   payload: unknown,
 ): ExternalJudgmentRecord[] {
@@ -347,7 +382,50 @@ function parseOpenLawItem(item: unknown): ExternalJudgmentRecord | null {
     sourceUrl,
     caseType: classifyCaseType(caseNumber, title),
     summary,
+    originalText: openLawOriginalText(item),
   };
+}
+
+async function fetchOpenLawOriginalText(
+  db: SqliteDatabase,
+  sourceUrl: string | null,
+) {
+  if (!sourceUrl) {
+    return null;
+  }
+
+  const url = openLawJsonUrl(sourceUrl, getOpenLawOc(db) ?? undefined);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return parseOpenLawOriginalText((await response.json()) as unknown);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function parseOpenLawOriginalText(payload: unknown) {
+  const root = objectValue(payload, "PrecService") ?? payload;
+  return openLawOriginalText(root);
+}
+
+function openLawOriginalText(item: unknown) {
+  return stringValue(item, "판례내용") ?? stringValue(item, "내용");
+}
+
+function openLawJsonUrl(value: string, oc: string | undefined) {
+  const url = new URL(value);
+  url.searchParams.set("target", "prec");
+  url.searchParams.set("type", "JSON");
+  if (oc && !url.searchParams.get("OC")) {
+    url.searchParams.set("OC", oc);
+  }
+  return url;
 }
 
 function buildOpenLawTitle(input: {

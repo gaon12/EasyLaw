@@ -2,7 +2,10 @@
 import { JudgmentDetailView } from "@/components/judgment-detail";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncExternalCatalog } from "@/lib/external-law";
+import {
+  ensurePublicJudgmentOriginalText,
+  syncExternalCatalog,
+} from "@/lib/external-law";
 import { pageMetadata } from "@/lib/metadata";
 import {
   getLatestAnalysis,
@@ -41,10 +44,12 @@ export default async function PublicJudgmentPage({
   const { caseNumber } = await params;
   const db = getDatabase();
   await syncExternalCatalog(db);
-  const judgment = getPublicJudgmentByIdentifier(db, caseNumber);
+  let judgment = getPublicJudgmentByIdentifier(db, caseNumber);
   if (!judgment) {
     notFound();
   }
+  await ensurePublicJudgmentOriginalText(db, judgment);
+  judgment = getPublicJudgmentByIdentifier(db, caseNumber) ?? judgment;
 
   return (
     <AppShell>

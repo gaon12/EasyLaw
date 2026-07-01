@@ -226,6 +226,7 @@ test("external catalog creates public pending judgments", async () => {
       getPublicJudgmentByIdentifier(db, judgments[0].id)?.caseNumber,
       judgments[0].caseNumber,
     );
+    assert.ok(getPublicJudgmentByIdentifier(db, judgments[0].id)?.originalText);
     assert.ok(
       judgments.every((item) => item.sourceProvider === "korean-law-mcp"),
     );
@@ -291,6 +292,7 @@ test("open law parser normalizes public case records", () => {
           사건번호: "2024가단1234",
           법원명: "서울중앙지방법원",
           판시사항: "(심리불속행) 원심 판단을 수긍한 사안",
+          판례내용: "원고의 상고를 심리불속행으로 기각한다.",
           선고일자: "20240501",
           판례상세링크: "/DRF/lawService.do?OC=test&target=prec&ID=1",
           판례일련번호: "123456",
@@ -307,6 +309,7 @@ test("open law parser normalizes public case records", () => {
       decidedOn: records[0].decidedOn,
       sourceProvider: records[0].sourceProvider,
       title: records[0].title,
+      originalText: records[0].originalText,
     },
     {
       caseNumber: "2024가단1234",
@@ -314,6 +317,7 @@ test("open law parser normalizes public case records", () => {
       decidedOn: "2024-05-01",
       sourceProvider: "open-law",
       title: "(심리불속행) 손해배상",
+      originalText: "원고의 상고를 심리불속행으로 기각한다.",
     },
   );
   assert.ok(records[0].sourceUrl?.startsWith("https://www.law.go.kr/"));
