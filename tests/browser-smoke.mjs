@@ -195,6 +195,16 @@ try {
   if (!meResponse.ok()) {
     throw new Error("Installed administrator could not access their account.");
   }
+  await page.goto(`${baseUrl}/security`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "계정 보안 설정" }).waitFor();
+  await page.getByText("first@example.com", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "복구 코드 재발급" }).click();
+  await page
+    .getByText("복구 코드를 새로 만들었어요", { exact: false })
+    .waitFor();
+  if ((await page.locator("main code").count()) !== 10) {
+    throw new Error("Security center did not issue ten recovery codes.");
+  }
 
   const setupResponse = await page.request.get(`${baseUrl}/api/setup/status`);
   if (setupResponse.status() !== 410) {

@@ -12,6 +12,8 @@ import {
   consumeRecoveryCode,
   createMagicLink,
   createTotpEnrollment,
+  getAccountSecurityState,
+  regenerateRecoveryCodes,
   verifyTotpEnrollment,
 } from "../src/lib/auth";
 import {
@@ -625,6 +627,10 @@ test("TOTP enrollment, recovery code, and management access policy", async () =>
     const verified = await verifyTotpEnrollment(db, admin.id, code);
     assert.equal(verified.ok, true);
     assert.equal(verified.ok ? verified.recoveryCodes.length : 0, 10);
+    assert.deepEqual(getAccountSecurityState(db, admin.id)?.recoveryCodes, {
+      total: 10,
+      unused: 10,
+    });
 
     assert.deepEqual(
       assertManagementAccess(db, { userId: admin.id, scope: "admin" }),
@@ -637,6 +643,26 @@ test("TOTP enrollment, recovery code, and management access policy", async () =>
       verified.ok ? verified.recoveryCodes[0] : "",
     );
     assert.equal(recoveryResult.ok, true);
+    assert.deepEqual(getAccountSecurityState(db, admin.id)?.recoveryCodes, {
+      total: 10,
+      unused: 9,
+    });
+
+    const regenerated = regenerateRecoveryCodes(db, admin.id);
+    assert.equal(regenerated.ok, true);
+    assert.equal(regenerated.ok ? regenerated.recoveryCodes.length : 0, 10);
+    assert.deepEqual(getAccountSecurityState(db, admin.id)?.recoveryCodes, {
+      total: 10,
+      unused: 10,
+    });
+    assert.equal(
+      consumeRecoveryCode(
+        db,
+        admin.id,
+        verified.ok ? verified.recoveryCodes[1] : "",
+      ).ok,
+      false,
+    );
   } finally {
     cleanup();
   }
