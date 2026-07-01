@@ -362,4 +362,12 @@ export const migrations = [
         ON integration_events(service, created_at);
     `,
   },
+  {
+    id: 9,
+    name: "judgment_source_summary",
+    sql: `
+      ALTER TABLE judgments
+        ADD COLUMN source_summary TEXT;
+    `,
+  },
 ] as const;

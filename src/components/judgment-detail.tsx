@@ -23,9 +23,14 @@ export function JudgmentDetailView({
 }) {
   const sourceAvailable = !privateDocument && Boolean(judgment.sourceUrl);
   const caseTypeLabel = displayJudgmentCaseType(judgment.caseType);
-  const documentSections = judgment.originalText
-    ? parseJudgmentDocument(judgment.originalText)
+  const documentText =
+    judgment.originalText ??
+    judgment.sourceSummary ??
+    fallbackJudgmentText(judgment, caseTypeLabel);
+  const documentSections = documentText
+    ? parseJudgmentDocument(documentText)
     : [];
+  const hasOriginalText = Boolean(judgment.originalText);
 
   return (
     <main className={`${styles.main} ${styles.viewerMain}`}>
@@ -101,13 +106,23 @@ export function JudgmentDetailView({
             <div>
               <h2>판결문 본문</h2>
               <p>
-                쉬운 설명 생성 여부와 관계없이 확보된 판결문 본문을 먼저
-                보여줘요.
+                {hasOriginalText
+                  ? "쉬운 설명 생성 여부와 관계없이 확보된 판결문 본문을 먼저 보여줘요."
+                  : "상세 본문을 아직 받지 못한 경우에도 공개 출처의 판결 요지를 먼저 보여줘요."}
               </p>
             </div>
           </header>
           {documentSections.length > 0 ? (
             <div className={styles.viewerText}>
+              {!hasOriginalText && (
+                <div className={styles.viewerFallbackNotice}>
+                  <strong>공개 출처의 판결 요지를 표시하고 있어요.</strong>
+                  <p>
+                    원문 전문은 출처에서 추가 확인할 수 있고, EasyLaw는 가능한
+                    경우 자동으로 본문을 가져와 저장합니다.
+                  </p>
+                </div>
+              )}
               {documentSections.map((section) => (
                 <section
                   className={
@@ -150,11 +165,10 @@ export function JudgmentDetailView({
             </div>
           ) : (
             <div className={styles.viewerEmpty}>
-              <strong>본문을 아직 가져오지 못했어요.</strong>
+              <strong>표시할 판결문 내용을 아직 확보하지 못했어요.</strong>
               <p>
                 공개 출처가 제공되는 판결문은 원문 출처에서 바로 확인할 수
-                있어요. 쉬운 설명 생성 여부와 관계없이 기본 판결 정보는 계속 볼
-                수 있습니다.
+                있어요. 기본 판결 정보와 전심 링크는 계속 볼 수 있습니다.
               </p>
               {sourceAvailable && (
                 <a
@@ -293,4 +307,13 @@ function DocumentHeading({ level, text }: { level: 3 | 4 | 5; text: string }) {
     return <h5 className={className}>{text}</h5>;
   }
   return <h6 className={className}>{text}</h6>;
+}
+
+function fallbackJudgmentText(judgment: JudgmentDetail, caseTypeLabel: string) {
+  return [
+    "판결 정보",
+    `${judgment.courtName} ${judgment.decidedOn} 선고 ${judgment.caseNumber}`,
+    `사건명: ${judgment.title}`,
+    `사건 종류: ${caseTypeLabel}`,
+  ].join("\n");
 }

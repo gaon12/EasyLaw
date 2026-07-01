@@ -50,6 +50,7 @@ export type JudgmentListItem = {
 export type JudgmentDetail = JudgmentListItem & {
   sourceUrl: string | null;
   sourceTrust: SourceTrust;
+  sourceSummary: string | null;
   originalText: string | null;
   createdByUserId: string | null;
 };

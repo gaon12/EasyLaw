@@ -96,6 +96,7 @@ const judgmentDetailSql = `SELECT judgments.id,
   judgments.source_provider,
   judgments.source_url,
   judgments.source_trust,
+  judgments.source_summary,
   judgments.original_text,
   judgments.created_by_user_id,
   (
@@ -122,6 +123,7 @@ type JudgmentDetailRow = {
   source_provider: string;
   source_url: string | null;
   source_trust: JudgmentDetail["sourceTrust"];
+  source_summary: string | null;
   original_text: string | null;
   created_by_user_id: string | null;
   latest_job_status: string | null;
@@ -141,6 +143,7 @@ function mapJudgmentDetail(row: JudgmentDetailRow): JudgmentDetail {
     sourceProvider: row.source_provider,
     sourceUrl: row.source_url,
     sourceTrust: row.source_trust,
+    sourceSummary: row.source_summary,
     originalText: row.original_text,
     createdByUserId: row.created_by_user_id,
     latestJobStatus: row.latest_job_status as JudgmentDetail["latestJobStatus"],

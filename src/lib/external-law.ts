@@ -127,6 +127,7 @@ export function upsertJudgmentFromExternal(
           case_type = ?,
           source_url = ?,
           source_trust = 'external_verified',
+          source_summary = COALESCE(?, source_summary),
           original_text = COALESCE(?, original_text),
           updated_at = ?
         WHERE id = ?`,
@@ -137,6 +138,7 @@ export function upsertJudgmentFromExternal(
       record.title,
       record.caseType,
       record.sourceUrl ?? null,
+      record.summary ?? null,
       record.originalText ?? null,
       now,
       existing.id,
@@ -150,8 +152,8 @@ export function upsertJudgmentFromExternal(
     `INSERT INTO judgments
       (id, case_number, court_name, decided_on, title, case_type, status,
         visibility, source_provider, source_external_id, source_url,
-        source_trust, original_text, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        source_trust, source_summary, original_text, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     record.caseNumber,
@@ -165,6 +167,7 @@ export function upsertJudgmentFromExternal(
     record.externalId,
     record.sourceUrl ?? null,
     "external_verified",
+    record.summary ?? null,
     record.originalText ?? null,
     now,
     now,

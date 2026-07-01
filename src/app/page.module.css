@@ -371,28 +371,48 @@
 .subNav {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  justify-content: center;
+  gap: 30px;
   margin-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-muted);
 }
 
 .subNav a {
-  min-height: 38px;
+  position: relative;
+  min-height: 52px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-full);
-  padding: 0 14px;
-  background: var(--bg-surface);
-  color: var(--fg-brand);
-  font-size: 14px;
-  font-weight: 800;
+  border: 0;
+  border-radius: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: var(--fg-strong);
+  font-size: 16px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.subNav a::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: transparent;
+  content: "";
 }
 
 .subNav a:hover,
 .subNavActive {
-  border-color: transparent;
-  background: var(--bg-brand-subtle);
+  background: transparent;
   color: var(--fg-brand);
+}
+
+.subNav a:hover::after,
+.subNav a.subNavActive::after {
+  background: var(--bg-brand);
 }
 
 .main {
@@ -1864,6 +1884,26 @@
   color: var(--fg-secondary);
   font-size: 14px;
   line-height: 1.65;
+}
+
+.viewerFallbackNotice {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+  border-radius: var(--radius-8);
+  padding: 14px 16px;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+}
+
+.viewerFallbackNotice strong {
+  font-size: 15px;
+}
+
+.viewerFallbackNotice p {
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .viewerInsightBody {
