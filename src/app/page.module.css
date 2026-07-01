@@ -1553,6 +1553,211 @@
   font-weight: 750;
 }
 
+.judgmentViewerHero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 20px;
+  margin-bottom: 14px;
+}
+
+.judgmentViewerHero h1 {
+  margin-top: 12px;
+  color: var(--fg-strong);
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.28;
+  letter-spacing: -0.02em;
+}
+
+.judgmentViewerHero p {
+  margin-top: 8px;
+  color: var(--fg-secondary);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.viewerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.judgmentViewer {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 320px;
+  gap: 14px;
+  align-items: start;
+}
+
+.viewerRail,
+.viewerDocument,
+.viewerInsight,
+.viewerInfo {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+}
+
+.viewerRail {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 18px;
+  padding: 14px;
+}
+
+.viewerRail nav {
+  display: grid;
+  gap: 4px;
+}
+
+.viewerRail nav a {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-8);
+  padding: 0 10px;
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.viewerRail nav a:hover {
+  background: var(--bg-muted);
+  color: var(--fg-brand);
+}
+
+.viewerMetaList,
+.viewerInfoGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.viewerMetaList div,
+.viewerInfoGrid div {
+  display: grid;
+  gap: 4px;
+}
+
+.viewerMetaList dt,
+.viewerInfoGrid dt {
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.viewerMetaList dd,
+.viewerInfoGrid dd {
+  color: var(--fg-default);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.viewerDocument,
+.viewerInsight,
+.viewerInfo {
+  padding: 22px;
+}
+
+.viewerDocument {
+  min-height: 620px;
+}
+
+.viewerInsight {
+  position: sticky;
+  top: 16px;
+}
+
+.viewerInfo {
+  grid-column: 2 / 4;
+}
+
+.viewerPanelHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.viewerPanelHeader h2 {
+  color: var(--fg-strong);
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.viewerPanelHeader p {
+  margin-top: 4px;
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.viewerText {
+  white-space: pre-wrap;
+  color: var(--fg-default);
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.viewerEmpty {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: var(--radius-8);
+  background: var(--bg-muted);
+}
+
+.viewerEmpty strong {
+  color: var(--fg-strong);
+  font-size: 15px;
+}
+
+.viewerEmpty p {
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.viewerInsightBody {
+  display: grid;
+  gap: 18px;
+}
+
+.viewerInsightBody section {
+  display: grid;
+  gap: 10px;
+}
+
+.viewerInsightBody h3 {
+  color: var(--fg-strong);
+  font-size: 17px;
+}
+
+.viewerInsightBody p,
+.viewerInsightBody li {
+  color: var(--fg-default);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.viewerInsightBody ul {
+  display: grid;
+  gap: 8px;
+  padding-left: 20px;
+}
+
+.viewerInfoGrid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.viewerInfoGrid a {
+  color: var(--fg-brand);
+  font-weight: 800;
+}
+
 .wikiList,
 .boardList {
   display: grid;
@@ -2792,9 +2997,37 @@
   .resultGrid,
   .authGrid,
   .researchLayout,
+  .judgmentViewer,
   .wikiPortal,
   .wikiDocumentLayout {
     grid-template-columns: 1fr;
+  }
+
+  .viewerRail,
+  .viewerInsight {
+    position: static;
+  }
+
+  .viewerRail nav {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .viewerRail nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .viewerRail nav a {
+    flex: 0 0 auto;
+  }
+
+  .viewerMetaList {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .viewerInfo {
+    grid-column: auto;
   }
 
   .wikiDocumentAside {
@@ -2911,6 +3144,48 @@
   .sectionTitle {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .judgmentViewerHero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .judgmentViewerHero h1 {
+    font-size: 26px;
+  }
+
+  .viewerActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .viewerActions a {
+    flex: 1 1 150px;
+  }
+
+  .viewerDocument,
+  .viewerInsight,
+  .viewerInfo {
+    padding: 18px;
+  }
+
+  .viewerDocument {
+    min-height: auto;
+  }
+
+  .viewerPanelHeader {
+    display: grid;
+  }
+
+  .viewerText {
+    font-size: 16px;
+    line-height: 1.82;
+  }
+
+  .viewerMetaList,
+  .viewerInfoGrid {
+    grid-template-columns: 1fr;
   }
 
   .hero {

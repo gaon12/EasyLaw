@@ -1,5 +1,6 @@
 import styles from "@/app/page.module.css";
 import { LocalTime } from "@/components/local-time";
+import { displayJudgmentCaseType } from "@/lib/judgment-search";
 import type { EasyReadAnalysis, JudgmentDetail } from "@/lib/types";
 
 export function JudgmentDetailView({
@@ -11,24 +12,68 @@ export function JudgmentDetailView({
   judgment: JudgmentDetail;
   privateDocument?: boolean;
 }) {
+  const sourceAvailable = !privateDocument && Boolean(judgment.sourceUrl);
+  const caseTypeLabel = displayJudgmentCaseType(judgment.caseType);
+
   return (
     <main className={styles.main}>
-      <section className={styles.section}>
-        <div className={styles.sectionTitle}>
-          <div>
-            <span className={styles.badge}>
-              {privateDocument ? "비공개 커스텀 판결문" : "공개 판결문"}
-            </span>
-            <h1>{judgment.title}</h1>
-            <p>
-              {judgment.caseNumber} · {judgment.courtName} · 선고일{" "}
-              <LocalTime dateOnly dateTime={judgment.decidedOn} />
-            </p>
-          </div>
+      <section className={styles.judgmentViewerHero}>
+        <div>
+          <span className={styles.badge}>
+            {privateDocument ? "비공개 판결문" : "공개 판결문"}
+          </span>
+          <h1>{judgment.title}</h1>
+          <p>
+            {judgment.caseNumber} · {judgment.courtName} · 선고일{" "}
+            <LocalTime dateOnly dateTime={judgment.decidedOn} />
+          </p>
         </div>
+        <div className={styles.viewerActions}>
+          {sourceAvailable && (
+            <a
+              className={styles.secondaryButton}
+              href={judgment.sourceUrl ?? undefined}
+              rel="noreferrer"
+              target="_blank"
+            >
+              원문 출처 열기
+            </a>
+          )}
+          <a className={styles.primaryButton} href="#original-document">
+            판결문 보기
+          </a>
+        </div>
+      </section>
 
-        <article className={`${styles.resultBlock} ${styles.documentText}`}>
-          <div className={styles.blockHeading}>
+      <section className={styles.judgmentViewer} aria-label="판결문 상세 보기">
+        <aside className={styles.viewerRail} aria-label="문서 탐색">
+          <nav>
+            <a href="#original-document">판결문</a>
+            <a href="#easy-explanation">쉬운 설명</a>
+            <a href="#judgment-info">판결 정보</a>
+          </nav>
+          <dl className={styles.viewerMetaList}>
+            <div>
+              <dt>사건번호</dt>
+              <dd>{judgment.caseNumber}</dd>
+            </div>
+            <div>
+              <dt>법원</dt>
+              <dd>{judgment.courtName}</dd>
+            </div>
+            <div>
+              <dt>종류</dt>
+              <dd>{caseTypeLabel}</dd>
+            </div>
+            <div>
+              <dt>상태</dt>
+              <dd>{analysis ? "쉬운 설명 있음" : "쉬운 설명 대기"}</dd>
+            </div>
+          </dl>
+        </aside>
+
+        <article className={styles.viewerDocument} id="original-document">
+          <header className={styles.viewerPanelHeader}>
             <span className={styles.badge}>원문</span>
             <div>
               <h2>판결문 본문</h2>
@@ -37,53 +82,111 @@ export function JudgmentDetailView({
                 보여줘요.
               </p>
             </div>
-          </div>
+          </header>
           {judgment.originalText ? (
-            <p>{judgment.originalText}</p>
+            <div className={styles.viewerText}>{judgment.originalText}</div>
           ) : (
-            <p>
-              아직 본문을 가져오지 못했어요. 공개 출처가 제공되는 판결문은 아래
-              원문 링크에서 바로 확인할 수 있어요.
-            </p>
+            <div className={styles.viewerEmpty}>
+              <strong>본문을 아직 가져오지 못했어요.</strong>
+              <p>
+                공개 출처가 제공되는 판결문은 원문 출처에서 바로 확인할 수
+                있어요. 쉬운 설명 생성 여부와 관계없이 기본 판결 정보는 계속 볼
+                수 있습니다.
+              </p>
+              {sourceAvailable && (
+                <a
+                  className={styles.secondaryButton}
+                  href={judgment.sourceUrl ?? undefined}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  원문 출처 열기
+                </a>
+              )}
+            </div>
           )}
         </article>
 
-        {analysis ? (
-          <section className={styles.resultGrid} aria-labelledby="easy-title">
-            <article className={styles.resultBlock}>
-              <div className={styles.blockHeading}>
-                <span className={styles.badge}>해설</span>
-                <div>
-                  <h2 id="easy-title">쉽게 말하면</h2>
-                  <p>결론과 판단 이유를 일상적인 표현으로 나눠 읽어요.</p>
-                </div>
-              </div>
-              <p>{analysis.summary}</p>
-              <ul>
-                {analysis.easyRead.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </article>
-            <article className={styles.resultBlock}>
-              <h2>판결의 결론</h2>
-              <p>{analysis.finalResult}</p>
-            </article>
-          </section>
-        ) : (
-          <div className={styles.notice}>
-            쉬운 설명은 아직 준비 중이에요. 그동안 위의 본문과 공개 출처를
-            기준으로 사건 내용을 먼저 확인할 수 있습니다.
-          </div>
-        )}
+        <aside className={styles.viewerInsight} id="easy-explanation">
+          <header className={styles.viewerPanelHeader}>
+            <span className={styles.badge}>해설</span>
+            <div>
+              <h2>쉬운 판결문</h2>
+              <p>생성된 해설이 있으면 핵심과 결론을 같이 보여줘요.</p>
+            </div>
+          </header>
+          {analysis ? (
+            <div className={styles.viewerInsightBody}>
+              <section>
+                <h3>쉽게 말하면</h3>
+                <p>{analysis.summary}</p>
+                <ul>
+                  {analysis.easyRead.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+              <section>
+                <h3>판결의 결론</h3>
+                <p>{analysis.finalResult}</p>
+              </section>
+            </div>
+          ) : (
+            <div className={styles.viewerEmpty}>
+              <strong>쉬운 설명은 아직 준비 중이에요.</strong>
+              <p>
+                그래도 판결문 본문, 사건번호, 법원, 선고일, 공개 출처는 먼저
+                확인할 수 있습니다.
+              </p>
+            </div>
+          )}
+        </aside>
 
-        {!privateDocument && judgment.sourceUrl && (
-          <p className={styles.sourceLink}>
-            <a href={judgment.sourceUrl} rel="noreferrer" target="_blank">
-              공개 출처에서 원문 확인
-            </a>
-          </p>
-        )}
+        <section className={styles.viewerInfo} id="judgment-info">
+          <header className={styles.viewerPanelHeader}>
+            <span className={styles.badge}>정보</span>
+            <div>
+              <h2>판결 정보</h2>
+              <p>문서 확인에 필요한 기본 정보를 따로 모았어요.</p>
+            </div>
+          </header>
+          <dl className={styles.viewerInfoGrid}>
+            <div>
+              <dt>사건번호</dt>
+              <dd>{judgment.caseNumber}</dd>
+            </div>
+            <div>
+              <dt>법원</dt>
+              <dd>{judgment.courtName}</dd>
+            </div>
+            <div>
+              <dt>선고일</dt>
+              <dd>
+                <LocalTime dateOnly dateTime={judgment.decidedOn} />
+              </dd>
+            </div>
+            <div>
+              <dt>종류</dt>
+              <dd>{caseTypeLabel}</dd>
+            </div>
+            <div>
+              <dt>공개 출처</dt>
+              <dd>
+                {sourceAvailable ? (
+                  <a
+                    href={judgment.sourceUrl ?? undefined}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    새 창에서 보기
+                  </a>
+                ) : (
+                  "없음"
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
       </section>
     </main>
   );
