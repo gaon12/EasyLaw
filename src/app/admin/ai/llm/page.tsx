@@ -19,7 +19,7 @@ export default function AdminAiLlmPage() {
   const db = getDatabase();
 
   return (
-    <AppShell variant="admin">
+    <AppShell variant="admin" subNavigation={<AdminAiSubnav active="llm" />}>
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
@@ -32,7 +32,6 @@ export default function AdminAiLlmPage() {
             </div>
             <span className={styles.badge}>AI 설정</span>
           </div>
-          <AdminAiSubnav active="llm" />
         </section>
 
         <section className={styles.section}>

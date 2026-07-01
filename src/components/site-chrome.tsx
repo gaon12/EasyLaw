@@ -161,14 +161,17 @@ export function AppFooter() {
 
 export function AppShell({
   children,
+  subNavigation,
   variant = "service",
 }: {
   children: ReactNode;
+  subNavigation?: ReactNode;
   variant?: ShellVariant;
 }) {
   return (
     <div className={styles.shell}>
       <AppHeader variant={variant} />
+      {subNavigation}
       {children}
       <AppFooter />
     </div>

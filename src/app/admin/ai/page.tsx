@@ -14,7 +14,10 @@ export const metadata = pageMetadata({
 
 export default function AdminAiPage() {
   return (
-    <AppShell variant="admin">
+    <AppShell
+      variant="admin"
+      subNavigation={<AdminAiSubnav active="overview" />}
+    >
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
@@ -27,7 +30,6 @@ export default function AdminAiPage() {
             </div>
             <span className={styles.badge}>최고 관리자</span>
           </div>
-          <AdminAiSubnav active="overview" />
         </section>
 
         <section className={styles.section}>
