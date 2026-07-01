@@ -1,10 +1,25 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 import { LocalTime } from "@/components/local-time";
 import type { JudgmentCollectionStatus } from "@/lib/judgment-collection";
+
+const collectionStages = [
+  "수집 요청 준비",
+  "공개 판례 목록 확인",
+  "새 판결문 저장",
+  "수집 결과 정리",
+] as const;
+
+type RunResponse = {
+  result: {
+    createdCount: number;
+    importedCount: number;
+    updatedCount: number;
+  };
+};
 
 export function AdminJudgmentCollectionPanel({
   status,
@@ -13,14 +28,31 @@ export function AdminJudgmentCollectionPanel({
 }) {
   const router = useRouter();
   const [message, setMessage] = useState(
-    "수집 설정을 저장하거나 지금 실행할 수 있어요.",
+    "전체 판례를 주기적으로 확인하고 새 판결문만 저장해요.",
   );
   const [noticeStatus, setNoticeStatus] = useState<
     "idle" | "success" | "error"
   >("idle");
   const [isSaving, setIsSaving] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [progressModalOpen, setProgressModalOpen] = useState(false);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [progressStageIndex, setProgressStageIndex] = useState(0);
+  const [runSummary, setRunSummary] = useState<string | null>(null);
   const isBusyRef = useRef(false);
+
+  useEffect(() => {
+    if (!isRunning) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      setProgressPercent((current) => Math.min(88, current + 9));
+      setProgressStageIndex((current) =>
+        Math.min(collectionStages.length - 2, current + 1),
+      );
+    }, 800);
+    return () => window.clearInterval(intervalId);
+  }, [isRunning]);
 
   async function submitRequest(body: unknown) {
     const response = await fetch("/api/admin/judgment-collection", {
@@ -37,7 +69,7 @@ export function AdminJudgmentCollectionPanel({
   return (
     <div className={styles.contentGrid}>
       <form
-        className={styles.contentCard}
+        className={`${styles.contentCard} ${styles.settingsForm} ${styles.collectionFormCard}`}
         onSubmit={async (event) => {
           event.preventDefault();
           if (isBusyRef.current) {
@@ -53,7 +85,6 @@ export function AdminJudgmentCollectionPanel({
               settings: {
                 enabled: formData.get("enabled") === "on",
                 intervalMinutes: formData.get("intervalMinutes"),
-                query: formData.get("query"),
               },
             });
             setNoticeStatus("success");
@@ -89,18 +120,13 @@ export function AdminJudgmentCollectionPanel({
           />
           <span>자동 수집 사용</span>
         </label>
-        <label className={styles.settingsField} htmlFor="collection-query">
-          <span className={styles.label}>검색어</span>
-          <input
-            className={styles.input}
-            defaultValue={status.query}
-            id="collection-query"
-            maxLength={100}
-            name="query"
-            required
-            type="text"
-          />
-        </label>
+        <div className={styles.collectionScope}>
+          <strong>전체 판례 증분 수집</strong>
+          <p>
+            검색어 없이 공개 판례 목록을 최신순으로 확인하고, 이미 저장된
+            판결문이 나오면 이번 수집을 멈춥니다.
+          </p>
+        </div>
         <label className={styles.settingsField} htmlFor="collection-interval">
           <span className={styles.label}>수집 주기(분)</span>
           <input
@@ -114,9 +140,6 @@ export function AdminJudgmentCollectionPanel({
             type="number"
           />
         </label>
-        <p>
-          수집은 공개 판례 검색 결과 전체를 페이지 단위로 끝까지 가져옵니다.
-        </p>
         <div className={styles.settingsActions}>
           <button
             className={styles.primaryButton}
@@ -135,12 +158,28 @@ export function AdminJudgmentCollectionPanel({
               isBusyRef.current = true;
               setIsRunning(true);
               setNoticeStatus("idle");
+              setProgressModalOpen(true);
+              setProgressPercent(8);
+              setProgressStageIndex(0);
+              setRunSummary(null);
+              setMessage("판결문 수집을 시작했어요.");
               try {
-                await submitRequest({ action: "run" });
+                const data = await submitRequest({ action: "run" });
+                const summary = isRunResponse(data)
+                  ? formatRunSummary(data.result)
+                  : "수집 결과를 정리했어요.";
+                setProgressPercent(100);
+                setProgressStageIndex(collectionStages.length - 1);
+                setRunSummary(summary);
                 setNoticeStatus("success");
-                setMessage("판결문 수집을 실행했어요.");
+                setMessage(summary);
                 router.refresh();
               } catch (_error) {
+                setProgressPercent(100);
+                setProgressStageIndex(collectionStages.length - 1);
+                setRunSummary(
+                  "수집을 마치지 못했어요. 잠시 후 다시 시도해 주세요.",
+                );
                 setNoticeStatus("error");
                 setMessage(
                   "수집을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
@@ -156,7 +195,7 @@ export function AdminJudgmentCollectionPanel({
           </button>
         </div>
       </form>
-      <div className={styles.contentCard}>
+      <div className={`${styles.contentCard} ${styles.collectionStatusCard}`}>
         <h3 className={styles.panelTitle}>수집 상태</h3>
         <dl className={styles.securityMeta}>
           <div>
@@ -191,6 +230,104 @@ export function AdminJudgmentCollectionPanel({
           )}
         </dl>
       </div>
+      {progressModalOpen && (
+        <div className={styles.modalBackdrop}>
+          <div
+            aria-labelledby="judgment-collection-progress-title"
+            aria-modal="true"
+            className={styles.progressModal}
+            role="dialog"
+          >
+            <div className={styles.progressModalHeader}>
+              <div className={styles.progressModalTop}>
+                <span className={styles.badge}>판결문 수집</span>
+                <strong>{Math.round(progressPercent)}%</strong>
+              </div>
+              <h2 id="judgment-collection-progress-title">
+                {isRunning
+                  ? "판결문을 수집하고 있어요"
+                  : noticeStatus === "error"
+                    ? "수집을 마치지 못했어요"
+                    : "수집이 끝났어요"}
+              </h2>
+              <p>
+                {runSummary ??
+                  "공개 판례 목록을 확인하면서 새 판결문만 저장하고 있어요."}
+              </p>
+            </div>
+            <div className={styles.progressMeta}>
+              <span>
+                {collectionStages[progressStageIndex] ?? "수집 결과 정리"}
+              </span>
+              <span>증분 수집</span>
+            </div>
+            <div
+              aria-label={`수집 진행률 ${Math.round(progressPercent)}%`}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={Math.round(progressPercent)}
+              className={styles.progressTrack}
+              role="progressbar"
+            >
+              <span style={{ width: `${progressPercent}%` }} />
+            </div>
+            <ol className={styles.progressSteps}>
+              {collectionStages.map((stage, index) => (
+                <li
+                  className={progressStepClass(index, progressStageIndex)}
+                  key={stage}
+                >
+                  {stage}
+                </li>
+              ))}
+            </ol>
+            {isRunning ? (
+              <span className={styles.progressHint}>
+                창을 닫지 않아도 수집은 계속 진행됩니다.
+              </span>
+            ) : (
+              <div className={styles.authModalActions}>
+                <button
+                  className={styles.primaryButton}
+                  onClick={() => setProgressModalOpen(false)}
+                  type="button"
+                >
+                  닫기
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function isRunResponse(value: unknown): value is RunResponse {
+  if (!isRecord(value) || !isRecord(value.result)) {
+    return false;
+  }
+  return (
+    typeof value.result.importedCount === "number" &&
+    typeof value.result.createdCount === "number" &&
+    typeof value.result.updatedCount === "number"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function formatRunSummary(result: RunResponse["result"]) {
+  return `수집 완료: ${result.importedCount.toLocaleString("ko-KR")}건 확인, 신규 ${result.createdCount.toLocaleString("ko-KR")}건 저장, 갱신 ${result.updatedCount.toLocaleString("ko-KR")}건`;
+}
+
+function progressStepClass(index: number, currentIndex: number) {
+  if (index < currentIndex) {
+    return `${styles.progressStep} ${styles.progressStepDone}`;
+  }
+  if (index === currentIndex) {
+    return `${styles.progressStep} ${styles.progressStepCurrent}`;
+  }
+  return styles.progressStep;
 }

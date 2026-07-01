@@ -15,7 +15,6 @@ const saveRequestSchema = z.object({
   settings: z.object({
     enabled: z.boolean(),
     intervalMinutes: z.coerce.number().int().min(10).max(10_080),
-    query: z.string().trim().min(1).max(100),
   }),
 });
 

@@ -11,7 +11,7 @@ import { addMinutesIso, nowIso } from "./time";
 import type { ExternalJudgmentRecord } from "./types";
 
 const SERVICE = "judgment-collection";
-const DEFAULT_QUERY = "손해배상";
+const COLLECTION_SCOPE_LABEL = "전체 판례";
 const COLLECTION_PAGE_SIZE = 100;
 const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
@@ -26,14 +26,12 @@ const settingKeys = {
   lastImportedCount: "judgment_collection_last_imported_count",
   lastRunAt: "judgment_collection_last_run_at",
   nextRunAt: "judgment_collection_next_run_at",
-  query: "judgment_collection_query",
   status: "judgment_collection_status",
 } as const;
 
 export type JudgmentCollectionSettings = {
   enabled: boolean;
   intervalMinutes: number;
-  query: string;
 };
 
 export type JudgmentCollectionStatus = JudgmentCollectionSettings & {
@@ -117,12 +115,10 @@ export function updateJudgmentCollectionSettings(
       MIN_INTERVAL_MINUTES,
       MAX_INTERVAL_MINUTES,
     ),
-    query: normalizeQuery(input.query ?? current.query),
   };
 
   setSetting(db, settingKeys.enabled, settings.enabled ? "true" : "false");
   setSetting(db, settingKeys.intervalMinutes, String(settings.intervalMinutes));
-  setSetting(db, settingKeys.query, settings.query);
   setSetting(db, settingKeys.nextRunAt, nextRunAtFromSettings(settings));
 
   logIntegrationEvent(db, {
@@ -255,7 +251,7 @@ async function runJudgmentCollectionInternal(
   ).run(
     runId,
     input.trigger,
-    settings.query,
+    COLLECTION_SCOPE_LABEL,
     COLLECTION_PAGE_SIZE,
     input.actorUserId ?? null,
     startedAt,
@@ -264,7 +260,7 @@ async function runJudgmentCollectionInternal(
   setSetting(db, settingKeys.lastRunAt, startedAt);
 
   try {
-    const records = await fetchAllOpenLawJudgments(db, settings.query, {
+    const records = await fetchAllOpenLawJudgments(db, {
       forceRefresh: input.forceRefresh,
     });
     let createdCount = 0;
@@ -306,7 +302,7 @@ async function runJudgmentCollectionInternal(
       metadata: {
         createdCount,
         pageSize: COLLECTION_PAGE_SIZE,
-        query: settings.query,
+        scope: COLLECTION_SCOPE_LABEL,
         trigger: input.trigger,
         updatedCount,
       },
@@ -346,7 +342,7 @@ async function runJudgmentCollectionInternal(
     logIntegrationEvent(db, {
       action: "collection.run",
       message: failureReason,
-      metadata: { query: settings.query, trigger: input.trigger },
+      metadata: { scope: COLLECTION_SCOPE_LABEL, trigger: input.trigger },
       service: SERVICE,
       status: "failed",
     });
@@ -372,13 +368,11 @@ function getJudgmentCollectionSettings(
       MIN_INTERVAL_MINUTES,
       MAX_INTERVAL_MINUTES,
     ),
-    query: normalizeQuery(getSetting(db, settingKeys.query) ?? DEFAULT_QUERY),
   };
 }
 
 async function fetchAllOpenLawJudgments(
   db: SqliteDatabase,
-  query: string,
   options: { forceRefresh?: boolean },
 ) {
   const records: ExternalJudgmentRecord[] = [];
@@ -386,7 +380,7 @@ async function fetchAllOpenLawJudgments(
   let page = 1;
 
   while (true) {
-    const pageRecords = await fetchOpenLawJudgments(db, query, {
+    const pageRecords = await fetchOpenLawJudgments(db, "", {
       display: COLLECTION_PAGE_SIZE,
       forceRefresh: options.forceRefresh,
       page,
@@ -396,17 +390,22 @@ async function fetchAllOpenLawJudgments(
     }
 
     let addedCount = 0;
+    let existingCount = 0;
     for (const record of pageRecords) {
       const key = `${record.sourceProvider}:${record.externalId}`;
       if (seen.has(key)) {
         continue;
       }
       seen.add(key);
+      if (hasJudgmentSource(db, record.sourceProvider, record.externalId)) {
+        existingCount += 1;
+        continue;
+      }
       records.push(record);
       addedCount += 1;
     }
 
-    if (addedCount === 0) {
+    if (addedCount === 0 || existingCount > 0) {
       break;
     }
     page += 1;
@@ -438,11 +437,6 @@ function nextRunAtFromSettings(settings: JudgmentCollectionSettings) {
 
 function addMinutesFromIso(value: string, minutes: number) {
   return new Date(new Date(value).getTime() + minutes * 60_000).toISOString();
-}
-
-function normalizeQuery(value: string) {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed.slice(0, 100) : DEFAULT_QUERY;
 }
 
 function parseIntegerSetting(

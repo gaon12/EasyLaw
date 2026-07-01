@@ -391,11 +391,23 @@ try {
     waitUntil: "networkidle",
   });
   await page.getByRole("heading", { name: "판결문 자동 수집" }).waitFor();
-  await page.getByLabel("검색어").waitFor();
+  if ((await page.getByLabel("검색어").count()) !== 0) {
+    throw new Error("Judgment collection still exposed a search query field.");
+  }
+  await page.getByText("전체 판례 증분 수집").waitFor();
   if ((await page.getByLabel("한 번에 가져올 건수").count()) !== 0) {
     throw new Error("Judgment collection still exposed a per-run limit.");
   }
-  await page.getByRole("button", { name: "지금 수집" }).waitFor();
+  await page.getByRole("button", { name: "지금 수집" }).click();
+  const collectionDialog = page.locator(
+    '[role="dialog"][aria-labelledby="judgment-collection-progress-title"]',
+  );
+  await collectionDialog.waitFor();
+  await collectionDialog.getByRole("progressbar").waitFor();
+  await collectionDialog.getByText("수집 결과 정리").waitFor({
+    timeout: 10000,
+  });
+  await collectionDialog.getByRole("button", { name: "닫기" }).click();
   if (
     (await page
       .locator('nav a[aria-current="page"][href="/admin/judgments"]')

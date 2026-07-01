@@ -345,10 +345,12 @@ test("manual judgment collection stores fetched public judgments", async () => {
   try {
     setSetting(db, "open_law_oc", "test-oc");
     const requestedPages: string[] = [];
+    const requestedQueries: Array<string | null> = [];
     globalThis.fetch = async (input) => {
       const url = new URL(String(input));
       const page = url.searchParams.get("page") ?? "1";
       requestedPages.push(page);
+      requestedQueries.push(url.searchParams.get("query"));
       const prec =
         page === "1"
           ? [
@@ -382,7 +384,6 @@ test("manual judgment collection stores fetched public judgments", async () => {
     updateJudgmentCollectionSettings(db, {
       enabled: true,
       intervalMinutes: 10,
-      query: "damages",
     });
     const result = await runJudgmentCollection(db, {
       forceRefresh: true,
@@ -391,6 +392,7 @@ test("manual judgment collection stores fetched public judgments", async () => {
     assert.equal(result.ok, true);
     assert.ok(result.ok);
     assert.deepEqual(requestedPages, ["1", "2", "3"]);
+    assert.deepEqual(requestedQueries, [null, null, null]);
     assert.equal(result.importedCount, 2);
     assert.equal(result.createdCount, 2);
 
@@ -416,6 +418,71 @@ test("manual judgment collection stores fetched public judgments", async () => {
     assert.equal(runs[0]?.trigger, "manual");
     assert.equal(runs[0]?.status, "success");
     assert.equal(runs[0]?.createdCount, 2);
+    assert.equal(runs[0]?.query, "전체 판례");
+
+    requestedPages.length = 0;
+    requestedQueries.length = 0;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const page = url.searchParams.get("page") ?? "1";
+      requestedPages.push(page);
+      requestedQueries.push(url.searchParams.get("query"));
+      const prec =
+        page === "1"
+          ? [
+              {
+                caseNumber: "2026Da1003",
+                courtName: "Supreme Court",
+                decidedOn: "20260703",
+                detailLink: "/DRF/lawService.do?target=prec&ID=auto-3",
+                precSeq: "auto-3",
+                title: "Newer collected judgment",
+              },
+              {
+                caseNumber: "2026Da1002",
+                courtName: "Supreme Court",
+                decidedOn: "20260702",
+                detailLink: "/DRF/lawService.do?target=prec&ID=auto-2",
+                precSeq: "auto-2",
+                title: "Existing collected judgment",
+              },
+            ]
+          : [
+              {
+                caseNumber: "2026Da1004",
+                courtName: "Supreme Court",
+                decidedOn: "20260704",
+                detailLink: "/DRF/lawService.do?target=prec&ID=auto-4",
+                precSeq: "auto-4",
+                title: "Should not be requested",
+              },
+            ];
+      return new Response(JSON.stringify({ PrecSearch: { prec } }), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
+
+    const secondResult = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+    assert.equal(secondResult.ok, true);
+    assert.ok(secondResult.ok);
+    assert.deepEqual(requestedPages, ["1"]);
+    assert.deepEqual(requestedQueries, [null]);
+    assert.equal(secondResult.importedCount, 1);
+    assert.equal(secondResult.createdCount, 1);
+    const afterIncremental = getPublicJudgments(db).filter(
+      (judgment) => judgment.sourceProvider === "open-law",
+    );
+    assert.ok(
+      afterIncremental.some((judgment) => judgment.caseNumber === "2026Da1003"),
+    );
+    assert.equal(
+      afterIncremental.some((judgment) => judgment.caseNumber === "2026Da1004"),
+      false,
+    );
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();

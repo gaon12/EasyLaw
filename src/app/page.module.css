@@ -3076,6 +3076,37 @@
   gap: 18px;
 }
 
+.collectionFormCard,
+.collectionStatusCard {
+  padding: 24px;
+}
+
+.collectionFormCard {
+  align-content: start;
+}
+
+.collectionScope {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  padding: 14px 16px;
+  background: var(--bg-muted);
+}
+
+.collectionScope strong {
+  color: var(--fg-strong);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.collectionScope p {
+  margin: 0;
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .settingsField {
   display: grid;
   gap: 8px;
@@ -3131,6 +3162,17 @@
 .settingsNoticeError {
   background: color-mix(in oklch, var(--fg-danger) 12%, var(--bg-surface));
   color: var(--fg-danger);
+}
+
+.collectionFormCard .settingsNotice,
+.collectionFormCard .settingsNoticeSuccess,
+.collectionFormCard .settingsNoticeError {
+  width: 100%;
+  min-height: auto;
+  align-items: flex-start;
+  border-radius: var(--radius-8);
+  padding: 12px 14px;
+  line-height: 1.5;
 }
 
 .dictionarySearch {

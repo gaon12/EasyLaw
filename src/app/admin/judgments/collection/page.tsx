@@ -34,8 +34,7 @@ export default function AdminJudgmentCollectionPage() {
             <div>
               <h1>판결문 자동 수집</h1>
               <p>
-                검색어와 주기를 관리하고, 공개 판례 검색 결과 전체를 페이지
-                단위로 끝까지 가져와요.
+                공개 판례 전체 목록을 주기적으로 확인하고 새 판결문만 저장해요.
               </p>
             </div>
             <span className={styles.badge}>Open Law</span>
@@ -55,16 +54,17 @@ export default function AdminJudgmentCollectionPage() {
             emptyMessage="아직 판결문 수집 실행 이력이 없어요."
             rows={collectionRuns.map((run) => {
               const result = `${run.importedCount}건 / 신규 ${run.createdCount} / 갱신 ${run.updatedCount}`;
+              const scope = "전체 판례";
               return {
                 cells: [
                   { kind: "datetime", value: run.startedAt },
                   run.trigger === "manual" ? "수동" : "자동",
                   run.status,
-                  { kind: "lines", lines: [run.query, result] },
+                  { kind: "lines", lines: [scope, result] },
                   run.failureReason,
                 ],
                 id: run.id,
-                searchText: `${run.startedAt} ${run.trigger} ${run.status} ${run.query} ${result} ${run.failureReason ?? ""}`,
+                searchText: `${run.startedAt} ${run.trigger} ${run.status} ${scope} ${result} ${run.failureReason ?? ""}`,
               };
             })}
             searchLabel="수집 이력 검색"
