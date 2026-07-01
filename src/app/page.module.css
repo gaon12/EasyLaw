@@ -6,6 +6,24 @@
   background: var(--bg-canvas);
 }
 
+.readingProgress {
+  height: 4px;
+  position: fixed;
+  z-index: 120;
+  top: 0;
+  right: 0;
+  left: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.readingProgress span {
+  height: 100%;
+  display: block;
+  background: var(--bg-brand);
+  box-shadow: 0 0 14px color-mix(in oklch, var(--bg-brand) 55%, transparent);
+}
+
 .visuallyHidden {
   width: 1px;
   height: 1px;
@@ -103,7 +121,7 @@
   justify-content: flex-end;
   gap: 18px;
   color: var(--fg-strong);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -571,7 +589,7 @@
   border-radius: var(--radius-8);
   padding: 0 16px;
   border: 1px solid transparent;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -633,7 +651,7 @@
 .authPanel p,
 .workspace p {
   color: var(--fg-secondary);
-  font-size: 16px;
+  font-size: 17px;
   line-height: 1.65;
 }
 
@@ -1305,7 +1323,7 @@
 .input {
   min-height: 46px;
   padding: 0 14px;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .textarea {
@@ -1313,7 +1331,7 @@
   resize: vertical;
   padding: 14px;
   line-height: 1.6;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .buttonRow {
@@ -1570,7 +1588,7 @@
   margin-top: 12px;
   color: var(--fg-strong);
   font-family: var(--font-display);
-  font-size: 32px;
+  font-size: 38px;
   line-height: 1.28;
   letter-spacing: -0.02em;
 }
@@ -1578,7 +1596,7 @@
 .judgmentViewerHero p {
   margin-top: 8px;
   color: var(--fg-secondary);
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.55;
 }
 
@@ -1625,7 +1643,7 @@
   border-radius: var(--radius-8);
   padding: 0 10px;
   color: var(--fg-strong);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -1686,7 +1704,7 @@
 .viewerMetaList dd,
 .viewerInfoGrid dd {
   color: var(--fg-default);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
@@ -1709,6 +1727,14 @@
   grid-column: 2 / 4;
 }
 
+.viewerRelated {
+  grid-column: 2 / 4;
+  padding: 22px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+}
+
 .viewerPanelHeader {
   display: flex;
   align-items: flex-start;
@@ -1718,21 +1744,21 @@
 
 .viewerPanelHeader h2 {
   color: var(--fg-strong);
-  font-size: 20px;
+  font-size: 23px;
   line-height: 1.35;
 }
 
 .viewerPanelHeader p {
   margin-top: 4px;
   color: var(--fg-secondary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.55;
 }
 
 .viewerText {
   color: var(--fg-default);
-  font-size: 16px;
-  line-height: 1.88;
+  font-size: 18px;
+  line-height: 1.86;
 }
 
 .judgmentDocumentSection,
@@ -1759,7 +1785,7 @@
 .judgmentDocumentSection h3,
 .judgmentDocumentOrder h3 {
   color: var(--fg-strong);
-  font-size: 19px;
+  font-size: 24px;
   line-height: 1.35;
 }
 
@@ -1786,7 +1812,7 @@
   margin-top: 12px;
   padding-top: 16px;
   border-top: 1px solid var(--border-subtle);
-  font-size: 18px;
+  font-size: 21px;
   font-weight: 850;
 }
 
@@ -1799,14 +1825,14 @@
 .judgmentBlockHeading4 {
   margin-top: 8px;
   color: var(--fg-brand);
-  font-size: 16px;
+  font-size: 19px;
   font-weight: 850;
 }
 
 .judgmentBlockHeading5 {
   margin-top: 4px;
   color: var(--fg-secondary);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 800;
 }
 
@@ -1875,6 +1901,46 @@
 .viewerInfoGrid a {
   color: var(--fg-brand);
   font-weight: 800;
+}
+
+.relatedCaseList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.relatedCaseList a {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  background: var(--bg-muted);
+}
+
+.relatedCaseList a:hover {
+  border-color: var(--border-default);
+  background: var(--bg-brand-subtle);
+}
+
+.relatedCaseList span {
+  color: var(--fg-brand);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.relatedCaseList strong {
+  color: var(--fg-strong);
+  font-size: 18px;
+}
+
+.relatedCaseList small {
+  overflow: hidden;
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wikiList,
@@ -2190,7 +2256,7 @@
 
 .wikiArticleHeader p {
   margin-top: 12px;
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .wikiArticleHeader > div {
@@ -2219,7 +2285,7 @@
 
 .wikiArticleFooter span {
   color: var(--fg-secondary);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .wikiBacklink {
@@ -2497,7 +2563,7 @@
 .termPopover p,
 .termPopover li {
   color: var(--fg-default);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.65;
 }
 
@@ -2518,6 +2584,19 @@
   color: var(--fg-tertiary);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.termAiLink {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border-radius: var(--radius-full);
+  padding: 0 12px;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .settingsForm {
@@ -3116,6 +3195,7 @@
   }
 
   .viewerInsight,
+  .viewerRelated,
   .viewerInfo {
     grid-column: 2;
     position: static;
@@ -3162,6 +3242,10 @@
   }
 
   .viewerInsight {
+    grid-column: auto;
+  }
+
+  .viewerRelated {
     grid-column: auto;
   }
 
@@ -3305,6 +3389,7 @@
 
   .viewerDocument,
   .viewerInsight,
+  .viewerRelated,
   .viewerInfo {
     padding: 18px;
   }
@@ -3318,7 +3403,7 @@
   }
 
   .viewerText {
-    font-size: 16px;
+    font-size: 17px;
     line-height: 1.82;
   }
 

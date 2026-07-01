@@ -121,7 +121,7 @@ body {
   color: var(--fg-default);
   background: var(--bg-canvas);
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: 1.0625rem;
   font-feature-settings: "ss20", "calt", "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
