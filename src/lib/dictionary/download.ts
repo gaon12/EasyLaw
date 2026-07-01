@@ -4,8 +4,8 @@ import path from "node:path";
 import { unzipSync } from "fflate";
 
 const maxZipBytes = 300 * 1024 * 1024;
-const maxUncompressedBytes = 700 * 1024 * 1024;
-const maxJsonFiles = 200;
+const maxUncompressedBytes = 2 * 1024 * 1024 * 1024;
+const maxJsonFiles = 500;
 
 export async function downloadJsonZip(input: {
   body?: URLSearchParams;
