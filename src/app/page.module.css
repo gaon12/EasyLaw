@@ -2726,6 +2726,13 @@
   line-height: 1.6;
 }
 
+.authError {
+  color: var(--fg-danger);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 .authDevLink {
   width: fit-content;
   color: var(--fg-brand);

@@ -170,7 +170,7 @@ export function consumeMagicLink(db: SqliteDatabase, token: string) {
   return {
     ok: true as const,
     userId: user.id,
-    requiresTotp: user.totp_enabled === 1,
+    requiresTotp: user.totp_enabled === 1 || isTotpRequiredForUser(db, user),
   };
 }
 
