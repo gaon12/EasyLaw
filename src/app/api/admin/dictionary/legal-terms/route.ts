@@ -1,7 +1,10 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { getDatabase } from "@/lib/db";
-import { addLegalDictionaryTerm } from "@/lib/dictionary";
+import {
+  addLegalDictionaryTerm,
+  listLegalDictionaryTerms,
+} from "@/lib/dictionary";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -13,6 +16,18 @@ const requestSchema = z.object({
   partOfSpeech: z.string().trim().max(40).optional(),
   word: z.string().trim().min(1).max(80),
 });
+
+export async function GET(request: Request) {
+  const db = getDatabase();
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
+  if (user?.role !== "super_admin") {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get("q") ?? "";
+  return Response.json({ terms: listLegalDictionaryTerms(db, query) });
+}
 
 export async function POST(request: Request) {
   const db = getDatabase();
@@ -27,5 +42,9 @@ export async function POST(request: Request) {
   }
 
   const importedCount = addLegalDictionaryTerm(db, input.data);
-  return Response.json({ importedCount, ok: true });
+  return Response.json({
+    importedCount,
+    ok: true,
+    terms: listLegalDictionaryTerms(db, input.data.word),
+  });
 }

@@ -5,6 +5,16 @@ import { dedupeTerms } from "./extract";
 import type { DictionarySource, DictionaryTerm } from "./types";
 import { sourcePriority } from "./types";
 
+export type LegalDictionaryTermRow = {
+  definition: string;
+  id: string;
+  origin: string | null;
+  partOfSpeech: string | null;
+  senseNo: string;
+  updatedAt: string;
+  word: string;
+};
+
 export function findDictionaryTerms(db: SqliteDatabase, word: string) {
   return db
     .prepare<
@@ -79,6 +89,62 @@ export function latestDictionaryImport(
         LIMIT 1`,
     )
     .get();
+}
+
+export function listLegalDictionaryTerms(
+  db: SqliteDatabase,
+  query = "",
+): LegalDictionaryTermRow[] {
+  const trimmedQuery = query.trim();
+  const selectSql = `SELECT id, word, sense_no, part_of_speech, definition, origin, updated_at
+    FROM dictionary_terms
+    WHERE source = 'legal'`;
+  const orderSql = `ORDER BY updated_at DESC, word ASC
+    LIMIT 100`;
+
+  const rows = trimmedQuery
+    ? db
+        .prepare<
+          [string, string],
+          {
+            definition: string;
+            id: string;
+            origin: string | null;
+            part_of_speech: string | null;
+            sense_no: string;
+            updated_at: string;
+            word: string;
+          }
+        >(
+          `${selectSql}
+            AND (word LIKE ? OR definition LIKE ?)
+          ${orderSql}`,
+        )
+        .all(`%${trimmedQuery}%`, `%${trimmedQuery}%`)
+    : db
+        .prepare<
+          [],
+          {
+            definition: string;
+            id: string;
+            origin: string | null;
+            part_of_speech: string | null;
+            sense_no: string;
+            updated_at: string;
+            word: string;
+          }
+        >(`${selectSql} ${orderSql}`)
+        .all();
+
+  return rows.map((row) => ({
+    definition: row.definition,
+    id: row.id,
+    origin: row.origin,
+    partOfSpeech: row.part_of_speech,
+    senseNo: row.sense_no,
+    updatedAt: row.updated_at,
+    word: row.word,
+  }));
 }
 
 export function startDictionaryImport(

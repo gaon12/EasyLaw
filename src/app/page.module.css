@@ -373,7 +373,6 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 30px;
-  margin-top: 18px;
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-muted);
@@ -2541,6 +2540,61 @@
   margin-top: 6px;
 }
 
+.progressModal {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.progressModal h2 {
+  margin-top: 10px;
+  color: var(--fg-strong);
+  font-family: var(--font-display);
+  font-size: 25px;
+  font-weight: 850;
+}
+
+.progressModal p {
+  margin-top: 8px;
+  color: var(--fg-secondary);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.progressTrack {
+  height: 10px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-muted);
+}
+
+.progressTrack span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--bg-brand);
+  transition: width 240ms ease;
+}
+
+.progressSteps {
+  display: grid;
+  gap: 8px;
+  padding-left: 20px;
+  color: var(--fg-tertiary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.progressStepActive {
+  color: var(--fg-brand);
+  font-weight: 850;
+}
+
 .globalErrorShell {
   min-height: 100vh;
   display: grid;
@@ -2684,6 +2738,38 @@
 .settingsNoticeError {
   background: color-mix(in oklch, var(--fg-danger) 12%, var(--bg-surface));
   color: var(--fg-danger);
+}
+
+.dictionarySearch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.termItemHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.termItemHeader span {
+  color: var(--fg-tertiary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.emptyState {
+  padding: 16px;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-8);
+  color: var(--fg-secondary);
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 .footer {
@@ -3313,6 +3399,19 @@
     display: none;
   }
 
+  .subNav {
+    justify-content: flex-start;
+    gap: 24px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 0 20px;
+    scrollbar-width: none;
+  }
+
+  .subNav::-webkit-scrollbar {
+    display: none;
+  }
+
   .documentBody {
     grid-template-columns: 1fr;
   }
@@ -3356,6 +3455,10 @@
 
   .headerActions > a {
     display: none;
+  }
+
+  .dictionarySearch {
+    grid-template-columns: 1fr;
   }
 
   .utilityBar {

@@ -5,6 +5,11 @@ export {
   updateDownloadableDictionaries,
 } from "./importers";
 export { addLegalDictionaryTerm } from "./legal";
-export { findDictionaryTerms, latestDictionaryImport } from "./repository";
+export type { LegalDictionaryTermRow } from "./repository";
+export {
+  findDictionaryTerms,
+  latestDictionaryImport,
+  listLegalDictionaryTerms,
+} from "./repository";
 export type { DictionarySource, DictionaryTerm } from "./types";
 export { dictionarySources, isDictionarySource } from "./types";
