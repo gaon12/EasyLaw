@@ -43,6 +43,10 @@ import {
 import { parseJudgmentDocument } from "../src/lib/judgment-document";
 import { extractRelatedCaseReferences } from "../src/lib/judgment-relations";
 import { buildResearchPlan } from "../src/lib/legal-research";
+import {
+  completeLoginChallenge,
+  createLoginChallenge,
+} from "../src/lib/login-challenge";
 import { sendReadyNotifications } from "../src/lib/notifications";
 import {
   getPublicJudgmentByIdentifier,
@@ -716,6 +720,83 @@ test("optional accounts can disable 2FA and invalidate recovery codes", async ()
         verified.ok ? verified.recoveryCodes[0] : "",
       ).ok,
       false,
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test("email verification cannot create a session before required 2FA", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    const user = ensureUser(db, "required-login-2fa@example.com");
+    db.prepare(
+      "UPDATE users SET role = 'admin', totp_required = 1 WHERE id = ?",
+    ).run(user.id);
+    await createTotpEnrollment(db, user.id);
+    const enrolled = db
+      .prepare<[string], { totp_secret_ciphertext: string }>(
+        "SELECT totp_secret_ciphertext FROM users WHERE id = ?",
+      )
+      .get(user.id);
+    assert.ok(enrolled);
+    const secret = decryptSecret(enrolled.totp_secret_ciphertext);
+    const enrollmentCode = await generate({ secret });
+    assert.equal(
+      (await verifyTotpEnrollment(db, user.id, enrollmentCode)).ok,
+      true,
+    );
+
+    const magicLink = createMagicLink(db, user.email);
+    assert.ok(magicLink.ok);
+    const emailVerified = consumeMagicLink(
+      db,
+      magicLink.ok ? magicLink.token : "",
+    );
+    assert.deepEqual(emailVerified, {
+      ok: true,
+      requiresTotp: true,
+      userId: user.id,
+    });
+    assert.equal(
+      db
+        .prepare<[], { count: number }>(
+          "SELECT COUNT(*) count FROM user_sessions",
+        )
+        .get()?.count,
+      0,
+    );
+
+    const challenge = createLoginChallenge(db, user.id);
+    assert.deepEqual(
+      await completeLoginChallenge(db, challenge.token, "000000"),
+      { ok: false, reason: "invalid_code" },
+    );
+    assert.equal(
+      db
+        .prepare<[], { count: number }>(
+          "SELECT COUNT(*) count FROM user_sessions",
+        )
+        .get()?.count,
+      0,
+    );
+
+    const loginCode = await generate({ secret });
+    const completed = await completeLoginChallenge(
+      db,
+      challenge.token,
+      loginCode,
+    );
+    assert.equal(completed.ok, true);
+    assert.equal(
+      completed.ok
+        ? getSessionUser(db, completed.session.token)?.id
+        : undefined,
+      user.id,
+    );
+    assert.deepEqual(
+      await completeLoginChallenge(db, challenge.token, loginCode),
+      { ok: false, reason: "invalid_challenge" },
     );
   } finally {
     cleanup();

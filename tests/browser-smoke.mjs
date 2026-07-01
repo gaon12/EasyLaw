@@ -1,7 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, rmSync } from "node:fs";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Database from "better-sqlite3";
 import { generate } from "otplib";
 import { chromium } from "playwright";
 
@@ -324,6 +326,90 @@ try {
       "Administration overview still exposed duplicate action buttons.",
     );
   }
+
+  const loginChallengeContext = await browser.newContext();
+  const loginChallengePage = await loginChallengeContext.newPage();
+  trackHydrationWarnings(loginChallengePage);
+  const magicToken = randomBytes(32).toString("base64url");
+  const masterKey = Buffer.from(
+    readFileSync(join(tempDir, ".master-key"), "utf8").trim(),
+    "base64url",
+  );
+  const magicTokenHash = createHmac(
+    "sha256",
+    createHash("sha256").update(masterKey).update("easylaw:hmac:v1").digest(),
+  )
+    .update(magicToken)
+    .digest("hex");
+  const browserDb = new Database(env.EASYLAW_TEST_DATABASE_PATH);
+  const adminUser = browserDb
+    .prepare("SELECT id FROM users WHERE email = ?")
+    .get("first@example.com");
+  if (!adminUser) {
+    throw new Error("Setup administrator was not available for 2FA login.");
+  }
+  const now = new Date();
+  browserDb
+    .prepare(
+      `INSERT INTO magic_links
+        (id, user_id, token_hash, expires_at, created_at)
+        VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(
+      `magic_${randomUUID()}`,
+      adminUser.id,
+      magicTokenHash,
+      new Date(now.getTime() + 15 * 60_000).toISOString(),
+      now.toISOString(),
+    );
+  browserDb.close();
+
+  await loginChallengePage.goto(
+    `${baseUrl}/api/auth/magic-link/consume?token=${encodeURIComponent(magicToken)}&next=%2Fadmin`,
+    { waitUntil: "networkidle" },
+  );
+  await loginChallengePage.waitForURL("**/login/2fa**");
+  const loginChallengeUrl = new URL(loginChallengePage.url());
+  if (
+    loginChallengeUrl.origin !== baseUrl ||
+    loginChallengeUrl.pathname !== "/login/2fa" ||
+    loginChallengeUrl.searchParams.get("next") !== "/admin"
+  ) {
+    throw new Error(
+      `2FA login challenge used an unexpected URL: ${loginChallengeUrl}`,
+    );
+  }
+  await loginChallengePage
+    .getByRole("heading", { name: "2차 인증(2FA)" })
+    .waitFor();
+  const preTotpSession = await loginChallengePage.request.get(
+    `${baseUrl}/api/auth/session`,
+  );
+  if ((await preTotpSession.json()).authenticated !== false) {
+    throw new Error("Email verification created a session before 2FA.");
+  }
+  const browserLoginCode = await generate({ secret });
+  await loginChallengePage.getByLabel("인증 앱 코드").fill(browserLoginCode);
+  await loginChallengePage
+    .getByRole("button", { name: "2FA 인증하고 로그인" })
+    .click();
+  await loginChallengePage.waitForURL(`${baseUrl}/admin`);
+  const postTotpSession = await loginChallengePage.request.get(
+    `${baseUrl}/api/auth/session`,
+  );
+  if ((await postTotpSession.json()).authenticated !== true) {
+    throw new Error("Valid 2FA did not create a login session.");
+  }
+  if (
+    (
+      await loginChallengePage.request.post(`${baseUrl}/api/auth/login/totp`, {
+        data: { code: await generate({ secret }) },
+      })
+    ).status() !== 401
+  ) {
+    throw new Error("Consumed 2FA login challenge could be reused.");
+  }
+  await loginChallengeContext.close();
 
   const anonymousContext = await browser.newContext();
   const anonymousPage = await anonymousContext.newPage();
