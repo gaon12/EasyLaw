@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 
 type AuthEmailFormProps = {
@@ -16,6 +16,42 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<AuthStatus>("idle");
   const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    if (status !== "success") {
+      return;
+    }
+
+    let disposed = false;
+    async function redirectIfSignedIn() {
+      try {
+        const response = await fetch("/api/auth/session", {
+          cache: "no-store",
+        });
+        const data = await response.json();
+        if (!disposed && data.authenticated === true) {
+          window.location.assign(safeNextPath(nextPath));
+        }
+      } catch (_error) {
+        return;
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void redirectIfSignedIn();
+      }
+    }
+
+    window.addEventListener("focus", redirectIfSignedIn);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    void redirectIfSignedIn();
+    return () => {
+      disposed = true;
+      window.removeEventListener("focus", redirectIfSignedIn);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [nextPath, status]);
 
   async function submit() {
     if (isSubmittingRef.current) {
@@ -127,6 +163,13 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
       />
     </>
   );
+}
+
+function safeNextPath(value: string | undefined) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+    return "/";
+  }
+  return value;
 }
 
 function AuthStatusModal({
