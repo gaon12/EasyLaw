@@ -166,7 +166,11 @@ export function TermExplainer() {
       {explanation && (
         <>
           <section>
-            <strong>사전 · {explanation.priority}</strong>
+            <strong>
+              {explanation.definitions.length > 0
+                ? `사전 · ${explanation.priority}`
+                : "문맥 설명"}
+            </strong>
             {explanation.definitions.length > 0 ? (
               <ol>
                 {explanation.definitions.map((item) => (
@@ -186,7 +190,8 @@ export function TermExplainer() {
             <p>{explanation.aiExplanation}</p>
             {!explanation.aiAvailable && (
               <small>
-                MCP 엔드포인트를 연결하면 확장 설명을 붙일 수 있어요.
+                확장 설명을 준비 중이에요. 지금은 선택한 문맥을 바탕으로 간단히
+                안내합니다.
               </small>
             )}
             <a className={styles.termAiLink} href={researchHref(term, context)}>

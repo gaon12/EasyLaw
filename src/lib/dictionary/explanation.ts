@@ -24,7 +24,7 @@ export function buildTermExplanation(
     definitions,
     plain:
       selectedDefinition?.definition ??
-      "아직 로컬 사전에서 찾지 못했어요. 관리자센터에서 사전 데이터를 업데이트해 주세요.",
+      "사전에 바로 잡히지 않는 표현이에요. 문장 안에서 쓰인 방식과 함께 살펴볼게요.",
     priority:
       selectedDefinition?.source === "legal"
         ? "자체 법률 용어 사전"
@@ -46,7 +46,7 @@ function contextualMessage(term: string, definition: string, context?: string) {
 
 function fallbackContextualMessage(term: string, context?: string) {
   if (!context) {
-    return "로컬 사전에서 찾지 못했어요. AI 질문으로 이어가면 법률 문맥을 더 넓게 확인할 수 있어요.";
+    return "사전에 바로 잡히지 않는 표현이에요. AI 질문으로 이어가면 법률 문맥을 더 넓게 확인할 수 있어요.";
   }
-  return `"${term}"은(는) 로컬 사전에 바로 매칭되지는 않았어요. 선택한 문장 주변의 주장, 판단 이유, 조문 근거를 함께 보면 의미를 좁힐 수 있습니다.`;
+  return `"${term}"은(는) 사전에 바로 잡히지는 않지만, 선택한 문장 주변의 주장, 판단 이유, 조문 근거를 함께 보면 의미를 좁힐 수 있습니다.`;
 }
