@@ -28,13 +28,34 @@ export function findDictionaryTerms(db: SqliteDatabase, word: string) {
         word: string;
       }
     >(
-      `SELECT word, sense_no, part_of_speech, definition, origin, source
+      `WITH ranked_terms AS (
+        SELECT word,
+          sense_no,
+          part_of_speech,
+          definition,
+          origin,
+          source,
+          ROW_NUMBER() OVER (
+            PARTITION BY source
+            ORDER BY CAST(NULLIF(sense_no, '') AS INTEGER),
+              definition
+          ) AS source_rank,
+          CASE source
+            WHEN 'legal' THEN 0
+            WHEN 'basic' THEN 1
+            WHEN 'standard' THEN 2
+            ELSE 9
+          END AS source_order
         FROM dictionary_terms
         WHERE word = ?
-        ORDER BY priority ASC,
-          CAST(NULLIF(sense_no, '') AS INTEGER),
-          definition
-        LIMIT 8`,
+      )
+      SELECT word, sense_no, part_of_speech, definition, origin, source
+      FROM ranked_terms
+      WHERE source_rank <= 4
+      ORDER BY source_order ASC,
+        source_rank ASC,
+        definition
+      LIMIT 12`,
     )
     .all(word.trim())
     .map((row) => ({

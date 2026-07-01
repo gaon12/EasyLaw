@@ -12,9 +12,9 @@ export type DictionaryTerm = {
 };
 
 export const sourcePriority = {
-  legal: 1,
-  basic: 2,
-  standard: 3,
+  legal: 0,
+  basic: 1,
+  standard: 2,
 } satisfies Record<DictionarySource, number>;
 
 export function isDictionarySource(value: string): value is DictionarySource {

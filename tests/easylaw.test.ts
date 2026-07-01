@@ -850,8 +850,8 @@ test("term explanations prefer legal terms over public dictionaries", () => {
       `INSERT INTO dictionary_terms
         (id, source, priority, word, sense_no, definition, raw_json, updated_at)
         VALUES
-        ('dict_basic_test', 'basic', 2, '기판력', '1', '기초 사전 설명', '{}', ?),
-        ('dict_standard_test', 'standard', 3, '기판력', '1', '표준 사전 설명', '{}', ?)`,
+        ('dict_basic_test', 'basic', 1, '기판력', '1', '기초 사전 설명', '{}', ?),
+        ('dict_standard_test', 'standard', 2, '기판력', '1', '표준 사전 설명', '{}', ?)`,
     ).run(new Date().toISOString(), new Date().toISOString());
     addLegalDictionaryTerm(db, {
       definition: "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
@@ -863,6 +863,51 @@ test("term explanations prefer legal terms over public dictionaries", () => {
     assert.equal(
       explanation.definitions[0]?.definition,
       "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test("term explanations keep standard dictionary after basic senses", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const now = new Date().toISOString();
+    const insert = db.prepare(
+      `INSERT INTO dictionary_terms
+        (id, source, priority, word, sense_no, definition, raw_json, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, '{}', ?)`,
+    );
+    for (let index = 1; index <= 10; index += 1) {
+      insert.run(
+        `dict_basic_priority_${index}`,
+        "basic",
+        1,
+        "권리",
+        String(index),
+        `기초 사전 설명 ${index}`,
+        now,
+      );
+    }
+    insert.run(
+      "dict_standard_priority",
+      "standard",
+      2,
+      "권리",
+      "1",
+      "표준 사전 설명",
+      now,
+    );
+
+    const explanation = buildTermExplanation(db, { term: "권리" });
+    assert.equal(explanation.priority, "한국어기초사전");
+    assert.equal(explanation.definitions[0]?.source, "basic");
+    assert.ok(
+      explanation.definitions.some(
+        (definition) =>
+          definition.source === "standard" &&
+          definition.definition === "표준 사전 설명",
+      ),
     );
   } finally {
     cleanup();
