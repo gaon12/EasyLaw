@@ -25,6 +25,7 @@ type Plan = {
   coverageLabel: string;
   coverageLevel: number;
   intent: string;
+  mode: "quick" | "overview" | "deep";
   steps: ResearchStep[];
 };
 
@@ -67,6 +68,7 @@ export function LegalResearchPanel({
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [answer, setAnswer] = useState("");
   const [phase, setPhase] = useState("");
+  const [warning, setWarning] = useState("");
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
   );
@@ -89,8 +91,11 @@ export function LegalResearchPanel({
     if (event === "evidence") {
       setEvidence((current) => [...current, data as Evidence]);
     }
-    if (event === "token") {
-      setAnswer((current) => `${current}${data as string}`);
+    if (event === "answer" && isRecord(data) && typeof data.text === "string") {
+      setAnswer(data.text);
+    }
+    if (event === "warning" && typeof data === "string") {
+      setWarning(data);
     }
     if (event === "phase" && typeof data === "string") {
       setPhase(data);
@@ -116,6 +121,7 @@ export function LegalResearchPanel({
       setEvidence([]);
       setAnswer("");
       setPhase("");
+      setWarning("");
 
       try {
         const response = await fetch("/api/research/stream", {
@@ -296,7 +302,6 @@ export function LegalResearchPanel({
                 <span className={styles.badge}>AI 오버뷰</span>
                 <h2>{plan.coverageLabel}</h2>
               </div>
-              <span className={styles.aiLevel}>Level {plan.coverageLevel}</span>
             </header>
             <div className={styles.aiOverviewMeta}>
               <span>{plan.intent}</span>
@@ -304,14 +309,14 @@ export function LegalResearchPanel({
 
             {answer && (
               <section className={styles.aiAnswerBlock}>
-                <h3>답변 초안</h3>
+                <h3>AI 답변</h3>
                 <p>{answer}</p>
               </section>
             )}
 
-            {evidence.length > 0 && (
+            {answer && evidence.length > 0 && (
               <section className={styles.aiSources}>
-                <h3>근거 후보</h3>
+                <h3>출처</h3>
                 <div>
                   {evidence.map((item, index) => (
                     <article key={`${item.source}-${item.title}`}>
@@ -352,7 +357,7 @@ export function LegalResearchPanel({
         {!plan && answer && (
           <article className={styles.aiOverviewCard}>
             <section className={styles.aiAnswerBlock}>
-              <h3>답변 초안</h3>
+              <h3>AI 답변</h3>
               <p>{answer}</p>
             </section>
           </article>
@@ -361,7 +366,9 @@ export function LegalResearchPanel({
         {status === "loading" && answer && (
           <div className={styles.aiStreamingNotice}>
             <span />
-            답변을 이어 쓰는 중이에요.
+            {phase === "verifying"
+              ? "고위험 쟁점을 한 번 더 확인하는 중이에요."
+              : "답변을 정리하는 중이에요."}
           </div>
         )}
 
@@ -373,6 +380,7 @@ export function LegalResearchPanel({
         )}
 
         {status === "error" && <p className={styles.notice}>{errorMessage}</p>}
+        {warning && <p className={styles.notice}>{warning}</p>}
         {status === "captcha" && (
           <>
             <p className={styles.notice}>{errorMessage}</p>

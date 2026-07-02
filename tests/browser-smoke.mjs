@@ -28,6 +28,7 @@ const llmServer = createServer((request, response) => {
       ? JSON.stringify({
           coverageLevel: 2,
           intent: "손해 발생 시 책임과 대응 절차 확인",
+          mode: "overview",
           searchQueries: ["손해배상"],
           targets: ["law", "prec"],
         })
@@ -822,9 +823,9 @@ try {
   );
   await page.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
   await page
-    .getByRole("heading", { name: "답변 초안" })
+    .getByRole("heading", { name: "AI 답변" })
     .waitFor({ timeout: 15_000 });
-  await page.getByRole("heading", { name: "근거 후보" }).waitFor();
+  await page.getByRole("heading", { name: "출처" }).waitFor();
   if ((await page.getByText(/^모델 /).count()) !== 0) {
     throw new Error("Research overview exposed the internal model name.");
   }
