@@ -43,6 +43,7 @@ import {
   createOrAttachGenerationJob,
 } from "../src/lib/jobs";
 import {
+  getJudgmentCollectionProgress,
   getJudgmentCollectionStatus,
   listJudgmentCollectionRuns,
   runJudgmentCollection,
@@ -528,6 +529,11 @@ test("manual judgment collection stores fetched public judgments", async () => {
     assert.equal(runs[0]?.status, "success");
     assert.equal(runs[0]?.createdCount, 2);
     assert.equal(runs[0]?.query, "전체 판례·헌재·법령");
+    const progress = getJudgmentCollectionProgress(db);
+    assert.equal(progress?.stage, "done");
+    assert.equal(progress?.percent, 100);
+    assert.equal(progress?.current, 2);
+    assert.equal(progress?.total, 2);
 
     requestedSearches.length = 0;
     requestedDetails.length = 0;
@@ -614,6 +620,10 @@ test("manual judgment collection stores fetched public judgments", async () => {
     assert.deepEqual(requestedQueries, [null, null, null]);
     assert.equal(secondResult.importedCount, 1);
     assert.equal(secondResult.createdCount, 1);
+    const secondProgress = getJudgmentCollectionProgress(db);
+    assert.equal(secondProgress?.stage, "done");
+    assert.equal(secondProgress?.current, 1);
+    assert.equal(secondProgress?.total, 1);
     const afterIncremental = getPublicJudgments(db).filter(
       (judgment) => judgment.sourceProvider === "open-law",
     );

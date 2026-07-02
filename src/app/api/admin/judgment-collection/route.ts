@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { getDatabase } from "@/lib/db";
 import {
+  getJudgmentCollectionProgress,
   runJudgmentCollection,
   updateJudgmentCollectionSettings,
 } from "@/lib/judgment-collection";
@@ -26,6 +27,19 @@ const requestSchema = z.discriminatedUnion("action", [
   saveRequestSchema,
   runRequestSchema,
 ]);
+
+export async function GET() {
+  const db = getDatabase();
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
+  if (user?.role !== "super_admin") {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  return Response.json({
+    ok: true,
+    progress: getJudgmentCollectionProgress(db),
+  });
+}
 
 export async function POST(request: Request) {
   const db = getDatabase();

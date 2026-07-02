@@ -415,4 +415,18 @@ export const migrations = [
         ON judgment_collection_runs(status, started_at);
     `,
   },
+  {
+    id: 12,
+    name: "judgment_collection_progress",
+    sql: `
+      ALTER TABLE judgment_collection_runs
+        ADD COLUMN progress_stage TEXT NOT NULL DEFAULT 'preparing';
+      ALTER TABLE judgment_collection_runs
+        ADD COLUMN progress_current INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE judgment_collection_runs
+        ADD COLUMN progress_total INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE judgment_collection_runs
+        ADD COLUMN progress_message TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ] as const;

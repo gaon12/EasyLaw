@@ -21,6 +21,19 @@ type RunResponse = {
   };
 };
 
+type ProgressStage = "preparing" | "listing" | "saving" | "finalizing" | "done";
+
+type ProgressResponse = {
+  progress: {
+    current: number;
+    message: string;
+    percent: number;
+    stage: ProgressStage;
+    status: string;
+    total: number;
+  } | null;
+};
+
 export function AdminJudgmentCollectionPanel({
   status,
 }: {
@@ -39,19 +52,38 @@ export function AdminJudgmentCollectionPanel({
   const [progressPercent, setProgressPercent] = useState(0);
   const [progressStageIndex, setProgressStageIndex] = useState(0);
   const [runSummary, setRunSummary] = useState<string | null>(null);
+  const [progressDetail, setProgressDetail] = useState("준비 중");
   const isBusyRef = useRef(false);
 
   useEffect(() => {
     if (!isRunning) {
       return;
     }
-    const intervalId = window.setInterval(() => {
-      setProgressPercent((current) => Math.min(88, current + 9));
-      setProgressStageIndex((current) =>
-        Math.min(collectionStages.length - 2, current + 1),
-      );
-    }, 800);
-    return () => window.clearInterval(intervalId);
+
+    let isMounted = true;
+    async function pollProgress() {
+      try {
+        const progress = await fetchCollectionProgress();
+        if (!isMounted || !progress) {
+          return;
+        }
+        setProgressPercent(progress.percent);
+        setProgressStageIndex(stageIndex(progress.stage));
+        setProgressDetail(formatProgressDetail(progress));
+        setRunSummary(progress.message || null);
+      } catch (_error) {
+        if (isMounted) {
+          setProgressDetail("진행 상태를 다시 확인하고 있어요.");
+        }
+      }
+    }
+
+    void pollProgress();
+    const intervalId = window.setInterval(() => void pollProgress(), 800);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, [isRunning]);
 
   async function submitRequest(body: unknown) {
@@ -159,9 +191,10 @@ export function AdminJudgmentCollectionPanel({
               setIsRunning(true);
               setNoticeStatus("idle");
               setProgressModalOpen(true);
-              setProgressPercent(8);
+              setProgressPercent(2);
               setProgressStageIndex(0);
               setRunSummary(null);
+              setProgressDetail("준비 중");
               setMessage("수집을 시작했어요.");
               try {
                 const data = await submitRequest({ action: "run" });
@@ -170,6 +203,7 @@ export function AdminJudgmentCollectionPanel({
                   : "수집 결과를 정리했어요.";
                 setProgressPercent(100);
                 setProgressStageIndex(collectionStages.length - 1);
+                setProgressDetail("완료");
                 setRunSummary(summary);
                 setNoticeStatus("success");
                 setMessage(summary);
@@ -177,6 +211,7 @@ export function AdminJudgmentCollectionPanel({
               } catch (_error) {
                 setProgressPercent(100);
                 setProgressStageIndex(collectionStages.length - 1);
+                setProgressDetail("실패");
                 setRunSummary(
                   "수집을 마치지 못했어요. 잠시 후 다시 시도해 주세요.",
                 );
@@ -259,7 +294,7 @@ export function AdminJudgmentCollectionPanel({
               <span>
                 {collectionStages[progressStageIndex] ?? "수집 결과 정리"}
               </span>
-              <span>증분 수집</span>
+              <span>{progressDetail}</span>
             </div>
             <div
               aria-label={`수집 진행률 ${Math.round(progressPercent)}%`}
@@ -318,8 +353,72 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+async function fetchCollectionProgress() {
+  const response = await fetch("/api/admin/judgment-collection", {
+    method: "GET",
+  });
+  if (!response.ok) {
+    throw new Error("progress_failed");
+  }
+  const data = (await response.json()) as unknown;
+  return isProgressResponse(data) ? data.progress : null;
+}
+
+function isProgressResponse(value: unknown): value is ProgressResponse {
+  if (!isRecord(value) || !("progress" in value)) {
+    return false;
+  }
+  if (value.progress === null) {
+    return true;
+  }
+  return (
+    isRecord(value.progress) &&
+    typeof value.progress.current === "number" &&
+    typeof value.progress.message === "string" &&
+    typeof value.progress.percent === "number" &&
+    isProgressStage(value.progress.stage) &&
+    typeof value.progress.status === "string" &&
+    typeof value.progress.total === "number"
+  );
+}
+
+function isProgressStage(value: unknown): value is ProgressStage {
+  return (
+    value === "preparing" ||
+    value === "listing" ||
+    value === "saving" ||
+    value === "finalizing" ||
+    value === "done"
+  );
+}
+
 function formatRunSummary(result: RunResponse["result"]) {
   return `수집 완료: ${result.importedCount.toLocaleString("ko-KR")}건 확인, 신규 ${result.createdCount.toLocaleString("ko-KR")}건 저장, 갱신 ${result.updatedCount.toLocaleString("ko-KR")}건`;
+}
+
+function stageIndex(stage: ProgressStage) {
+  if (stage === "listing") {
+    return 1;
+  }
+  if (stage === "saving") {
+    return 2;
+  }
+  if (stage === "finalizing" || stage === "done") {
+    return 3;
+  }
+  return 0;
+}
+
+function formatProgressDetail(
+  progress: NonNullable<ProgressResponse["progress"]>,
+) {
+  if (progress.stage === "saving") {
+    return `${progress.current.toLocaleString("ko-KR")}/${progress.total.toLocaleString("ko-KR")}건`;
+  }
+  if (progress.stage === "listing") {
+    return `${progress.current.toLocaleString("ko-KR")}/${progress.total.toLocaleString("ko-KR")}범주`;
+  }
+  return progress.status === "running" ? "진행 중" : "완료";
 }
 
 function progressStepClass(index: number, currentIndex: number) {

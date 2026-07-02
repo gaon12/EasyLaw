@@ -19,6 +19,15 @@ const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
 const MAX_INTERVAL_MINUTES = 10_080;
 const STALE_RUNNING_RUN_MS = 30 * 60_000;
+const progressStagePercent = {
+  done: 100,
+  finalizing: 96,
+  listing: 8,
+  preparing: 2,
+  saving: 30,
+} as const;
+const savingProgressWeight = 65;
+const listingProgressWeight = 22;
 
 const settingKeys = {
   enabled: "judgment_collection_enabled",
@@ -58,6 +67,32 @@ export type JudgmentCollectionRun = {
   status: string;
   trigger: string;
   updatedCount: number;
+};
+
+export type JudgmentCollectionProgressStage =
+  | "preparing"
+  | "listing"
+  | "saving"
+  | "finalizing"
+  | "done";
+
+export type JudgmentCollectionProgress = {
+  createdCount: number;
+  current: number;
+  failureReason: string | null;
+  importedCount: number;
+  message: string;
+  percent: number;
+  runId: string;
+  stage: JudgmentCollectionProgressStage;
+  status: string;
+  total: number;
+  updatedCount: number;
+};
+
+type CollectionCandidate = {
+  existing: boolean;
+  record: ExternalJudgmentRecord;
 };
 
 type RunInput = {
@@ -209,6 +244,58 @@ export function listJudgmentCollectionRuns(
     }));
 }
 
+export function getJudgmentCollectionProgress(
+  db: SqliteDatabase,
+): JudgmentCollectionProgress | null {
+  const row = db
+    .prepare<
+      [],
+      {
+        created_count: number;
+        failure_reason: string | null;
+        id: string;
+        imported_count: number;
+        progress_current: number;
+        progress_message: string;
+        progress_stage: string;
+        progress_total: number;
+        status: string;
+        updated_count: number;
+      }
+    >(
+      `SELECT id, status, imported_count, created_count, updated_count,
+        failure_reason, progress_stage, progress_current, progress_total,
+        progress_message
+       FROM judgment_collection_runs
+       ORDER BY started_at DESC
+       LIMIT 1`,
+    )
+    .get();
+  if (!row) {
+    return null;
+  }
+
+  const stage = parseProgressStage(row.progress_stage);
+  return {
+    createdCount: row.created_count,
+    current: row.progress_current,
+    failureReason: row.failure_reason,
+    importedCount: row.imported_count,
+    message: row.progress_message,
+    percent: progressPercent({
+      current: row.progress_current,
+      stage,
+      status: row.status,
+      total: row.progress_total,
+    }),
+    runId: row.id,
+    stage,
+    status: row.status,
+    total: row.progress_total,
+    updatedCount: row.updated_count,
+  };
+}
+
 async function runJudgmentCollectionInternal(
   db: SqliteDatabase,
   input: RunInput,
@@ -260,26 +347,54 @@ async function runJudgmentCollectionInternal(
   );
   setSetting(db, settingKeys.status, "running");
   setSetting(db, settingKeys.lastRunAt, startedAt);
+  updateRunProgress(db, runId, {
+    current: 0,
+    message: "수집 요청을 준비하고 있어요.",
+    stage: "preparing",
+    total: 1,
+  });
 
   try {
-    const records = await fetchAllOpenLawRecords(db, {
+    const candidates = await collectOpenLawCandidates(db, runId, {
       forceRefresh: input.forceRefresh,
+    });
+    updateRunProgress(db, runId, {
+      current: 0,
+      message:
+        candidates.length > 0
+          ? `본문 확인 및 저장 0/${candidates.length}건`
+          : "새로 확인할 데이터가 없어요.",
+      stage: "saving",
+      total: Math.max(1, candidates.length),
     });
     let createdCount = 0;
     let updatedCount = 0;
-    for (const record of records) {
-      const existed = hasJudgmentSource(
+    let importedCount = 0;
+    for (const candidate of candidates) {
+      const hydrated = await hydrateOpenLawRecordOriginalText(
         db,
-        record.sourceProvider,
-        record.externalId,
+        candidate.record,
       );
-      upsertJudgmentFromExternal(db, record);
-      if (existed) {
+      upsertJudgmentFromExternal(db, hydrated);
+      importedCount += 1;
+      if (candidate.existing) {
         updatedCount += 1;
       } else {
         createdCount += 1;
       }
+      updateSavingProgress(db, runId, {
+        createdCount,
+        current: importedCount,
+        total: candidates.length,
+        updatedCount,
+      });
     }
+    updateRunProgress(db, runId, {
+      current: 1,
+      message: "수집 결과를 정리하고 있어요.",
+      stage: "finalizing",
+      total: 1,
+    });
 
     const completedAt = nowIso();
     db.prepare(
@@ -288,19 +403,32 @@ async function runJudgmentCollectionInternal(
          imported_count = ?,
          created_count = ?,
          updated_count = ?,
-         completed_at = ?
+         completed_at = ?,
+         progress_stage = 'done',
+         progress_current = ?,
+         progress_total = ?,
+         progress_message = ?
        WHERE id = ?`,
-    ).run(records.length, createdCount, updatedCount, completedAt, runId);
+    ).run(
+      importedCount,
+      createdCount,
+      updatedCount,
+      completedAt,
+      Math.max(1, importedCount),
+      Math.max(1, importedCount),
+      formatSavedMessage(importedCount),
+      runId,
+    );
 
     setSetting(db, settingKeys.status, "success");
     setSetting(db, settingKeys.lastCompletedAt, completedAt);
     deleteSetting(db, settingKeys.lastFailureReason);
-    setSetting(db, settingKeys.lastImportedCount, String(records.length));
+    setSetting(db, settingKeys.lastImportedCount, String(importedCount));
     setSetting(db, settingKeys.nextRunAt, nextRunAtFromSettings(settings));
 
     logIntegrationEvent(db, {
       action: "collection.run",
-      message: `${records.length} legal records were collected.`,
+      message: `${importedCount} legal records were collected.`,
       metadata: {
         createdCount,
         pageSize: COLLECTION_PAGE_SIZE,
@@ -316,13 +444,13 @@ async function runJudgmentCollectionInternal(
       action: "judgment_collection.run",
       targetType: "judgment_collection_run",
       targetId: runId,
-      metadata: { createdCount, importedCount: records.length, updatedCount },
+      metadata: { createdCount, importedCount, updatedCount },
     });
 
     return {
       ok: true,
       createdCount,
-      importedCount: records.length,
+      importedCount,
       runId,
       updatedCount,
     };
@@ -334,9 +462,12 @@ async function runJudgmentCollectionInternal(
       `UPDATE judgment_collection_runs
        SET status = 'failed',
          failure_reason = ?,
-         completed_at = ?
+         completed_at = ?,
+         progress_stage = 'done',
+         progress_current = progress_total,
+         progress_message = ?
        WHERE id = ?`,
-    ).run(failureReason, completedAt, runId);
+    ).run(failureReason, completedAt, failureReason, runId);
 
     setSetting(db, settingKeys.status, "failed");
     setSetting(db, settingKeys.lastFailureReason, failureReason);
@@ -373,17 +504,30 @@ function getJudgmentCollectionSettings(
   };
 }
 
-async function fetchAllOpenLawRecords(
+async function collectOpenLawCandidates(
   db: SqliteDatabase,
+  runId: string,
   options: { forceRefresh?: boolean },
-) {
-  const records: ExternalJudgmentRecord[] = [];
+): Promise<CollectionCandidate[]> {
+  const candidates: CollectionCandidate[] = [];
   const seen = new Set<string>();
 
-  for (const target of openLawCollectionTargets) {
+  for (const [targetIndex, target] of openLawCollectionTargets.entries()) {
     let page = 1;
+    updateRunProgress(db, runId, {
+      current: targetIndex,
+      message: `공개 데이터 목록 확인 중: ${target} ${page}쪽`,
+      stage: "listing",
+      total: openLawCollectionTargets.length,
+    });
 
     while (true) {
+      updateRunProgress(db, runId, {
+        current: targetIndex,
+        message: `공개 데이터 목록 확인 중: ${target} ${page}쪽`,
+        stage: "listing",
+        total: openLawCollectionTargets.length,
+      });
       const pageRecords = await fetchOpenLawRecords(db, target, "", {
         display: COLLECTION_PAGE_SIZE,
         forceRefresh: options.forceRefresh,
@@ -411,8 +555,7 @@ async function fetchAllOpenLawRecords(
           continue;
         }
 
-        const hydrated = await hydrateOpenLawRecordOriginalText(db, record);
-        records.push(hydrated);
+        candidates.push({ existing: Boolean(existing), record });
         if (existing) {
           existingCount += 1;
         } else {
@@ -425,17 +568,15 @@ async function fetchAllOpenLawRecords(
       }
       page += 1;
     }
+    updateRunProgress(db, runId, {
+      current: targetIndex + 1,
+      message: `공개 데이터 목록 확인 완료: ${target}`,
+      stage: "listing",
+      total: openLawCollectionTargets.length,
+    });
   }
 
-  return records;
-}
-
-function hasJudgmentSource(
-  db: SqliteDatabase,
-  sourceProvider: string,
-  externalId: string,
-) {
-  return Boolean(getJudgmentSource(db, sourceProvider, externalId));
+  return candidates;
 }
 
 function getJudgmentSource(
@@ -452,6 +593,111 @@ function getJudgmentSource(
        LIMIT 1`,
     )
     .get(sourceProvider, externalId);
+}
+
+function updateRunProgress(
+  db: SqliteDatabase,
+  runId: string,
+  input: {
+    current: number;
+    message: string;
+    stage: JudgmentCollectionProgressStage;
+    total: number;
+  },
+) {
+  db.prepare(
+    `UPDATE judgment_collection_runs
+     SET progress_stage = ?,
+       progress_current = ?,
+       progress_total = ?,
+       progress_message = ?
+     WHERE id = ?`,
+  ).run(
+    input.stage,
+    input.current,
+    Math.max(1, input.total),
+    input.message,
+    runId,
+  );
+}
+
+function updateSavingProgress(
+  db: SqliteDatabase,
+  runId: string,
+  input: {
+    createdCount: number;
+    current: number;
+    total: number;
+    updatedCount: number;
+  },
+) {
+  db.prepare(
+    `UPDATE judgment_collection_runs
+     SET progress_stage = 'saving',
+       progress_current = ?,
+       progress_total = ?,
+       progress_message = ?,
+       imported_count = ?,
+       created_count = ?,
+       updated_count = ?
+     WHERE id = ?`,
+  ).run(
+    input.current,
+    Math.max(1, input.total),
+    `본문 확인 및 저장 ${input.current}/${input.total}건`,
+    input.current,
+    input.createdCount,
+    input.updatedCount,
+    runId,
+  );
+}
+
+function parseProgressStage(value: string): JudgmentCollectionProgressStage {
+  if (
+    value === "preparing" ||
+    value === "listing" ||
+    value === "saving" ||
+    value === "finalizing" ||
+    value === "done"
+  ) {
+    return value;
+  }
+  return "preparing";
+}
+
+function progressPercent(input: {
+  current: number;
+  stage: JudgmentCollectionProgressStage;
+  status: string;
+  total: number;
+}) {
+  if (input.status === "success" || input.status === "failed") {
+    return 100;
+  }
+  if (input.stage === "listing") {
+    return boundedPercent(
+      progressStagePercent.listing +
+        (input.current / Math.max(1, input.total)) * listingProgressWeight,
+    );
+  }
+  if (input.stage === "saving") {
+    return boundedPercent(
+      progressStagePercent.saving +
+        (input.current / Math.max(1, input.total)) * savingProgressWeight,
+    );
+  }
+  return progressStagePercent[input.stage];
+}
+
+function boundedPercent(value: number) {
+  return Math.min(99, Math.max(0, Math.round(value)));
+}
+
+function formatSavedMessage(count: number) {
+  if (count === 0) {
+    return "새로 저장할 데이터가 없어요.";
+  }
+  return `본문 확인 및 저장 ${count}/${count}건`;
 }
 
 function nextRunAtFromSettings(settings: JudgmentCollectionSettings) {
