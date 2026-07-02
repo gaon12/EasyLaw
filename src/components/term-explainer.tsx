@@ -66,6 +66,7 @@ export function TermExplainer() {
   const [explanation, setExplanation] = useState<Explanation | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const ignoreCloseRef = useRef(false);
+  const popoverRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!enabled) {
@@ -73,15 +74,38 @@ export function TermExplainer() {
       return;
     }
 
-    function handlePointerUp() {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (popoverRef.current?.contains(target)) {
+        ignoreCloseRef.current = true;
+        return;
+      }
+      if (term) {
+        setTerm("");
+      }
+    }
+
+    function handlePointerUp(event: PointerEvent) {
       if (ignoreCloseRef.current) {
         ignoreCloseRef.current = false;
         return;
       }
+
+      const pointerTarget = event.target;
+      if (
+        pointerTarget instanceof Element &&
+        shouldIgnoreTermSelection(pointerTarget)
+      ) {
+        return;
+      }
+
       const selection = window.getSelection();
       const text = selection?.toString().trim().replace(/\s+/g, " ") ?? "";
-      const target = selection?.anchorNode?.parentElement;
-      if (target?.closest("input, textarea, select, button, a")) {
+      const target = selectedElement(selection);
+      if (target && shouldIgnoreTermSelection(target)) {
         return;
       }
       if (!text || text.length < 2 || text.length > 80) {
@@ -92,8 +116,9 @@ export function TermExplainer() {
       if (!rect) {
         return;
       }
-      setTerm(text);
+
       const nextContext = selectionContext(selection);
+      setTerm(text);
       setContext(nextContext);
       setPosition({
         left: Math.min(rect.left + window.scrollX, window.innerWidth - 360),
@@ -110,16 +135,12 @@ export function TermExplainer() {
           if (!response.ok) {
             throw new Error("term lookup failed");
           }
-          const data: unknown = await response.json();
-          return data;
+          return (await response.json()) as unknown;
         })
         .then((data) => {
           if (!isExplanation(data)) {
             throw new Error("invalid term lookup response");
           }
-          return data;
-        })
-        .then((data) => {
           setExplanation(data);
           setStatus("idle");
         })
@@ -134,13 +155,15 @@ export function TermExplainer() {
       }
     }
 
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("pointerup", handlePointerUp);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("pointerup", handlePointerUp);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [enabled]);
+  }, [enabled, term]);
 
   if (!enabled || !term) {
     return null;
@@ -152,6 +175,7 @@ export function TermExplainer() {
       onPointerDown={() => {
         ignoreCloseRef.current = true;
       }}
+      ref={popoverRef}
       style={{ left: position.left, top: position.top }}
     >
       <div>
@@ -164,14 +188,16 @@ export function TermExplainer() {
       {status === "loading" && <p>사전과 쉬운 설명을 찾고 있어요.</p>}
       {status === "error" && <p>설명을 불러오지 못했어요.</p>}
       {explanation && (
-        <>
-          <section>
-            <strong>
-              {explanation.definitions.length > 0
-                ? `사전 · ${explanation.priority}`
-                : "문맥 설명"}
-            </strong>
-            {explanation.definitions.length > 0 ? (
+        <section>
+          <strong>
+            {explanation.definitions.length > 0
+              ? `쉬운 설명 · ${explanation.priority}`
+              : "사전 미등록"}
+          </strong>
+          <p>{explanation.aiExplanation}</p>
+          {explanation.definitions.length > 0 ? (
+            <>
+              <small>사전 원문</small>
               <ol>
                 {explanation.definitions.map((item) => (
                   <li key={`${item.word}-${item.senseNo}-${item.definition}`}>
@@ -181,24 +207,20 @@ export function TermExplainer() {
                   </li>
                 ))}
               </ol>
-            ) : (
-              <p>{explanation.plain}</p>
-            )}
-          </section>
-          <section>
-            <strong>AI 쉬운 설명</strong>
-            <p>{explanation.aiExplanation}</p>
-            {!explanation.aiAvailable && (
-              <small>
-                확장 설명을 준비 중이에요. 지금은 선택한 문맥을 바탕으로 간단히
-                안내합니다.
-              </small>
-            )}
-            <a className={styles.termAiLink} href={researchHref(term, context)}>
-              AI 질문으로 이어가기
-            </a>
-          </section>
-        </>
+            </>
+          ) : (
+            <p className={styles.termMissing}>{explanation.plain}</p>
+          )}
+          {!explanation.aiAvailable && (
+            <small>
+              사전과 현재 문맥을 바탕으로 간단히 안내합니다. 더 넓게 보려면 AI
+              질문으로 이어가세요.
+            </small>
+          )}
+          <a className={styles.termAiLink} href={researchHref(term, context)}>
+            AI 질문으로 이어가기
+          </a>
+        </section>
       )}
     </aside>
   );
@@ -212,11 +234,39 @@ function researchHref(term: string, context: string) {
 }
 
 function selectionContext(selection: Selection | null) {
-  const container = selection?.anchorNode?.parentElement;
+  const container = selectedElement(selection);
   return (container?.textContent ?? "")
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 500);
+}
+
+function selectedElement(selection: Selection | null) {
+  const node = selection?.anchorNode;
+  if (!node) {
+    return null;
+  }
+  return node.nodeType === Node.ELEMENT_NODE
+    ? (node as Element)
+    : node.parentElement;
+}
+
+function shouldIgnoreTermSelection(target: Element) {
+  return Boolean(
+    target.closest(
+      [
+        "[data-term-explainer-ignore]",
+        "input",
+        "textarea",
+        "select",
+        "button",
+        "a",
+        "[role='button']",
+        "[role='menu']",
+        "[role='dialog']",
+      ].join(", "),
+    ),
+  );
 }
 
 function sourceLabel(source: "legal" | "basic" | "standard") {

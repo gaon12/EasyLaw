@@ -20,6 +20,13 @@ import {
   verifyTotpEnrollment,
 } from "../src/lib/auth";
 import {
+  addJudgmentBookmark,
+  isJudgmentBookmarked,
+  listBookmarkedJudgmentIds,
+  listUserBookmarkRows,
+  removeJudgmentBookmark,
+} from "../src/lib/bookmarks";
+import {
   createAltchaChallenge,
   getCaptchaSettings,
   verifyAltchaPayload,
@@ -464,6 +471,74 @@ test("legal data reset removes collected legal records without settings", () => 
     assert.equal(getSetting(db, "llm_provider"), "OpenAI");
     assert.equal(getSetting(db, "judgment_collection_status"), null);
     assert.ok(result.deleted.judgments >= 3);
+  } finally {
+    cleanup();
+  }
+});
+
+test("judgment bookmarks are scoped to accessible user documents", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const [publicJudgmentId] = seedExternalFixture(db);
+    const user = ensureUser(db, "bookmark@example.com");
+    const otherUser = ensureUser(db, "other-bookmark@example.com");
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO judgments
+        (id, case_number, court_name, decided_on, title, case_type, status,
+         visibility, source_provider, source_external_id, source_trust,
+         original_text, created_by_user_id, created_at, updated_at)
+       VALUES ('private-bookmark-test', '사용자 입력', '직접 입력', '2026-01-01',
+         '내 비공개 문서', 'custom', 'pending', 'private', 'user-paste',
+         'private-bookmark-test', 'user_uploaded', '본문', ?, ?, ?)`,
+    ).run(user.id, now, now);
+
+    assert.deepEqual(
+      addJudgmentBookmark(db, {
+        judgmentId: publicJudgmentId,
+        userId: user.id,
+      }),
+      { ok: true },
+    );
+    assert.deepEqual(
+      addJudgmentBookmark(db, {
+        judgmentId: "private-bookmark-test",
+        userId: user.id,
+      }),
+      { ok: true },
+    );
+    assert.deepEqual(
+      addJudgmentBookmark(db, {
+        judgmentId: "private-bookmark-test",
+        userId: otherUser.id,
+      }),
+      { ok: false, reason: "not_found" },
+    );
+
+    assert.equal(
+      isJudgmentBookmarked(db, {
+        judgmentId: publicJudgmentId,
+        userId: user.id,
+      }),
+      true,
+    );
+    assert.deepEqual(
+      listBookmarkedJudgmentIds(db, user.id).sort(),
+      ["private-bookmark-test", publicJudgmentId].sort(),
+    );
+    assert.equal(listUserBookmarkRows(db, user.id).length, 2);
+
+    removeJudgmentBookmark(db, {
+      judgmentId: publicJudgmentId,
+      userId: user.id,
+    });
+    assert.equal(
+      isJudgmentBookmarked(db, {
+        judgmentId: publicJudgmentId,
+        userId: user.id,
+      }),
+      false,
+    );
   } finally {
     cleanup();
   }
@@ -1922,6 +1997,23 @@ test("term explanations prefer legal terms over public dictionaries", () => {
       explanation.definitions[0]?.definition,
       "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
     );
+  } finally {
+    cleanup();
+  }
+});
+
+test("term explanations clearly report missing dictionary entries", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const explanation = buildTermExplanation(db, {
+      context: "엘프가 마력을 다 소진한 채로 응급실에 실려왔다.",
+      term: "마력소진",
+    });
+
+    assert.equal(explanation.definitions.length, 0);
+    assert.equal(explanation.priority, "사전 미등록");
+    assert.match(explanation.plain, /사전에 없는 단어/);
+    assert.match(explanation.aiExplanation, /사전에 없는 단어/);
   } finally {
     cleanup();
   }

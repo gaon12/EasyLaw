@@ -24,7 +24,7 @@ export function buildTermExplanation(
     definitions,
     plain:
       selectedDefinition?.definition ??
-      "사전에 바로 잡히지 않는 표현이에요. 문장 안에서 쓰인 방식과 함께 살펴볼게요.",
+      "사전에 없는 단어입니다. 선택한 문장 주변의 주장, 판단 이유, 조문 근거를 함께 보면 의미를 좁힐 수 있어요.",
     priority:
       selectedDefinition?.source === "legal"
         ? "자체 법률 용어 사전"
@@ -32,7 +32,7 @@ export function buildTermExplanation(
           ? "한국어기초사전"
           : selectedDefinition?.source === "standard"
             ? "표준국어대사전"
-            : "AI 문맥 설명",
+            : "사전 미등록",
     term: cleanTerm,
   };
 }
@@ -46,7 +46,7 @@ function contextualMessage(term: string, definition: string, context?: string) {
 
 function fallbackContextualMessage(term: string, context?: string) {
   if (!context) {
-    return "사전에 바로 잡히지 않는 표현이에요. AI 질문으로 이어가면 법률 문맥을 더 넓게 확인할 수 있어요.";
+    return "사전에 없는 단어입니다. 법률 문서에서는 문장 전체와 근거 조문을 함께 보며 뜻을 좁혀야 해요.";
   }
-  return `"${term}"은(는) 사전에 바로 잡히지는 않지만, 선택한 문장 주변의 주장, 판단 이유, 조문 근거를 함께 보면 의미를 좁힐 수 있습니다.`;
+  return `"${term}"은(는) 사전에 없는 단어입니다. 다만 선택한 문장 주변의 주장, 판단 이유, 조문 근거를 함께 보면 의미를 좁힐 수 있습니다.`;
 }
