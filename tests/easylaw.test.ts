@@ -640,6 +640,102 @@ test("manual judgment collection stores fetched public judgments", async () => {
   }
 });
 
+test("manual judgment collection refreshes existing public laws", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    let lawVersion = 1;
+    const requestedDetails: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      if (url.pathname.endsWith("/lawService.do")) {
+        requestedDetails.push(`${target}:${url.searchParams.get("ID")}`);
+        return new Response(
+          JSON.stringify({
+            LawService: {
+              법령내용:
+                lawVersion === 1 ? "민법 첫 수집 본문" : "민법 개정 반영 본문",
+            },
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
+      if (target === "prec") {
+        return new Response(JSON.stringify({ PrecSearch: { prec: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "detc") {
+        return new Response(JSON.stringify({ DetcSearch: { detc: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      const page = url.searchParams.get("page") ?? "1";
+      const law =
+        page === "1"
+          ? [
+              {
+                공포번호: lawVersion === 1 ? "456" : "457",
+                법령ID: "001234",
+                법령구분명: "법률",
+                법령명한글: lawVersion === 1 ? "민법" : "민법 일부개정",
+                법령상세링크: "/DRF/lawService.do?target=law&ID=001234",
+                시행일자: lawVersion === 1 ? "20260702" : "20260801",
+                소관부처명: "법무부",
+                제개정구분명: lawVersion === 1 ? "제정" : "일부개정",
+              },
+            ]
+          : [];
+      return new Response(JSON.stringify({ LawSearch: { law } }), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
+
+    const firstResult = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+    assert.equal(firstResult.ok, true);
+    assert.ok(firstResult.ok);
+    assert.equal(firstResult.createdCount, 1);
+    assert.equal(firstResult.updatedCount, 0);
+
+    lawVersion = 2;
+    const secondResult = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+    assert.equal(secondResult.ok, true);
+    assert.ok(secondResult.ok);
+    assert.equal(secondResult.createdCount, 0);
+    assert.equal(secondResult.updatedCount, 1);
+    assert.deepEqual(requestedDetails, ["law:001234", "law:001234"]);
+
+    const lawJudgment = getPublicJudgments(db).find(
+      (judgment) => judgment.sourceProvider === "open-law-law",
+    );
+    assert.equal(lawJudgment?.caseNumber, "법령 001234-457");
+    assert.equal(lawJudgment?.title, "민법 일부개정");
+    assert.equal(lawJudgment?.decidedOn, "2026-08-01");
+    const detail = getPublicJudgmentByIdentifier(db, lawJudgment?.id ?? "");
+    assert.equal(detail?.originalText, "민법 개정 반영 본문");
+    assert.equal(detail?.sourceSummary, "법률 / 일부개정");
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
 test("open law detail hydration replaces truncated tax-law previews", async () => {
   const { db, cleanup } = withDb();
   const originalFetch = globalThis.fetch;

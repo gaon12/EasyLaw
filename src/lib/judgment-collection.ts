@@ -550,7 +550,7 @@ async function collectOpenLawCandidates(
           record.sourceProvider,
           record.externalId,
         );
-        if (existing?.originalText) {
+        if (existing?.originalText && !isMutableOpenLawRecord(record)) {
           existingCount += 1;
           continue;
         }
@@ -563,7 +563,10 @@ async function collectOpenLawCandidates(
         }
       }
 
-      if (addedCount === 0 || existingCount > 0) {
+      if (
+        !isMutableOpenLawTarget(target) &&
+        (addedCount === 0 || existingCount > 0)
+      ) {
         break;
       }
       page += 1;
@@ -593,6 +596,14 @@ function getJudgmentSource(
        LIMIT 1`,
     )
     .get(sourceProvider, externalId);
+}
+
+function isMutableOpenLawRecord(record: ExternalJudgmentRecord) {
+  return record.sourceProvider === "open-law-law";
+}
+
+function isMutableOpenLawTarget(target: string) {
+  return target === "law";
 }
 
 function updateRunProgress(
