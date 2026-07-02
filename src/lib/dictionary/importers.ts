@@ -1,6 +1,6 @@
 import type { SqliteDatabase } from "../db";
 import { logIntegrationEvent } from "../integration-events";
-import { downloadJsonZip } from "./download";
+import { processJsonZipEntries } from "./download";
 import { extractDictionaryTerms } from "./extract";
 import {
   completeDictionaryImport,
@@ -8,10 +8,11 @@ import {
   startDictionaryImport,
   upsertDictionaryTerms,
 } from "./repository";
-import type { DictionarySource } from "./types";
+import type { DictionarySource, DictionaryTerm } from "./types";
 
 const standardDownloadUrl = "https://stdict.korean.go.kr/common/download.do";
 const basicDownloadUrl = "https://krdict.korean.go.kr/dicBatchDownload?seq=208";
+const importBatchSize = 5_000;
 
 export async function updateDictionarySource(
   db: SqliteDatabase,
@@ -27,9 +28,7 @@ export async function updateDictionarySource(
     status: "success",
   });
   try {
-    const jsonEntries = await downloadJsonZip(requestForSource(source));
-    const terms = jsonEntries.flatMap((entry) => extractDictionaryTerms(entry));
-    const importedCount = upsertDictionaryTerms(db, { source, terms });
+    const importedCount = await importDictionaryZip(db, source);
     completeDictionaryImport(db, { importId, importedCount });
     logIntegrationEvent(db, {
       action: `${source}.import`,
@@ -56,6 +55,46 @@ export async function updateDictionarySource(
   }
 }
 
+async function importDictionaryZip(
+  db: SqliteDatabase,
+  source: Exclude<DictionarySource, "legal">,
+) {
+  let importedCount = 0;
+  const pendingTerms: DictionaryTerm[] = [];
+  const seenTerms = new Set<string>();
+
+  const flush = () => {
+    if (pendingTerms.length === 0) {
+      return;
+    }
+    importedCount += upsertDictionaryTerms(db, {
+      source,
+      terms: pendingTerms.splice(0, pendingTerms.length),
+    });
+  };
+
+  await processJsonZipEntries(requestForSource(source), (entry) => {
+    for (const term of extractDictionaryTerms(entry)) {
+      const key = dictionaryTermKey(source, term);
+      if (seenTerms.has(key)) {
+        continue;
+      }
+      seenTerms.add(key);
+      pendingTerms.push(term);
+      if (pendingTerms.length >= importBatchSize) {
+        flush();
+      }
+    }
+  });
+  flush();
+
+  return importedCount;
+}
+
+function dictionaryTermKey(source: DictionarySource, term: DictionaryTerm) {
+  return `${source}\n${term.word}\n${term.senseNo}\n${term.definition}`;
+}
+
 export async function updateDownloadableDictionaries(db: SqliteDatabase) {
   const basic = await updateDictionarySource(db, "basic");
   const standard = await updateDictionarySource(db, "standard");
@@ -72,7 +111,6 @@ function requestForSource(source: Exclude<DictionarySource, "legal">) {
   if (source === "basic") {
     return {
       method: "GET" as const,
-      tempPrefix: "easylaw-krdict-",
       url: basicDownloadUrl,
     };
   }
@@ -84,7 +122,6 @@ function requestForSource(source: Exclude<DictionarySource, "legal">) {
       pageUnit: "10",
     }),
     method: "POST" as const,
-    tempPrefix: "easylaw-stdict-",
     url: standardDownloadUrl,
   };
 }

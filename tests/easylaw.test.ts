@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { sha, solveChallenge } from "altcha/lib";
+import { zipSync } from "fflate";
 import { NextRequest } from "next/server";
 import { generate } from "otplib";
 import {
@@ -29,6 +30,7 @@ import {
   addLegalDictionaryTerm,
   buildTermExplanation,
   extractDictionaryTerms,
+  updateDictionarySource,
   updateOpenLawLegalDictionary,
 } from "../src/lib/dictionary";
 import {
@@ -1369,6 +1371,73 @@ test("term explanations prefer legal terms over public dictionaries", () => {
       "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
     );
   } finally {
+    cleanup();
+  }
+});
+
+test("downloadable dictionary import processes zip entries in batches", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    const zip = zipSync({
+      "first.json": Buffer.from(
+        JSON.stringify([
+          {
+            definition: "A binding promise.",
+            sense_no: "1",
+            word: "contract",
+          },
+        ]),
+      ),
+      "second.json": Buffer.from(
+        JSON.stringify([
+          {
+            definition: "A binding promise.",
+            sense_no: "1",
+            word: "contract",
+          },
+          {
+            definition: "A written legal decision.",
+            sense_no: "1",
+            word: "judgment",
+          },
+        ]),
+      ),
+      "ignored.txt": Buffer.from("not json"),
+    });
+    const requests: string[] = [];
+    globalThis.fetch = async (input, init) => {
+      requests.push(`${init?.method ?? "GET"} ${String(input)}`);
+      return new Response(zip, {
+        headers: {
+          "Content-Length": String(zip.byteLength),
+          "Content-Type": "application/zip",
+        },
+        status: 200,
+      });
+    };
+
+    const result = await updateDictionarySource(db, "basic");
+    assert.equal(result.ok, true);
+    assert.equal(result.ok ? result.importedCount : 0, 2);
+    assert.deepEqual(requests, [
+      "GET https://krdict.korean.go.kr/dicBatchDownload?seq=208",
+    ]);
+
+    const rows = db
+      .prepare<[], { definition: string; word: string }>(
+        `SELECT word, definition
+          FROM dictionary_terms
+          WHERE source = 'basic'
+          ORDER BY word`,
+      )
+      .all();
+    assert.deepEqual(rows, [
+      { definition: "A binding promise.", word: "contract" },
+      { definition: "A written legal decision.", word: "judgment" },
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
     cleanup();
   }
 });
