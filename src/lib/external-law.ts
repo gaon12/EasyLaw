@@ -370,7 +370,7 @@ export async function ensurePublicJudgmentOriginalText(
     title?: string;
   },
 ) {
-  if (input.originalText) {
+  if (input.originalText && !isTruncatedOriginalText(input.originalText)) {
     return input.originalText;
   }
 
@@ -706,14 +706,55 @@ async function fetchNtsTaxLawPrecedentText(input: {
         continue;
       }
 
+      const detailedText = await fetchNtsTaxLawPrecedentDetailText(
+        textValue(dcm, "DOC_ID"),
+      );
+      if (detailedText) {
+        return detailedText;
+      }
+
       const text = normalizeWhitespace(textValue(dcm, "FILE_CN"));
-      if (text && isUsefulOriginalText(text)) {
+      if (
+        text &&
+        isUsefulOriginalText(text) &&
+        !isTruncatedOriginalText(text)
+      ) {
         return text;
       }
     }
   }
 
   return null;
+}
+
+async function fetchNtsTaxLawPrecedentDetailText(
+  ntstDcmId: string | undefined,
+) {
+  if (!ntstDcmId) {
+    return null;
+  }
+
+  const payload = await fetchNtsTaxLawAction("ASIQTB002PR01", {
+    dcmDVO: { ntstDcmId },
+  });
+  const root = objectValue(payload, "ASIQTB002PR01");
+  const editorItems = arrayValue(root, "dcmHwpEditorDVOList") ?? [];
+  const editorText = editorItems
+    .map((item) => htmlToPlainText(textValue(item, "dcmFleByte") ?? null))
+    .filter(isUsefulOriginalText)
+    .sort((left, right) => right.length - left.length)[0];
+  if (editorText && !isTruncatedOriginalText(editorText)) {
+    return editorText;
+  }
+
+  const dcm = objectValue(root, "dcmDVO");
+  const detailText =
+    htmlToPlainText(textValue(dcm, "ntstDcmRplyCntn") ?? null) ||
+    htmlToPlainText(textValue(dcm, "ntstDcmCntn") ?? null);
+  return isUsefulOriginalText(detailText) &&
+    !isTruncatedOriginalText(detailText)
+    ? detailText
+    : null;
 }
 
 async function fetchNtsTaxLawAction(actionId: string, paramData: unknown) {
@@ -1137,6 +1178,10 @@ function decodeHtmlEntities(value: string) {
 
 function isUsefulOriginalText(value: string) {
   return value.length >= 200 && !value.includes("오류페이지");
+}
+
+function isTruncatedOriginalText(value: string) {
+  return /(?:\.{3}|…)\s*$/.test(value.trim());
 }
 
 function normalizeWhitespace(value: string | undefined) {

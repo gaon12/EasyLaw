@@ -31,9 +31,11 @@ import {
   extractDictionaryTerms,
 } from "../src/lib/dictionary";
 import {
+  ensurePublicJudgmentOriginalText,
   mergeExternalFirst,
   parseOpenLawSearchResponse,
   syncSampleExternalCatalog,
+  upsertJudgmentFromExternal,
 } from "../src/lib/external-law";
 import { listIntegrationEvents } from "../src/lib/integration-events";
 import {
@@ -622,6 +624,93 @@ test("manual judgment collection stores fetched public judgments", async () => {
       afterIncremental.some((judgment) => judgment.caseNumber === "2026Da1004"),
       false,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("open law detail hydration replaces truncated tax-law previews", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    const judgmentId = upsertJudgmentFromExternal(db, {
+      caseNumber: "서울행정법원-2025-구단-53770",
+      caseType: "administrative",
+      courtName: "서울행정법원",
+      decidedOn: "2026-05-29",
+      externalId: "619589",
+      originalText: "주 문 1. 원고의 청구를 기각한다. 이 유 일부 미리보기...",
+      sourceProvider: "open-law",
+      sourceUrl:
+        "https://www.law.go.kr/DRF/lawService.do?target=prec&ID=619589",
+      title: "이 사건 토지가 비사업용 토지에 해당하는지 여부",
+    });
+    const detailedParagraph =
+      "법원은 양도 시기, 보유 기간, 실제 이용 현황, 제출된 과세자료와 당사자의 주장을 종합하여 비사업용 토지 해당 여부를 판단하였다. ".repeat(
+        3,
+      );
+    const fullText = `<html><body><p><span>주 문</span></p><p><span>1. 원고의 청구를 기각한다.</span></p><p><span>이 유</span></p><p><span>1. 처분의 경위</span></p><p><span>원고는 토지를 양도하였다.</span></p><p><span>${detailedParagraph}</span></p><p><span>3. 결론</span></p><p><span>그렇다면 원고의 청구는 이유 없으므로 이를 기각하기로 하여 주문과 같이 판결한다.</span></p></body></html>`;
+
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname === "www.law.go.kr") {
+        return new Response(
+          JSON.stringify({ Law: "일치하는 판례가 없습니다." }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+      if (url.hostname === "taxlaw.nts.go.kr") {
+        const body = init?.body?.toString() ?? "";
+        const params = new URLSearchParams(body);
+        const actionId = params.get("actionId");
+        if (actionId === "ASIPDI002PR01") {
+          return Response.json({
+            data: {
+              ASIPDI002PR01: {
+                body: [
+                  {
+                    dcm: {
+                      DOC_ID: "200000000000021471",
+                      FILE_CN:
+                        "주 문 1. 원고의 청구를 기각한다. 이 유 일부 미리보기...",
+                      NTST_DCM_DSCM_CNTN: "서울행정법원-2025-구단-53770",
+                      TTL: "이 사건 토지가 비사업용 토지에 해당하는지 여부",
+                    },
+                  },
+                ],
+              },
+            },
+            message: null,
+            status: "SUCCESS",
+          });
+        }
+        if (actionId === "ASIQTB002PR01") {
+          return Response.json({
+            data: {
+              ASIQTB002PR01: {
+                dcmHwpEditorDVOList: [{ dcmFleByte: fullText }],
+              },
+            },
+            message: null,
+            status: "SUCCESS",
+          });
+        }
+      }
+      return new Response("", { status: 404 });
+    };
+
+    const judgment = getPublicJudgmentByIdentifier(db, judgmentId);
+    assert.ok(judgment);
+    const hydrated = await ensurePublicJudgmentOriginalText(db, judgment);
+    assert.ok(hydrated);
+    assert.equal(hydrated.endsWith("..."), false);
+    assert.match(hydrated, /결론/);
+    assert.match(hydrated, /주문과 같이 판결한다/);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
