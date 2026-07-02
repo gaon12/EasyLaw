@@ -1175,11 +1175,267 @@
   font-weight: 850;
 }
 
-.aiAnswerBlock p {
-  white-space: pre-wrap;
+.researchMarkdown {
   color: var(--fg-default);
   font-size: 16px;
   line-height: 1.8;
+}
+
+.researchMarkdown > :first-child {
+  margin-top: 0;
+}
+
+.researchMarkdown > :last-child {
+  margin-bottom: 0;
+}
+
+.researchMarkdown p,
+.researchMarkdown ul,
+.researchMarkdown ol,
+.researchMarkdown blockquote,
+.researchMarkdown pre,
+.researchMarkdown table {
+  margin: 12px 0;
+}
+
+.researchMarkdown h1,
+.researchMarkdown h2,
+.researchMarkdown h3,
+.researchMarkdown h4 {
+  margin: 22px 0 8px;
+  color: var(--fg-strong);
+  font-family: var(--font-display);
+  line-height: 1.35;
+}
+
+.researchMarkdown h1 {
+  font-size: 24px;
+}
+
+.researchMarkdown h2 {
+  font-size: 21px;
+}
+
+.researchMarkdown h3,
+.researchMarkdown h4 {
+  font-size: 18px;
+}
+
+.researchMarkdown ul,
+.researchMarkdown ol {
+  padding-left: 24px;
+}
+
+.researchMarkdown li + li {
+  margin-top: 4px;
+}
+
+.researchMarkdown blockquote {
+  border-left: 3px solid var(--fg-brand);
+  padding-left: 14px;
+  color: var(--fg-secondary);
+}
+
+.researchMarkdown code {
+  border-radius: 5px;
+  padding: 2px 5px;
+  background: var(--bg-muted);
+  font-size: 0.9em;
+}
+
+.researchMarkdown pre {
+  overflow-x: auto;
+  border-radius: var(--radius-12);
+  padding: 14px;
+  background: var(--bg-muted);
+}
+
+.researchMarkdown pre code {
+  padding: 0;
+}
+
+.researchMarkdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.researchMarkdown th,
+.researchMarkdown td {
+  border: 1px solid var(--border-subtle);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.researchMarkdown a {
+  color: var(--fg-brand);
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.researchCitation {
+  position: relative;
+  display: inline-flex;
+  vertical-align: super;
+  margin: 0 2px;
+  line-height: 1;
+}
+
+.researchCitation button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.researchCitation button:hover,
+.researchCitation button:focus-visible {
+  background: var(--bg-brand);
+  color: white;
+}
+
+.researchCitation [role="tooltip"] {
+  position: absolute;
+  z-index: 20;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  width: min(300px, 76vw);
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  padding: 11px 12px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.researchCitation [role="tooltip"] strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--fg-strong);
+  font-size: 13px;
+}
+
+.researchCitation:hover [role="tooltip"],
+.researchCitation:focus-within [role="tooltip"] {
+  visibility: visible;
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+.researchCitationBackdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 55%);
+}
+
+.researchCitationModal {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  max-height: min(640px, calc(100vh - 40px));
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  padding: 22px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.researchCitationDismiss {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.researchCitationModal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.researchCitationModal header span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: var(--radius-full);
+  padding: 0 10px;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.researchCitationModal header button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.researchCitationModal h3 {
+  color: var(--fg-strong);
+  font-size: 21px;
+  line-height: 1.4;
+}
+
+.researchCitationModal small {
+  display: block;
+  margin-top: 6px;
+  color: var(--fg-tertiary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.researchCitationModal p {
+  margin: 16px 0;
+  color: var(--fg-default);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.researchCitationModal > a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 0 16px;
+  background: var(--bg-brand);
+  color: white;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.researchCitationUnavailable {
+  color: var(--fg-tertiary);
+  font-size: 13px;
 }
 
 .aiSources {

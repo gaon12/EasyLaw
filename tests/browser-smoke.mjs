@@ -12,6 +12,12 @@ const port = Number(process.env.EASYLAW_E2E_PORT ?? 3210);
 const baseUrl = `http://127.0.0.1:${port}`;
 const llmPort = port + 1;
 const llmBaseUrl = `http://127.0.0.1:${llmPort}/v1`;
+const overviewAnswer = `## 핵심 답변
+
+**손해 자료**를 먼저 정리해야 합니다. [E1]
+
+- 이체 내역
+- 상대방과의 대화 내용`;
 const tempDir = join(tmpdir(), `easylaw-browser-${Date.now()}`);
 mkdirSync(tempDir, { recursive: true });
 
@@ -34,12 +40,11 @@ const llmServer = createServer((request, response) => {
         })
       : system.includes("법률 답변 검증자")
         ? JSON.stringify({
-            answer:
-              "손해와 상대방 행위 사이의 관계를 보여주는 자료를 먼저 정리해야 합니다. [E1]",
+            answer: overviewAnswer,
             grounded: true,
             issues: [],
           })
-        : "손해와 상대방 행위 사이의 관계를 보여주는 자료를 먼저 정리해야 합니다. [E1]";
+        : overviewAnswer;
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ choices: [{ message: { content } }] }));
   });
@@ -825,7 +830,22 @@ try {
   await page
     .getByRole("heading", { name: "AI 답변" })
     .waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "핵심 답변" }).waitFor();
+  await page.getByText("손해 자료", { exact: true }).waitFor();
   await page.getByRole("heading", { name: "출처" }).waitFor();
+  const citationButton = page.locator('button[aria-label^="E1 근거:"]');
+  await citationButton.hover();
+  await page.getByRole("tooltip").waitFor();
+  await citationButton.click();
+  const citationDialog = page.getByRole("dialog");
+  await citationDialog.waitFor();
+  const originalSourceLink = citationDialog.getByRole("link", {
+    name: "원문 보기",
+  });
+  if (!(await originalSourceLink.getAttribute("href"))) {
+    throw new Error("Research citation did not link to its original source.");
+  }
+  await citationDialog.getByRole("button", { name: "근거 상세 닫기" }).click();
   if ((await page.getByText(/^모델 /).count()) !== 0) {
     throw new Error("Research overview exposed the internal model name.");
   }

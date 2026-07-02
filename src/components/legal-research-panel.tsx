@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
+import {
+  type CitationEvidence,
+  ResearchMarkdown,
+} from "@/components/research-markdown";
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 
@@ -10,15 +14,6 @@ type ResearchStep = {
   id: string;
   label: string;
   description: string;
-};
-
-type Evidence = {
-  id: string;
-  source: string;
-  title: string;
-  summary: string;
-  confidence: "high" | "medium" | "low";
-  url?: string;
 };
 
 type Plan = {
@@ -65,7 +60,7 @@ export function LegalResearchPanel({
     initialQuery ? { nonce: 0, query: initialQuery } : null,
   );
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [evidence, setEvidence] = useState<CitationEvidence[]>([]);
   const [answer, setAnswer] = useState("");
   const [phase, setPhase] = useState("");
   const [warning, setWarning] = useState("");
@@ -89,7 +84,7 @@ export function LegalResearchPanel({
       setPlan(data as Plan);
     }
     if (event === "evidence") {
-      setEvidence((current) => [...current, data as Evidence]);
+      setEvidence((current) => [...current, data as CitationEvidence]);
     }
     if (event === "answer" && isRecord(data) && typeof data.text === "string") {
       setAnswer(data.text);
@@ -239,7 +234,7 @@ export function LegalResearchPanel({
       <section className={styles.researchSearchPanel}>
         <span className={styles.previewLabel}>EasyLaw AI</span>
         <h1>AI 법률 질문</h1>
-        <p>궁금한 상황을 검색하듯 입력하면 답변과 근거 후보를 함께 보여줘요.</p>
+        <p>궁금한 상황을 검색하듯 입력하면 AI 답변과 출처를 함께 보여줘요.</p>
         <form
           className={styles.researchSearchForm}
           onSubmit={(event) => {
@@ -281,9 +276,7 @@ export function LegalResearchPanel({
         {status === "idle" && (
           <div className={styles.aiOverviewEmpty}>
             <strong>질문을 입력하면 AI 오버뷰가 열립니다.</strong>
-            <span>
-              확인 범위, 근거 후보, 쉬운 답변 초안이 순서대로 나타나요.
-            </span>
+            <span>핵심 답변과 확인 가능한 출처가 함께 나타나요.</span>
           </div>
         )}
 
@@ -310,7 +303,7 @@ export function LegalResearchPanel({
             {answer && (
               <section className={styles.aiAnswerBlock}>
                 <h3>AI 답변</h3>
-                <p>{answer}</p>
+                <ResearchMarkdown answer={answer} evidence={evidence} />
               </section>
             )}
 
@@ -358,7 +351,7 @@ export function LegalResearchPanel({
           <article className={styles.aiOverviewCard}>
             <section className={styles.aiAnswerBlock}>
               <h3>AI 답변</h3>
-              <p>{answer}</p>
+              <ResearchMarkdown answer={answer} evidence={evidence} />
             </section>
           </article>
         )}
