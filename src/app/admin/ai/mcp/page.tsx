@@ -26,8 +26,8 @@ export default function AdminAiMcpPage() {
             <div>
               <h1>도구 연결</h1>
               <p>
-                법령, 판례, 공공데이터 도구를 라우팅하기 위한 엔드포인트를
-                관리해요. 리서치 하네스는 설정된 도구부터 우선 사용합니다.
+                법령과 판례 MCP 서버를 연결해요. LLM은 서버가 공개한 검색 도구를
+                확인한 뒤 질문에 맞는 도구와 인자를 직접 선택합니다.
               </p>
             </div>
             <span className={styles.badge}>AI 설정</span>
@@ -37,7 +37,7 @@ export default function AdminAiMcpPage() {
         <section className={styles.section}>
           <div className={styles.contentCard}>
             <AdminSettingsForm
-              description="엔드포인트가 비어 있으면 해당 도구는 근거 후보 단계에서 예정 상태로 표시됩니다."
+              description="Streamable HTTP MCP 엔드포인트를 입력하세요. 검색 시 도구 목록을 새로 확인하며 쓰기·삭제 도구는 사용하지 않습니다."
               fields={[
                 {
                   key: "mcp_korean_law_endpoint",

@@ -98,6 +98,12 @@ export async function POST(request: NextRequest) {
               case "warning":
                 send("warning", event.message);
                 break;
+              case "tool":
+                send("tool", {
+                  stage: event.stage,
+                  tool: event.tool,
+                });
+                break;
               case "phase":
                 send("phase", event.phase);
                 break;

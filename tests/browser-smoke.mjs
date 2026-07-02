@@ -12,6 +12,7 @@ const port = Number(process.env.EASYLAW_E2E_PORT ?? 3210);
 const baseUrl = `http://127.0.0.1:${port}`;
 const llmPort = port + 1;
 const llmBaseUrl = `http://127.0.0.1:${llmPort}/v1`;
+const mcpBaseUrl = `http://127.0.0.1:${llmPort}/mcp`;
 const overviewAnswer = `## 핵심 답변
 
 **손해 자료**를 먼저 정리해야 합니다. [E1]
@@ -28,16 +29,102 @@ const llmServer = createServer((request, response) => {
     body += chunk;
   });
   request.on("end", () => {
-    const payload = JSON.parse(body);
+    const payload = body ? JSON.parse(body) : {};
+    if (request.url === "/mcp") {
+      if (request.method === "GET") {
+        response.writeHead(405);
+        response.end();
+        return;
+      }
+      if (request.method === "DELETE") {
+        response.writeHead(200);
+        response.end();
+        return;
+      }
+      if (payload.method === "notifications/initialized") {
+        response.writeHead(202);
+        response.end();
+        return;
+      }
+      const result =
+        payload.method === "initialize"
+          ? {
+              capabilities: { tools: {} },
+              protocolVersion: payload.params.protocolVersion,
+              serverInfo: { name: "browser-mcp", version: "1.0.0" },
+            }
+          : payload.method === "tools/list"
+            ? {
+                tools: [
+                  {
+                    annotations: { readOnlyHint: true },
+                    description: "법령과 판례를 검색합니다.",
+                    inputSchema: {
+                      properties: { query: { type: "string" } },
+                      required: ["query"],
+                      type: "object",
+                    },
+                    name: "search_law",
+                    title: "법률 검색",
+                  },
+                ],
+              }
+            : {
+                content: [
+                  {
+                    text: JSON.stringify({
+                      results: [
+                        {
+                          source: "국가법령정보센터",
+                          summary:
+                            "손해배상 청구의 요건과 입증 자료를 설명합니다.",
+                          title: "손해배상 관련 법령",
+                          url: "https://example.test/law/damages",
+                        },
+                      ],
+                    }),
+                    type: "text",
+                  },
+                ],
+                isError: false,
+                structuredContent: {
+                  results: [
+                    {
+                      source: "국가법령정보센터",
+                      summary: "손해배상 청구의 요건과 입증 자료를 설명합니다.",
+                      title: "손해배상 관련 법령",
+                      url: "https://example.test/law/damages",
+                    },
+                  ],
+                },
+              };
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ id: payload.id, jsonrpc: "2.0", result }));
+      return;
+    }
     const system = payload.messages?.[0]?.content ?? "";
-    const content = system.includes("검색 계획기")
-      ? JSON.stringify({
-          coverageLevel: 2,
-          intent: "손해 발생 시 책임과 대응 절차 확인",
-          mode: "overview",
-          searchQueries: ["손해배상"],
-          targets: ["law", "prec"],
-        })
+    const context = JSON.parse(payload.messages?.[1]?.content ?? "{}");
+    const content = system.includes("법률 검색 오버뷰 에이전트")
+      ? context.evidence?.length
+        ? JSON.stringify({
+            answer: overviewAnswer,
+            coverageLevel: 2,
+            intent: "손해 발생 시 책임과 대응 절차 확인",
+            mode: "overview",
+            type: "answer",
+          })
+        : JSON.stringify({
+            calls: [
+              {
+                arguments: { query: "손해배상" },
+                toolKey: "korean-law/search_law",
+              },
+            ],
+            coverageLevel: 2,
+            intent: "손해 발생 시 책임과 대응 절차 확인",
+            mode: "overview",
+            type: "tool_calls",
+          })
       : system.includes("법률 답변 검증자")
         ? JSON.stringify({
             answer: overviewAnswer,
@@ -443,6 +530,9 @@ try {
   await aiSubNav.getByRole("link", { name: "도구 연결" }).click();
   await page.waitForURL(`${baseUrl}/admin/ai/mcp`);
   await page.getByRole("heading", { name: "도구 연결" }).waitFor();
+  await page.getByLabel("korean-law-mcp").fill(mcpBaseUrl);
+  await page.getByRole("button", { name: "설정 저장" }).click();
+  await page.getByText("설정을 저장했어요", { exact: false }).waitFor();
 
   await page.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
   if (

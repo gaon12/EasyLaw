@@ -63,6 +63,7 @@ export function LegalResearchPanel({
   const [evidence, setEvidence] = useState<CitationEvidence[]>([]);
   const [answer, setAnswer] = useState("");
   const [phase, setPhase] = useState("");
+  const [toolStatus, setToolStatus] = useState("");
   const [warning, setWarning] = useState("");
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
@@ -92,6 +93,14 @@ export function LegalResearchPanel({
     if (event === "warning" && typeof data === "string") {
       setWarning(data);
     }
+    if (
+      event === "tool" &&
+      isRecord(data) &&
+      typeof data.tool === "string" &&
+      typeof data.stage === "string"
+    ) {
+      setToolStatus(toolStatusLabel(data.tool, data.stage));
+    }
     if (event === "phase" && typeof data === "string") {
       setPhase(data);
     }
@@ -116,6 +125,7 @@ export function LegalResearchPanel({
       setEvidence([]);
       setAnswer("");
       setPhase("");
+      setToolStatus("");
       setWarning("");
 
       try {
@@ -309,7 +319,7 @@ export function LegalResearchPanel({
 
             {answer && evidence.length > 0 && (
               <section className={styles.aiSources}>
-                <h3>출처</h3>
+                <h3>출처 {evidence.length}개</h3>
                 <div>
                   {evidence.map((item, index) => (
                     <article key={`${item.source}-${item.title}`}>
@@ -368,7 +378,7 @@ export function LegalResearchPanel({
         {status === "loading" && !answer && phase && (
           <div className={styles.aiStreamingNotice}>
             <span />
-            {phaseLabel(phase)}
+            {toolStatus || phaseLabel(phase)}
           </div>
         )}
 
@@ -390,10 +400,20 @@ export function LegalResearchPanel({
 
 function phaseLabel(phase: string) {
   const labels: Record<string, string> = {
-    drafting: "검색 근거로 답변을 작성하는 중이에요.",
+    connecting: "연결된 MCP 검색 도구를 확인하는 중이에요.",
     planning: "LLM이 검색 계획을 세우는 중이에요.",
-    retrieving: "내부 DB와 공개법령에서 근거를 찾는 중이에요.",
+    retrieving: "검색 결과를 검토하고 다음 도구를 고르는 중이에요.",
     verifying: "인용과 단정 표현을 검증하는 중이에요.",
   };
   return labels[phase] ?? "법률 질문을 처리하는 중이에요.";
+}
+
+function toolStatusLabel(tool: string, stage: string) {
+  if (stage === "calling") {
+    return `${tool} 검색 중...`;
+  }
+  if (stage === "completed") {
+    return `${tool} 검색 결과를 확인했어요.`;
+  }
+  return `${tool} 검색에 실패해 다른 경로를 확인하고 있어요.`;
 }
