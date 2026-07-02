@@ -68,7 +68,7 @@ function findLocalEvidence(
       compactExcerpt(row.source_summary ?? row.original_text) ??
       `${row.court_name}이 ${row.decided_on}에 선고한 판결입니다.`,
     title: `${row.case_number} ${row.title}`,
-    url: row.source_url ?? undefined,
+    url: row.source_url ?? `/p/${encodeURIComponent(row.case_number)}`,
   }));
 }
 
