@@ -17,6 +17,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 브라우저 동작, 접근 제어, 라우팅, 반응형 UI가 달라지면 브라우저 테스트를
 실행한다. 서로 독립적인 변경을 한 커밋에 몰아넣지 않는다. 상세한 코딩 규칙은
 `docs/CODING_STYLE.md`를 따른다.
-Push 작업까지 포함된 경우 push 후 GitHub Actions 실행 결과를 확인한다. 실패한
-workflow가 있으면 로그를 확인하고, 현재 변경과 관련된 오류는 수정한 뒤 다시
-검증한다.
+
+Push 작업까지 포함된 경우 push 후 GitHub Actions 실행 결과를 반드시 확인한다.
+실패한 workflow가 있으면 로그를 확인하고, 현재 변경과 관련된 오류는 숨기거나
+우회하지 말고 수정한 뒤 로컬 검증과 GitHub Actions 확인을 다시 진행한다. 관련
+오류가 남아 있는 상태에서는 작업을 완료한 것으로 보고하지 않는다.
