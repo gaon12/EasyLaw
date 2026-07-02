@@ -95,6 +95,16 @@ export async function POST(request: NextRequest) {
                   verified: event.verified,
                 });
                 break;
+              case "progress":
+                send("progress", {
+                  detail: event.detail,
+                  status: event.status,
+                  title: event.title,
+                });
+                break;
+              case "settings":
+                send("settings", event.settings);
+                break;
               case "warning":
                 send("warning", event.message);
                 break;

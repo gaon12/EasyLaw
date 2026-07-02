@@ -1,6 +1,7 @@
 import type { SqliteDatabase } from "./db";
 import {
   type AgentDecision,
+  composeResearchAnswer,
   forceResearchAnswer,
   requestAgentDecision,
   verifyResearchAnswer,
@@ -53,6 +54,20 @@ export type ResearchHarnessEvent =
   | { type: "plan"; plan: Omit<ResearchPlan, "answer" | "evidence"> }
   | { type: "evidence"; evidence: ResearchEvidence }
   | { type: "answer"; answer: string; verified: boolean }
+  | {
+      type: "progress";
+      detail: string;
+      status: "completed" | "running";
+      title: string;
+    }
+  | {
+      type: "settings";
+      settings: {
+        model: string;
+        provider: string;
+        reasoningMode: "not_requested";
+      };
+    }
   | { type: "warning"; message: string }
   | {
       type: "tool";
@@ -61,7 +76,12 @@ export type ResearchHarnessEvent =
     }
   | {
       type: "phase";
-      phase: "connecting" | "planning" | "retrieving" | "verifying";
+      phase:
+        | "composing"
+        | "connecting"
+        | "planning"
+        | "retrieving"
+        | "verifying";
     };
 
 export function getResearchHarnessFlowchart() {
@@ -86,6 +106,20 @@ export async function buildResearchPlan(
     );
   }
 
+  onEvent?.({
+    settings: {
+      model: configuration.model,
+      provider: configuration.provider,
+      reasoningMode: "not_requested",
+    },
+    type: "settings",
+  });
+  onEvent?.({
+    detail: "현재 요청에는 reasoning 전용 파라미터를 보내지 않습니다.",
+    status: "completed",
+    title: "LLM 설정 확인",
+    type: "progress",
+  });
   onEvent?.({ phase: "connecting", type: "phase" });
   const toolbox = await connectMcpToolbox(db);
   try {
@@ -136,6 +170,12 @@ async function runToolLoop(
         decision.answer,
       );
       if (rejection) {
+        onEvent?.({
+          detail: rejection,
+          status: "running",
+          title: "답변 보류",
+          type: "progress",
+        });
         reviewFeedback.push(rejection);
         if (toolbox.tools.length === 0) {
           throw new LlmError(
@@ -233,21 +273,34 @@ async function finishAnswer(
   query: string,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ): Promise<ResearchPlan> {
-  onEvent?.({ answer: draft, type: "answer", verified: false });
+  const answer =
+    plan.mode === "quick"
+      ? draft
+      : await composeVisibleAnswer(
+          configuration,
+          plan,
+          evidence,
+          draft,
+          query,
+          onEvent,
+        );
+  if (plan.mode === "quick") {
+    onEvent?.({ answer, type: "answer", verified: false });
+  }
   if (plan.mode !== "deep") {
-    return { ...plan, answer: draft, evidence };
+    return { ...plan, answer, evidence };
   }
 
   onEvent?.({ phase: "verifying", type: "phase" });
   try {
-    const answer = await verifyResearchAnswer(
+    const verifiedAnswer = await verifyResearchAnswer(
       configuration,
       query,
       evidence,
-      draft,
+      answer,
     );
-    onEvent?.({ answer, type: "answer", verified: true });
-    return { ...plan, answer, evidence };
+    onEvent?.({ answer: verifiedAnswer, type: "answer", verified: true });
+    return { ...plan, answer: verifiedAnswer, evidence };
   } catch (error) {
     if (!(error instanceof LlmError)) {
       throw error;
@@ -256,7 +309,63 @@ async function finishAnswer(
       message: "심층 검증을 완료하지 못해 먼저 작성된 오버뷰를 표시합니다.",
       type: "warning",
     });
-    return { ...plan, answer: draft, evidence };
+    return { ...plan, answer, evidence };
+  }
+}
+
+async function composeVisibleAnswer(
+  configuration: LlmConfiguration,
+  plan: Omit<ResearchPlan, "answer" | "evidence">,
+  evidence: ResearchEvidence[],
+  draft: string,
+  query: string,
+  onEvent?: (event: ResearchHarnessEvent) => void,
+) {
+  onEvent?.({ phase: "composing", type: "phase" });
+  onEvent?.({
+    detail: "최종 답변을 한 번에 만들지 않고 문단 단위로 생성합니다.",
+    status: "running",
+    title: "AI 오버뷰 작성",
+    type: "progress",
+  });
+  try {
+    const answer = await composeResearchAnswer(
+      configuration,
+      query,
+      plan,
+      evidence,
+      ({ answer: partialAnswer, sectionTitle }) => {
+        onEvent?.({
+          detail: `${sectionTitle} 문단을 작성하는 중입니다.`,
+          status: "running",
+          title: "문단별 생성",
+          type: "progress",
+        });
+        onEvent?.({
+          answer: partialAnswer,
+          type: "answer",
+          verified: false,
+        });
+      },
+    );
+    onEvent?.({
+      detail: "문단별 생성이 완료되었습니다.",
+      status: "completed",
+      title: "AI 오버뷰 작성",
+      type: "progress",
+    });
+    return answer;
+  } catch (error) {
+    if (!(error instanceof LlmError)) {
+      throw error;
+    }
+    onEvent?.({
+      message:
+        "스트리밍 답변 생성에 실패해 먼저 확보한 초안 답변을 표시합니다.",
+      type: "warning",
+    });
+    onEvent?.({ answer: draft, type: "answer", verified: false });
+    return draft;
   }
 }
 

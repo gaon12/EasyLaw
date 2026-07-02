@@ -17,11 +17,26 @@ type ResearchStep = {
 };
 
 type Plan = {
+  assumptions: string[];
   coverageLabel: string;
   coverageLevel: number;
+  hypothetical: boolean;
   intent: string;
+  legalIssues: string[];
   mode: "quick" | "overview" | "deep";
   steps: ResearchStep[];
+};
+
+type LlmSettings = {
+  model: string;
+  provider: string;
+  reasoningMode: "not_requested";
+};
+
+type ProcessItem = {
+  detail: string;
+  status: "completed" | "running";
+  title: string;
 };
 
 type ResearchRequest = {
@@ -50,6 +65,33 @@ function errorBodyMessage(value: unknown, fallback: string) {
     : fallback;
 }
 
+function readableStreamError(value: unknown) {
+  const fallback =
+    "질문을 처리하지 못했어요. LLM 설정과 MCP 연결을 확인해 주세요.";
+  if (!isRecord(value)) {
+    return fallback;
+  }
+  const message = typeof value.message === "string" ? value.message : fallback;
+  if (value.code === "llm_request_failed") {
+    return `${message} LLM API 주소, 모델명, API 키가 현재 설정과 맞는지 확인해 주세요.`;
+  }
+  if (value.code === "llm_response_invalid") {
+    return `${message} LLM이 JSON/마크다운 형식을 지키지 못했습니다. 같은 질문을 다시 시도하거나 모델을 바꿔 보세요.`;
+  }
+  if (value.code === "mcp_unavailable") {
+    return `${message} 관리자 MCP 검색 도구 설정이 필요합니다.`;
+  }
+  return message;
+}
+
+function upsertProcessItem(current: ProcessItem[], next: ProcessItem) {
+  const index = current.findIndex((item) => item.title === next.title);
+  if (index === -1) {
+    return [...current, next];
+  }
+  return current.map((item, itemIndex) => (itemIndex === index ? next : item));
+}
+
 export function LegalResearchPanel({
   initialQuery = "",
 }: {
@@ -65,6 +107,8 @@ export function LegalResearchPanel({
   const [phase, setPhase] = useState("");
   const [toolStatus, setToolStatus] = useState("");
   const [warning, setWarning] = useState("");
+  const [llmSettings, setLlmSettings] = useState<LlmSettings | null>(null);
+  const [processItems, setProcessItems] = useState<ProcessItem[]>([]);
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
   );
@@ -84,8 +128,36 @@ export function LegalResearchPanel({
     if (event === "plan") {
       setPlan(data as Plan);
     }
+    if (event === "settings" && isRecord(data)) {
+      const settings = data as LlmSettings;
+      setLlmSettings(settings);
+      setProcessItems((current) =>
+        upsertProcessItem(current, {
+          detail: `${settings.provider} · ${settings.model} · reasoning 파라미터 미사용`,
+          status: "completed",
+          title: "LLM 설정 확인",
+        }),
+      );
+    }
+    if (event === "progress" && isRecord(data)) {
+      setProcessItems((current) =>
+        upsertProcessItem(current, {
+          detail: typeof data.detail === "string" ? data.detail : "",
+          status: data.status === "completed" ? "completed" : "running",
+          title:
+            typeof data.title === "string" ? data.title : "처리 상태 업데이트",
+        }),
+      );
+    }
     if (event === "evidence") {
       setEvidence((current) => [...current, data as CitationEvidence]);
+      setProcessItems((current) =>
+        upsertProcessItem(current, {
+          detail: "MCP 검색 결과에서 인용 가능한 근거를 추렸습니다.",
+          status: "running",
+          title: "근거 후보 수집",
+        }),
+      );
     }
     if (event === "answer" && isRecord(data) && typeof data.text === "string") {
       setAnswer(data.text);
@@ -99,21 +171,31 @@ export function LegalResearchPanel({
       typeof data.tool === "string" &&
       typeof data.stage === "string"
     ) {
-      setToolStatus(toolStatusLabel(data.tool, data.stage));
+      const label = toolStatusLabel(data.tool, data.stage);
+      setToolStatus(label);
+      setProcessItems((current) =>
+        upsertProcessItem(current, {
+          detail: label,
+          status: data.stage === "completed" ? "completed" : "running",
+          title: "MCP 검색",
+        }),
+      );
     }
     if (event === "phase" && typeof data === "string") {
       setPhase(data);
+      setProcessItems((current) =>
+        upsertProcessItem(current, {
+          detail: phaseLabel(data),
+          status: "running",
+          title: phaseTitle(data),
+        }),
+      );
     }
     if (event === "done") {
       setStatus("done");
     }
     if (event === "error") {
-      setErrorMessage(
-        errorBodyMessage(
-          data,
-          "질문을 처리하지 못했어요. LLM 설정을 확인해 주세요.",
-        ),
-      );
+      setErrorMessage(readableStreamError(data));
       setStatus("error");
     }
   }, []);
@@ -127,6 +209,8 @@ export function LegalResearchPanel({
       setPhase("");
       setToolStatus("");
       setWarning("");
+      setLlmSettings(null);
+      setProcessItems([]);
 
       try {
         const response = await fetch("/api/research/stream", {
@@ -198,6 +282,9 @@ export function LegalResearchPanel({
         }
       } catch (_error) {
         if (!signal.aborted) {
+          setErrorMessage(
+            "질문 처리 스트림이 중단됐어요. 네트워크 상태나 서버 로그를 확인해 주세요.",
+          );
           setStatus("error");
         }
       }
@@ -290,7 +377,25 @@ export function LegalResearchPanel({
           </div>
         )}
 
-        {status === "loading" && !answer && (
+        {status === "loading" && (
+          <div className={styles.aiSearchActivity}>
+            <span aria-hidden="true" className={styles.aiSearchPulse}>
+              <span />
+              <span />
+              <span />
+            </span>
+            <div>
+              <strong>{toolStatus || phaseLabel(phase)}</strong>
+              <small>
+                {answer
+                  ? "앞 문단을 표시하면서 다음 문단을 이어 쓰고 있어요."
+                  : "근거를 찾고 답변 경로를 고르는 중이에요."}
+              </small>
+            </div>
+          </div>
+        )}
+
+        {status === "loading" && !answer && !plan && (
           <div className={styles.skeletonStack}>
             {skeletonRows.map((row) => (
               <span key={row} />
@@ -308,12 +413,63 @@ export function LegalResearchPanel({
             </header>
             <div className={styles.aiOverviewMeta}>
               <span>{plan.intent}</span>
+              <span>{modeLabel(plan.mode)}</span>
+              {plan.hypothetical && <span>가상 사실 전제</span>}
+              {llmSettings && (
+                <span>{llmSettings.provider} · reasoning 요청 없음</span>
+              )}
             </div>
 
-            {answer && (
+            {(processItems.length > 0 || plan.legalIssues.length > 0) && (
+              <section className={styles.aiProcessPanel}>
+                <h3>진행 중인 과정</h3>
+                <div className={styles.aiProcessList}>
+                  {processItems.map((item) => (
+                    <article
+                      className={
+                        item.status === "running"
+                          ? styles.aiProcessActive
+                          : undefined
+                      }
+                      key={item.title}
+                    >
+                      <span />
+                      <div>
+                        <strong>{item.title}</strong>
+                        <small>{item.detail}</small>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                {plan.legalIssues.length > 0 && (
+                  <div className={styles.aiIssueChips}>
+                    {plan.legalIssues.map((issue) => (
+                      <span key={issue}>{issue}</span>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {(answer || status === "loading") && (
               <section className={styles.aiAnswerBlock}>
                 <h3>AI 답변</h3>
-                <ResearchMarkdown answer={answer} evidence={evidence} />
+                {answer ? (
+                  <>
+                    <ResearchMarkdown answer={answer} evidence={evidence} />
+                    {status === "loading" && (
+                      <span
+                        aria-hidden="true"
+                        className={styles.aiStreamingCursor}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <p className={styles.aiAnswerPlaceholder}>
+                    먼저 MCP 도구와 쟁점을 확인하고 있어요. 답변은 준비되는
+                    문단부터 바로 표시됩니다.
+                  </p>
+                )}
               </section>
             )}
 
@@ -371,7 +527,7 @@ export function LegalResearchPanel({
             <span />
             {phase === "verifying"
               ? "고위험 쟁점을 한 번 더 확인하는 중이에요."
-              : "답변을 정리하는 중이에요."}
+              : "다음 문단을 이어서 생성하는 중이에요."}
           </div>
         )}
 
@@ -400,12 +556,33 @@ export function LegalResearchPanel({
 
 function phaseLabel(phase: string) {
   const labels: Record<string, string> = {
+    composing: "답변을 한 번에 쓰지 않고 문단별로 생성하는 중이에요.",
     connecting: "연결된 MCP 검색 도구를 확인하는 중이에요.",
     planning: "LLM이 검색 계획을 세우는 중이에요.",
     retrieving: "검색 결과를 검토하고 다음 도구를 고르는 중이에요.",
     verifying: "인용과 단정 표현을 검증하는 중이에요.",
   };
   return labels[phase] ?? "법률 질문을 처리하는 중이에요.";
+}
+
+function phaseTitle(phase: string) {
+  const labels: Record<string, string> = {
+    composing: "문단별 답변 생성",
+    connecting: "MCP 연결 확인",
+    planning: "질문 분석",
+    retrieving: "추가 근거 탐색",
+    verifying: "심층 검증",
+  };
+  return labels[phase] ?? "처리 상태";
+}
+
+function modeLabel(mode: Plan["mode"]) {
+  const labels = {
+    deep: "심층 모드",
+    overview: "오버뷰 모드",
+    quick: "빠른 답변",
+  } satisfies Record<Plan["mode"], string>;
+  return labels[mode];
 }
 
 function toolStatusLabel(tool: string, stage: string) {

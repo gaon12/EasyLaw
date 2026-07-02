@@ -131,6 +131,62 @@ export async function forceResearchAnswer(
   ]);
 }
 
+export async function composeResearchAnswer(
+  configuration: LlmConfiguration,
+  query: string,
+  plan: Omit<ResearchPlan, "answer" | "evidence">,
+  evidence: ResearchEvidence[],
+  onProgress?: (event: { answer: string; sectionTitle: string }) => void,
+) {
+  let answer = "";
+  for (const section of answerSections(plan)) {
+    if (answer.trim()) {
+      answer = `${answer.trimEnd()}\n\n`;
+      onProgress?.({ answer, sectionTitle: section.title });
+    }
+    let sectionText = "";
+    const previousAnswer = answer.trim();
+    const generated = await requestLlmText(
+      configuration,
+      [
+        {
+          role: "system",
+          content: `대한민국 법률 질문에 대한 AI 오버뷰를 Markdown으로 작성한다.
+지금은 전체 답변 중 "${section.title}" 부분만 작성한다. 한 번에 전체 답변을 완성하려 하지 말고, 이전 문단을 읽은 뒤 더 나은 다음 문단을 덧붙인다.
+
+규칙:
+- 질문의 가상 사실은 법적 대응관계를 세우기 위한 전제로 존중한다.
+- 제공된 MCP 근거만 사실 근거로 사용하고, 사실 주장 뒤에는 [E1] 형식의 근거 ID를 붙인다.
+- 이미 쓴 내용을 반복하지 말고 이번 섹션의 역할에 집중한다.
+- 불확실하면 결론을 흐리지 말고 필요한 추가 사실을 분명히 적는다.
+- 제목은 쓰지 말고 본문만 출력한다.`,
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            evidence,
+            previousAnswer,
+            query,
+            section,
+            selectedPlan: plan,
+          }),
+        },
+      ],
+      {
+        onToken(token) {
+          sectionText += token;
+          onProgress?.({
+            answer: `${answer}${sectionText}`,
+            sectionTitle: section.title,
+          });
+        },
+      },
+    );
+    answer = `${answer}${generated.trim()}`;
+  }
+  return answer.trim();
+}
+
 export async function verifyResearchAnswer(
   configuration: LlmConfiguration,
   query: string,
@@ -151,6 +207,39 @@ export async function verifyResearchAnswer(
     },
   ]);
   return parseJsonResponse(response, verificationSchema).answer;
+}
+
+function answerSections(plan: Omit<ResearchPlan, "answer" | "evidence">) {
+  if (plan.mode === "overview") {
+    return [
+      {
+        focus: "질문에 대한 직접 결론과 가장 중요한 법적 기준을 먼저 설명한다.",
+        title: "핵심 결론",
+      },
+      {
+        focus:
+          "확보한 근거를 사실관계에 적용하고, 사용자가 바로 이해할 수 있게 쟁점별로 정리한다.",
+        title: "근거 적용",
+      },
+    ];
+  }
+  return [
+    {
+      focus:
+        "질문에 대한 직접 결론을 먼저 제시하되, 처벌·책임 가능성의 높고 낮음을 분명히 말한다.",
+      title: "핵심 결론",
+    },
+    {
+      focus:
+        "법령상 의무, 금지, 벌칙, 행정처분, 판례상 구성요건을 근거 ID와 함께 사실관계에 적용한다.",
+      title: "법적 근거와 적용",
+    },
+    {
+      focus:
+        "결론이 달라질 수 있는 사실, 추가 확인이 필요한 자료, 사용자가 다음에 확인할 사항을 정리한다.",
+      title: "한계와 추가 확인",
+    },
+  ];
 }
 
 function parseJsonResponse<T>(response: string, schema: z.ZodType<T>): T {

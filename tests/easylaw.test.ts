@@ -120,8 +120,17 @@ function createResearchFetchMock({
       if (!url.startsWith("https://mcp.example")) {
         state.llmBodies.push(body);
         state.llmRequests += 1;
+        const content = llmResponses.shift() ?? "";
+        if (body.stream === true) {
+          return new Response(
+            `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`,
+            {
+              headers: { "Content-Type": "text/event-stream" },
+            },
+          );
+        }
         return Response.json({
-          choices: [{ message: { content: llmResponses.shift() } }],
+          choices: [{ message: { content } }],
         });
       }
       if (init?.method === "DELETE") {
@@ -1178,6 +1187,8 @@ test("legal research harness assigns coverage and evidence", async () => {
           mode: "overview",
           type: "answer",
         }),
+        "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
+        "입금 내역, 대화 기록, 판매 게시글을 보존한 뒤 민사상 손해배상과 형사 고소 가능성을 함께 검토하세요. [E1]",
       ],
       toolResults: [
         {
@@ -1208,8 +1219,16 @@ test("legal research harness assigns coverage and evidence", async () => {
       JSON.stringify(plan.evidence),
     );
     assert.match(plan.answer, /\[E1\]/);
-    assert.equal(mock.state.llmRequests, 2);
+    assert.equal(mock.state.llmRequests, 4);
     assert.equal(mock.state.toolCalls, 1);
+    assert.ok(
+      mock.state.llmBodies.some((body) => body.stream === true),
+      "final answer should be streamed",
+    );
+    assert.ok(
+      mock.state.llmBodies.every((body) => !("reasoning" in body)),
+      "research requests should not force reasoning mode",
+    );
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
@@ -1286,6 +1305,9 @@ test("hypothetical legal scenarios keep their premise and require MCP-grounded a
           mode: "deep",
           type: "answer",
         }),
+        "엘프를 인간과 같은 생명·신체를 가진 응급환자로 대응시키면, 단순히 종족을 보고 치료를 포기한 의사는 정당한 사유 없는 응급의료 거부에 따른 처벌 가능성이 높습니다. [E1]",
+        "응급의료 거부 금지와 벌칙·행정처분 근거가 함께 문제 되고, 사망이나 중상해가 발생했다면 보호의무와 인과관계에 따라 부작위 형사책임도 별도로 검토해야 합니다. [E2] [E3]",
+        "다만 마력 소진이 응급증상에 대응되는지, 당시 치료 가능성과 전원 가능성이 있었는지는 의료 자료로 확인해야 합니다. [E4]",
         JSON.stringify({
           answer: groundedAnswer,
           grounded: true,
@@ -1332,7 +1354,7 @@ test("hypothetical legal scenarios keep their premise and require MCP-grounded a
     assert.deepEqual(result.legalIssues, legalIssues);
     assert.equal(mock.state.toolCalls, 4);
     assert.equal(new Set(mock.state.toolArguments.map(JSON.stringify)).size, 4);
-    assert.equal(mock.state.llmRequests, 4);
+    assert.equal(mock.state.llmRequests, 7);
     assert.doesNotMatch(result.answer, /자연인이 아니므로.*처벌할 수 없습니다/);
     assert.match(result.answer, /처벌 가능성이 높습니다/);
     assert.match(result.answer, /\[E1\]/);
@@ -1385,6 +1407,9 @@ test("deep research keeps its overview when verification fails", async () => {
           mode: "deep",
           type: "answer",
         }),
+        "현재 확보한 자료를 보존하고 수사기관 상담을 준비하세요. [E1]",
+        "사기죄의 구성요건과 신고 절차는 피해 자료의 내용에 따라 달라지므로 송금 내역과 대화 기록을 먼저 정리해야 합니다. [E1] [E2]",
+        "긴급성이 크다면 추가 송금을 멈추고 플랫폼·수사기관 상담 경로를 병행하세요. [E2]",
         "검증 결과를 JSON으로 만들지 못했습니다.",
       ],
       toolResults: [
