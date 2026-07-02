@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ClipLoader } from "react-spinners";
 import styles from "@/app/page.module.css";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
 import {
@@ -10,33 +11,9 @@ import {
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 
-type ResearchStep = {
-  id: string;
-  label: string;
-  description: string;
-};
-
 type Plan = {
-  assumptions: string[];
   coverageLabel: string;
-  coverageLevel: number;
-  hypothetical: boolean;
   intent: string;
-  legalIssues: string[];
-  mode: "quick" | "overview" | "deep";
-  steps: ResearchStep[];
-};
-
-type LlmSettings = {
-  model: string;
-  provider: string;
-  reasoningMode: "not_requested";
-};
-
-type ProcessItem = {
-  detail: string;
-  status: "completed" | "running";
-  title: string;
 };
 
 type ResearchRequest = {
@@ -84,14 +61,6 @@ function readableStreamError(value: unknown) {
   return message;
 }
 
-function upsertProcessItem(current: ProcessItem[], next: ProcessItem) {
-  const index = current.findIndex((item) => item.title === next.title);
-  if (index === -1) {
-    return [...current, next];
-  }
-  return current.map((item, itemIndex) => (itemIndex === index ? next : item));
-}
-
 export function LegalResearchPanel({
   initialQuery = "",
 }: {
@@ -107,8 +76,6 @@ export function LegalResearchPanel({
   const [phase, setPhase] = useState("");
   const [toolStatus, setToolStatus] = useState("");
   const [warning, setWarning] = useState("");
-  const [llmSettings, setLlmSettings] = useState<LlmSettings | null>(null);
-  const [processItems, setProcessItems] = useState<ProcessItem[]>([]);
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
   );
@@ -128,36 +95,8 @@ export function LegalResearchPanel({
     if (event === "plan") {
       setPlan(data as Plan);
     }
-    if (event === "settings" && isRecord(data)) {
-      const settings = data as LlmSettings;
-      setLlmSettings(settings);
-      setProcessItems((current) =>
-        upsertProcessItem(current, {
-          detail: `${settings.provider} · ${settings.model} · reasoning 파라미터 미사용`,
-          status: "completed",
-          title: "LLM 설정 확인",
-        }),
-      );
-    }
-    if (event === "progress" && isRecord(data)) {
-      setProcessItems((current) =>
-        upsertProcessItem(current, {
-          detail: typeof data.detail === "string" ? data.detail : "",
-          status: data.status === "completed" ? "completed" : "running",
-          title:
-            typeof data.title === "string" ? data.title : "처리 상태 업데이트",
-        }),
-      );
-    }
     if (event === "evidence") {
       setEvidence((current) => [...current, data as CitationEvidence]);
-      setProcessItems((current) =>
-        upsertProcessItem(current, {
-          detail: "MCP 검색 결과에서 인용 가능한 근거를 추렸습니다.",
-          status: "running",
-          title: "근거 후보 수집",
-        }),
-      );
     }
     if (event === "answer" && isRecord(data) && typeof data.text === "string") {
       setAnswer(data.text);
@@ -171,25 +110,10 @@ export function LegalResearchPanel({
       typeof data.tool === "string" &&
       typeof data.stage === "string"
     ) {
-      const label = toolStatusLabel(data.tool, data.stage);
-      setToolStatus(label);
-      setProcessItems((current) =>
-        upsertProcessItem(current, {
-          detail: label,
-          status: data.stage === "completed" ? "completed" : "running",
-          title: "MCP 검색",
-        }),
-      );
+      setToolStatus(toolStatusLabel(data.stage));
     }
     if (event === "phase" && typeof data === "string") {
       setPhase(data);
-      setProcessItems((current) =>
-        upsertProcessItem(current, {
-          detail: phaseLabel(data),
-          status: "running",
-          title: phaseTitle(data),
-        }),
-      );
     }
     if (event === "done") {
       setStatus("done");
@@ -209,8 +133,6 @@ export function LegalResearchPanel({
       setPhase("");
       setToolStatus("");
       setWarning("");
-      setLlmSettings(null);
-      setProcessItems([]);
 
       try {
         const response = await fetch("/api/research/stream", {
@@ -321,11 +243,6 @@ export function LegalResearchPanel({
     [activeRequest?.query, query],
   );
 
-  const skeletonRows = useMemo(
-    () => Array.from({ length: 4 }, (_, index) => index),
-    [],
-  );
-
   return (
     <div className={styles.researchShell}>
       <section className={styles.researchSearchPanel}>
@@ -379,11 +296,13 @@ export function LegalResearchPanel({
 
         {status === "loading" && (
           <div className={styles.aiSearchActivity}>
-            <span aria-hidden="true" className={styles.aiSearchPulse}>
-              <span />
-              <span />
-              <span />
-            </span>
+            <ClipLoader
+              aria-label="법률 근거를 찾는 중"
+              color="currentColor"
+              loading
+              size={28}
+              speedMultiplier={0.82}
+            />
             <div>
               <strong>{toolStatus || phaseLabel(phase)}</strong>
               <small>
@@ -392,14 +311,6 @@ export function LegalResearchPanel({
                   : "근거를 찾고 답변 경로를 고르는 중이에요."}
               </small>
             </div>
-          </div>
-        )}
-
-        {status === "loading" && !answer && !plan && (
-          <div className={styles.skeletonStack}>
-            {skeletonRows.map((row) => (
-              <span key={row} />
-            ))}
           </div>
         )}
 
@@ -413,43 +324,7 @@ export function LegalResearchPanel({
             </header>
             <div className={styles.aiOverviewMeta}>
               <span>{plan.intent}</span>
-              <span>{modeLabel(plan.mode)}</span>
-              {plan.hypothetical && <span>가상 사실 전제</span>}
-              {llmSettings && (
-                <span>{llmSettings.provider} · reasoning 요청 없음</span>
-              )}
             </div>
-
-            {(processItems.length > 0 || plan.legalIssues.length > 0) && (
-              <section className={styles.aiProcessPanel}>
-                <h3>진행 중인 과정</h3>
-                <div className={styles.aiProcessList}>
-                  {processItems.map((item) => (
-                    <article
-                      className={
-                        item.status === "running"
-                          ? styles.aiProcessActive
-                          : undefined
-                      }
-                      key={item.title}
-                    >
-                      <span />
-                      <div>
-                        <strong>{item.title}</strong>
-                        <small>{item.detail}</small>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-                {plan.legalIssues.length > 0 && (
-                  <div className={styles.aiIssueChips}>
-                    {plan.legalIssues.map((issue) => (
-                      <span key={issue}>{issue}</span>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
 
             {(answer || status === "loading") && (
               <section className={styles.aiAnswerBlock}>
@@ -498,18 +373,6 @@ export function LegalResearchPanel({
                 </div>
               </section>
             )}
-
-            <details className={styles.aiHarnessDetails}>
-              <summary>하네스 확인 흐름</summary>
-              <div className={styles.harnessSteps}>
-                {plan.steps.map((step) => (
-                  <article key={step.id}>
-                    <strong>{step.label}</strong>
-                    <span>{step.description}</span>
-                  </article>
-                ))}
-              </div>
-            </details>
           </article>
         )}
 
@@ -556,41 +419,21 @@ export function LegalResearchPanel({
 
 function phaseLabel(phase: string) {
   const labels: Record<string, string> = {
-    composing: "답변을 한 번에 쓰지 않고 문단별로 생성하는 중이에요.",
-    connecting: "연결된 MCP 검색 도구를 확인하는 중이에요.",
-    planning: "LLM이 검색 계획을 세우는 중이에요.",
-    retrieving: "검색 결과를 검토하고 다음 도구를 고르는 중이에요.",
-    verifying: "인용과 단정 표현을 검증하는 중이에요.",
+    composing: "답변을 작성하는 중이에요.",
+    connecting: "검색 준비 중이에요.",
+    planning: "질문을 살펴보는 중이에요.",
+    retrieving: "관련 근거를 더 찾는 중이에요.",
+    verifying: "답변을 한 번 더 확인하는 중이에요.",
   };
   return labels[phase] ?? "법률 질문을 처리하는 중이에요.";
 }
 
-function phaseTitle(phase: string) {
-  const labels: Record<string, string> = {
-    composing: "문단별 답변 생성",
-    connecting: "MCP 연결 확인",
-    planning: "질문 분석",
-    retrieving: "추가 근거 탐색",
-    verifying: "심층 검증",
-  };
-  return labels[phase] ?? "처리 상태";
-}
-
-function modeLabel(mode: Plan["mode"]) {
-  const labels = {
-    deep: "심층 모드",
-    overview: "오버뷰 모드",
-    quick: "빠른 답변",
-  } satisfies Record<Plan["mode"], string>;
-  return labels[mode];
-}
-
-function toolStatusLabel(tool: string, stage: string) {
+function toolStatusLabel(stage: string) {
   if (stage === "calling") {
-    return `${tool} 검색 중...`;
+    return "관련 근거를 찾는 중이에요.";
   }
   if (stage === "completed") {
-    return `${tool} 검색 결과를 확인했어요.`;
+    return "찾은 근거를 확인했어요.";
   }
-  return `${tool} 검색에 실패해 다른 경로를 확인하고 있어요.`;
+  return "다른 근거 경로를 확인하고 있어요.";
 }

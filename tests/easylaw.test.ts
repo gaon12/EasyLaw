@@ -37,7 +37,6 @@ import {
   ensurePublicJudgmentOriginalText,
   mergeExternalFirst,
   parseOpenLawSearchResponse,
-  syncSampleExternalCatalog,
   upsertJudgmentFromExternal,
 } from "../src/lib/external-law";
 import { listIntegrationEvents } from "../src/lib/integration-events";
@@ -54,6 +53,7 @@ import {
 } from "../src/lib/judgment-collection";
 import { parseJudgmentDocument } from "../src/lib/judgment-document";
 import { extractRelatedCaseReferences } from "../src/lib/judgment-relations";
+import { resetLegalData } from "../src/lib/legal-data-maintenance";
 import { buildResearchPlan } from "../src/lib/legal-research";
 import {
   completeLoginChallenge,
@@ -69,7 +69,7 @@ import { optionalSafeNextPath, safeNextPath } from "../src/lib/safe-next-path";
 import { checkAnonymousAccess } from "../src/lib/security/anonymous-access";
 import { decryptSecret } from "../src/lib/security/crypto";
 import { getSessionUser } from "../src/lib/session";
-import { setSetting } from "../src/lib/settings";
+import { getSetting, setSetting } from "../src/lib/settings";
 import {
   completeSetup,
   configureSetup,
@@ -97,6 +97,50 @@ function withDb() {
       rmSync(dir, { recursive: true, force: true });
     },
   };
+}
+
+function seedExternalFixture(db: ReturnType<typeof createDatabase>) {
+  return [
+    {
+      caseNumber: "2023구합54112",
+      caseType: "administrative" as const,
+      courtName: "서울행정법원",
+      decidedOn: "2024-01-26",
+      externalId: "seoul-admin-2023guhap54112",
+      originalText:
+        "원고는 영업정지 처분의 취소를 구하였고, 법원은 처분 사유와 절차, 비례 원칙 위반 여부를 중심으로 판단하였습니다.",
+      sourceProvider: "test-open-law",
+      sourceUrl: "https://example.test/judgment/admin",
+      summary: "취소소송 요건과 행정 처분 판단 구조를 보여주는 판결 예시",
+      title: "영업정지 처분 취소 청구 사건",
+    },
+    {
+      caseNumber: "2023고단000",
+      caseType: "criminal" as const,
+      courtName: "대전지방법원",
+      decidedOn: "2023-12-12",
+      externalId: "criminal-easyread-sample-2",
+      originalText:
+        "피고인의 행위가 특수절도죄의 구성요건에 해당하는지, 공모 관계와 양형 사유가 무엇인지 판단한 형사 판결 예시입니다.",
+      sourceProvider: "test-open-law",
+      sourceUrl: "https://example.test/judgment/criminal",
+      summary: "형사 사건 Easy-Read 작성을 위한 기반 샘플",
+      title: "특수절도 형사 판결 예시",
+    },
+    {
+      caseNumber: "2024가단000",
+      caseType: "civil" as const,
+      courtName: "대전지방법원",
+      decidedOn: "2024-04-15",
+      externalId: "civil-easyread-sample-1",
+      originalText:
+        "원고는 손해배상을 청구하였고, 법원은 손해 발생, 인과관계, 배상 범위를 나누어 판단한 민사 판결 예시입니다.",
+      sourceProvider: "test-open-law",
+      sourceUrl: "https://example.test/judgment/civil",
+      summary: "민사 사건 Easy-Read 작성을 위한 기반 샘플",
+      title: "손해배상 청구 민사 판결 예시",
+    },
+  ].map((record) => upsertJudgmentFromExternal(db, record));
 }
 
 function createResearchFetchMock({
@@ -340,7 +384,7 @@ test("first-run setup can explicitly skip the Resend API test", async () => {
 test("external catalog creates public pending judgments", async () => {
   const { db, cleanup } = withDb();
   try {
-    await syncSampleExternalCatalog(db);
+    seedExternalFixture(db);
     const judgments = getPublicJudgments(db);
     assert.ok(judgments.length >= 3);
     assert.equal(judgments[0].visibility, "public");
@@ -350,7 +394,7 @@ test("external catalog creates public pending judgments", async () => {
     );
     assert.ok(getPublicJudgmentByIdentifier(db, judgments[0].id)?.originalText);
     assert.ok(
-      judgments.every((item) => item.sourceProvider === "korean-law-mcp"),
+      judgments.every((item) => item.sourceProvider === "test-open-law"),
     );
   } finally {
     cleanup();
@@ -360,7 +404,7 @@ test("external catalog creates public pending judgments", async () => {
 test("generation jobs dedupe and notification sending is idempotent", async () => {
   const { db, cleanup } = withDb();
   try {
-    await syncSampleExternalCatalog(db);
+    seedExternalFixture(db);
     const judgment = getPublicJudgments(db)[0];
     const firstJobId = createOrAttachGenerationJob(
       db,
@@ -389,6 +433,37 @@ test("generation jobs dedupe and notification sending is idempotent", async () =
       )
       .get();
     assert.equal(notification?.status, "sent");
+  } finally {
+    cleanup();
+  }
+});
+
+test("legal data reset removes collected legal records without settings", () => {
+  const { db, cleanup } = withDb();
+  try {
+    seedExternalFixture(db);
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "judgment_collection_status", "success");
+    db.prepare(
+      `INSERT INTO dictionary_terms
+        (id, source, priority, word, sense_no, definition, raw_json, updated_at)
+        VALUES ('legal_reset_term', 'legal', 0, '계약', '1', '법률 용어', '{}', ?)`,
+    ).run(new Date().toISOString());
+
+    const result = resetLegalData(db);
+
+    assert.equal(getPublicJudgments(db).length, 0);
+    assert.equal(
+      db
+        .prepare<[], { count: number }>(
+          "SELECT COUNT(*) count FROM dictionary_terms",
+        )
+        .get()?.count,
+      0,
+    );
+    assert.equal(getSetting(db, "llm_provider"), "OpenAI");
+    assert.equal(getSetting(db, "judgment_collection_status"), null);
+    assert.ok(result.deleted.judgments >= 3);
   } finally {
     cleanup();
   }
@@ -1479,10 +1554,23 @@ test("simple legal concepts use the quick answer path", async () => {
   }
 });
 
-test("research questions require an available MCP search tool", async () => {
+test("research questions fall back to local legal data when MCP is unavailable", async () => {
   const { db, cleanup } = withDb();
   const originalFetch = globalThis.fetch;
   try {
+    upsertJudgmentFromExternal(db, {
+      caseNumber: "2024가단100",
+      caseType: "civil",
+      courtName: "서울중앙지방법원",
+      decidedOn: "2024-02-20",
+      externalId: "lease-termination-fixture",
+      originalText:
+        "임대차 계약 중도 해지는 계약 내용, 귀책 사유, 해지 통지 및 손해배상 범위에 따라 판단한다.",
+      sourceProvider: "open-law",
+      sourceUrl: "https://example.test/judgment/lease",
+      summary: "전세 계약 중도 해지와 손해배상 범위를 판단했다.",
+      title: "전세 계약 중도 해지 손해배상",
+    });
     setSetting(db, "llm_provider", "OpenAI");
     setSetting(db, "llm_api_base_url", "https://llm.example/v1");
     setSetting(db, "llm_model", "test-model");
@@ -1493,7 +1581,7 @@ test("research questions require an available MCP search tool", async () => {
           calls: [
             {
               arguments: { query: "전세 계약 중도 해지" },
-              toolKey: "korean-law/search_law",
+              toolKey: "local-legal/search_local_legal_data",
             },
           ],
           coverageLevel: 2,
@@ -1501,14 +1589,28 @@ test("research questions require an available MCP search tool", async () => {
           mode: "overview",
           type: "tool_calls",
         }),
+        JSON.stringify({
+          answer: "계약 내용과 해지 사유를 먼저 확인해야 합니다. [E1]",
+          coverageLevel: 2,
+          intent: "계약 해지 요건 확인",
+          mode: "overview",
+          type: "answer",
+        }),
+        "계약 내용과 귀책 사유에 따라 중도 해지 가능성이 달라집니다. [E1]",
+        "해지 통지와 손해배상 범위를 함께 검토해야 합니다. [E1]",
       ],
     });
     globalThis.fetch = mock.fetch;
 
-    await assert.rejects(
-      buildResearchPlan(db, "전세 계약을 중도 해지할 수 있나요?"),
-      /연결된 MCP 검색 도구가 없습니다/,
+    const result = await buildResearchPlan(
+      db,
+      "전세 계약을 중도 해지할 수 있나요?",
     );
+
+    assert.equal(result.evidence.length, 1);
+    assert.match(result.evidence[0]?.source ?? "", /국가법령정보센터 판례/);
+    assert.match(result.answer, /\[E1\]/);
+    assert.equal(mock.state.toolCalls, 0);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();

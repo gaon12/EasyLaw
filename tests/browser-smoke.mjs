@@ -131,7 +131,16 @@ const llmServer = createServer((request, response) => {
             grounded: true,
             issues: [],
           })
-        : overviewAnswer;
+        : context.section?.title === "핵심 결론"
+          ? "## 핵심 답변\n\n**손해 자료**를 먼저 정리해야 합니다. [E1]"
+          : "- 이체 내역\n- 상대방과의 대화 내용";
+    if (payload.stream === true) {
+      response.writeHead(200, { "Content-Type": "text/event-stream" });
+      response.end(
+        `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`,
+      );
+      return;
+    }
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ choices: [{ message: { content } }] }));
   });
@@ -231,6 +240,29 @@ function cleanupTempDir() {
       throw error;
     }
     console.warn(`Browser test temp cleanup was deferred: ${tempDir}`);
+  }
+}
+
+function seedBrowserJudgment(databasePath) {
+  const db = new Database(databasePath);
+  try {
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT OR IGNORE INTO judgments
+        (id, case_number, court_name, decided_on, title, case_type, status,
+         visibility, source_provider, source_external_id, source_url,
+         source_trust, source_summary, original_text, created_at, updated_at)
+       VALUES
+        ('browser_judgment_1', '2024가단100', '서울중앙지방법원',
+         '2024-02-20', '손해배상 청구 사건', 'civil', 'pending',
+         'public', 'browser-fixture', 'browser-fixture-1',
+         'https://example.test/judgment/browser-fixture',
+         'external_verified', '손해배상 청구의 요건과 입증 자료를 다룬 판결입니다.',
+         '원고는 손해배상을 청구하였고 법원은 손해 발생과 인과관계를 중심으로 판단하였습니다.',
+         ?, ?)`,
+    ).run(now, now);
+  } finally {
+    db.close();
   }
 }
 
@@ -584,6 +616,7 @@ try {
   ) {
     throw new Error("Judgment collection subnavigation was not active.");
   }
+  seedBrowserJudgment(env.EASYLAW_TEST_DATABASE_PATH);
 
   const loginChallengeContext = await browser.newContext();
   const loginChallengePage = await loginChallengeContext.newPage();

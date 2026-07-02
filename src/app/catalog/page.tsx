@@ -1,6 +1,5 @@
 ﻿import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncExternalCatalog } from "@/lib/external-law";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import {
   matchesJudgmentSearch,
@@ -30,7 +29,6 @@ export default async function CatalogPage({
   const isRecentView = view === "recent" && !initialQuery;
   const currentPage = parseCatalogPage(page);
   const db = getDatabase();
-  await syncExternalCatalog(db);
   const allJudgments = getPublicJudgments(db);
   const filters = parseJudgmentSearchQuery(initialQuery);
   const filteredJudgments = initialQuery.trim()

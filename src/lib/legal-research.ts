@@ -16,6 +16,7 @@ import {
   LlmError,
   readLlmConfiguration,
 } from "./llm-client";
+import { createLocalLegalToolbox, mergeToolboxes } from "./local-legal-toolbox";
 import {
   connectMcpToolbox,
   type McpToolbox,
@@ -60,14 +61,6 @@ export type ResearchHarnessEvent =
       status: "completed" | "running";
       title: string;
     }
-  | {
-      type: "settings";
-      settings: {
-        model: string;
-        provider: string;
-        reasoningMode: "not_requested";
-      };
-    }
   | { type: "warning"; message: string }
   | {
       type: "tool";
@@ -106,22 +99,11 @@ export async function buildResearchPlan(
     );
   }
 
-  onEvent?.({
-    settings: {
-      model: configuration.model,
-      provider: configuration.provider,
-      reasoningMode: "not_requested",
-    },
-    type: "settings",
-  });
-  onEvent?.({
-    detail: "현재 요청에는 reasoning 전용 파라미터를 보내지 않습니다.",
-    status: "completed",
-    title: "LLM 설정 확인",
-    type: "progress",
-  });
   onEvent?.({ phase: "connecting", type: "phase" });
-  const toolbox = await connectMcpToolbox(db);
+  const toolbox = mergeToolboxes(
+    await connectMcpToolbox(db),
+    createLocalLegalToolbox(db),
+  );
   try {
     return await runToolLoop(configuration, toolbox, normalizedQuery, onEvent);
   } finally {

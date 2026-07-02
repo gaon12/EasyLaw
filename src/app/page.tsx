@@ -2,7 +2,6 @@ import { cookies } from "next/headers";
 import { PublicHome, SignedInHome } from "@/components/home-sections";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncExternalCatalog } from "@/lib/external-law";
 import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getPublicJudgments } from "@/lib/queries";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
@@ -31,8 +30,6 @@ export default async function Home() {
       </AppShell>
     );
   }
-
-  await syncExternalCatalog(db);
 
   return (
     <AppShell>

@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "collect:law-data": "tsx scripts/collect-law-data.ts",
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
     "format:check": "biome format",
+    "reset:law-data": "tsx scripts/reset-law-data.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "node tests/browser-smoke.mjs"
@@ -24,6 +26,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
+    "react-spinners": "^0.17.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.16.0",
     "stream-json": "^3.4.0",

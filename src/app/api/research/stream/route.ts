@@ -102,9 +102,6 @@ export async function POST(request: NextRequest) {
                   title: event.title,
                 });
                 break;
-              case "settings":
-                send("settings", event.settings);
-                break;
               case "warning":
                 send("warning", event.message);
                 break;

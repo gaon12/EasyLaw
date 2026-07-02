@@ -76,48 +76,6 @@ const openLawTargetConfigs: Record<OpenLawTarget, OpenLawTargetConfig> = {
   },
 };
 
-const sampleExternalRecords: ExternalJudgmentRecord[] = [
-  {
-    sourceProvider: "korean-law-mcp",
-    externalId: "seoul-admin-2023guhap54112",
-    caseNumber: "2023구합54112",
-    courtName: "서울행정법원",
-    decidedOn: "2024-01-26",
-    title: "영업정지 처분 취소 청구 사건",
-    sourceUrl: "https://jpri.scourt.go.kr",
-    caseType: "administrative",
-    summary: "취소소송 요건과 행정 처분 판단 구조를 보여주는 판결 예시",
-    originalText:
-      "원고는 영업정지 처분의 취소를 구하였고, 법원은 처분 사유와 절차, 비례 원칙 위반 여부를 중심으로 판단하였습니다.",
-  },
-  {
-    sourceProvider: "korean-law-mcp",
-    externalId: "criminal-easyread-sample-2",
-    caseNumber: "2023고단000",
-    courtName: "대전지방법원",
-    decidedOn: "2023-12-12",
-    title: "특수절도 형사 판결 예시",
-    sourceUrl: "https://jpri.scourt.go.kr",
-    caseType: "criminal",
-    summary: "형사 사건 Easy-Read 작성을 위한 기반 샘플",
-    originalText:
-      "피고인의 행위가 특수절도죄의 구성요건에 해당하는지, 공모 관계와 양형 사유가 무엇인지 판단한 형사 판결 예시입니다.",
-  },
-  {
-    sourceProvider: "korean-law-mcp",
-    externalId: "civil-easyread-sample-1",
-    caseNumber: "2024가단000",
-    courtName: "대전지방법원",
-    decidedOn: "2024-04-15",
-    title: "손해배상 청구 민사 판결 예시",
-    sourceUrl: "https://jpri.scourt.go.kr",
-    caseType: "civil",
-    summary: "민사 사건 Easy-Read 작성을 위한 기반 샘플",
-    originalText:
-      "원고는 손해배상을 청구하였고, 법원은 손해 발생, 인과관계, 배상 범위를 나누어 판단한 민사 판결 예시입니다.",
-  },
-];
-
 type OpenLawSearchOptions = {
   display?: number;
   forceRefresh?: boolean;
@@ -133,19 +91,7 @@ export async function searchExternalJudgments(
   db: SqliteDatabase,
   query: string,
 ) {
-  const records = await fetchOpenLawJudgments(db, query, { display: 20 });
-  if (records.length > 0) {
-    return records;
-  }
-
-  const normalized = query.trim().toLowerCase();
-  return sampleExternalRecords.filter((record) => {
-    return (
-      record.caseNumber.toLowerCase().includes(normalized) ||
-      record.title.toLowerCase().includes(normalized) ||
-      record.courtName.toLowerCase().includes(normalized)
-    );
-  });
+  return fetchOpenLawJudgments(db, query, { display: 20 });
 }
 
 export function cacheExternalResponse(
@@ -276,23 +222,7 @@ export function mergeExternalFirst<T extends Record<string, unknown>>(
 
 export async function syncExternalCatalog(db: SqliteDatabase) {
   const records = await fetchOpenLawJudgments(db, "손해배상", { display: 20 });
-  if (records.length === 0) {
-    return syncSampleExternalCatalog(db);
-  }
   return records.map((record) => upsertJudgmentFromExternal(db, record));
-}
-
-export async function syncSampleExternalCatalog(db: SqliteDatabase) {
-  cacheExternalResponse(
-    db,
-    "korean-law-mcp",
-    "sample-catalog",
-    sampleExternalRecords,
-  );
-
-  return sampleExternalRecords.map((record) =>
-    upsertJudgmentFromExternal(db, record),
-  );
 }
 
 export async function fetchOpenLawJudgments(

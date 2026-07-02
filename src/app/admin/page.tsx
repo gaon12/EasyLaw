@@ -1,7 +1,6 @@
 import { SearchableTable } from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
-import { syncExternalCatalog } from "@/lib/external-law";
 import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getManagementRows } from "@/lib/queries";
 import styles from "../page.module.css";
@@ -16,7 +15,6 @@ export const metadata = pageMetadata({
 
 export default async function AdminPage() {
   const db = getDatabase();
-  await syncExternalCatalog(db);
   const snapshot = getDashboardSnapshot(db);
   const rows = getManagementRows(db);
 
