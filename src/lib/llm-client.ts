@@ -18,7 +18,8 @@ export class LlmError extends Error {
     readonly code:
       | "llm_not_configured"
       | "llm_request_failed"
-      | "llm_response_invalid",
+      | "llm_response_invalid"
+      | "mcp_unavailable",
     message: string,
   ) {
     super(message);

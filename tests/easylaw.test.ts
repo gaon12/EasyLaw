@@ -99,6 +99,78 @@ function withDb() {
   };
 }
 
+function createResearchFetchMock({
+  llmResponses,
+  toolResults = [],
+}: {
+  llmResponses: string[];
+  toolResults?: Array<Record<string, unknown>>;
+}) {
+  const state = { llmRequests: 0, toolCalls: 0 };
+  return {
+    state,
+    async fetch(input: string | URL | Request, init?: RequestInit) {
+      const url = input instanceof Request ? input.url : String(input);
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      if (!url.startsWith("https://mcp.example")) {
+        state.llmRequests += 1;
+        return Response.json({
+          choices: [{ message: { content: llmResponses.shift() } }],
+        });
+      }
+      if (init?.method === "DELETE") {
+        return new Response(null, { status: 200 });
+      }
+      if (body.method === "notifications/initialized") {
+        return new Response(null, { status: 202 });
+      }
+      const result =
+        body.method === "initialize"
+          ? {
+              capabilities: { tools: {} },
+              protocolVersion: body.params.protocolVersion,
+              serverInfo: { name: "test-mcp", version: "1.0.0" },
+            }
+          : body.method === "tools/list"
+            ? {
+                tools: [
+                  {
+                    annotations: { readOnlyHint: true },
+                    description: "법령과 판례를 검색합니다.",
+                    inputSchema: {
+                      properties: { query: { type: "string" } },
+                      required: ["query"],
+                      type: "object",
+                    },
+                    name: "search_law",
+                    title: "법률 검색",
+                  },
+                ],
+              }
+            : body.method === "tools/call"
+              ? {
+                  content: [
+                    {
+                      text: JSON.stringify({
+                        results: toolResults[state.toolCalls] ?? {},
+                      }),
+                      type: "text",
+                    },
+                  ],
+                  isError: false,
+                  structuredContent: {
+                    results: toolResults[state.toolCalls++] ?? {},
+                  },
+                }
+              : {};
+      return Response.json(
+        { id: body.id, jsonrpc: "2.0", result },
+        { headers: { "Content-Type": "application/json" } },
+      );
+    },
+  };
+}
+
 test("first-run setup creates the verified service super administrator", async () => {
   const { db, cleanup } = withDb();
   try {
@@ -1066,35 +1138,40 @@ test("legal research harness assigns coverage and evidence", async () => {
     setSetting(db, "llm_api_base_url", "https://llm.example/v1");
     setSetting(db, "llm_model", "test-model");
     setSetting(db, "llm_api_key", "test-key", true);
-    upsertJudgmentFromExternal(db, {
-      caseNumber: "2024가단100",
-      caseType: "civil",
-      courtName: "서울중앙지방법원",
-      decidedOn: "2024-03-10",
-      externalId: "research-evidence-1",
-      sourceProvider: "open-law",
-      sourceUrl: "https://example.test/judgment/1",
-      summary: "중고거래 사기로 발생한 손해배상 책임과 입증 자료를 판단했다.",
-      title: "중고거래 사기 손해배상",
+    setSetting(db, "mcp_korean_law_endpoint", "https://mcp.example/mcp");
+    const mock = createResearchFetchMock({
+      llmResponses: [
+        JSON.stringify({
+          calls: [
+            {
+              arguments: { query: "중고거래 사기 손해배상" },
+              toolKey: "korean-law/search_law",
+            },
+          ],
+          coverageLevel: 2,
+          intent: "중고거래 사기 피해 회복 가능성 확인",
+          mode: "overview",
+          type: "tool_calls",
+        }),
+        JSON.stringify({
+          answer: "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
+          coverageLevel: 2,
+          intent: "중고거래 사기 피해 회복 가능성 확인",
+          mode: "overview",
+          type: "answer",
+        }),
+      ],
+      toolResults: [
+        {
+          caseNumber: "2024가단100",
+          source: "서울중앙지방법원",
+          summary: "중고거래 사기의 손해배상 책임과 입증 자료를 판단했다.",
+          title: "중고거래 사기 손해배상",
+          url: "https://example.test/judgment/1",
+        },
+      ],
     });
-
-    const llmResponses = [
-      JSON.stringify({
-        coverageLevel: 2,
-        intent: "중고거래 사기 피해 회복 가능성 확인",
-        mode: "overview",
-        searchQueries: ["중고거래 사기 손해배상"],
-        targets: ["law", "prec"],
-      }),
-      "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
-    ];
-    const requestedBodies: unknown[] = [];
-    globalThis.fetch = async (_input, init) => {
-      requestedBodies.push(JSON.parse(String(init?.body)));
-      return Response.json({
-        choices: [{ message: { content: llmResponses.shift() } }],
-      });
-    };
+    globalThis.fetch = mock.fetch;
 
     const plan = await buildResearchPlan(
       db,
@@ -1110,9 +1187,11 @@ test("legal research harness assigns coverage and evidence", async () => {
           item.title.includes("2024가단100") &&
           item.url === "https://example.test/judgment/1",
       ),
+      JSON.stringify(plan.evidence),
     );
     assert.match(plan.answer, /\[E1\]/);
-    assert.equal(requestedBodies.length, 2);
+    assert.equal(mock.state.llmRequests, 2);
+    assert.equal(mock.state.toolCalls, 1);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
@@ -1127,21 +1206,41 @@ test("deep research keeps its overview when verification fails", async () => {
     setSetting(db, "llm_api_base_url", "https://llm.example/v1");
     setSetting(db, "llm_model", "test-model");
     setSetting(db, "llm_api_key", "test-key", true);
-    const responses = [
-      JSON.stringify({
-        coverageLevel: 4,
-        intent: "형사 절차와 긴급 대응 확인",
-        mode: "deep",
-        searchQueries: ["사기 형사 절차"],
-        targets: ["law", "prec"],
-      }),
-      "현재 확보한 자료를 보존하고 수사기관 상담을 준비하세요.",
-      "검증 결과를 JSON으로 만들지 못했습니다.",
-    ];
-    globalThis.fetch = async () =>
-      Response.json({
-        choices: [{ message: { content: responses.shift() } }],
-      });
+    setSetting(db, "mcp_korean_law_endpoint", "https://mcp.example/mcp");
+    const mock = createResearchFetchMock({
+      llmResponses: [
+        JSON.stringify({
+          calls: [
+            {
+              arguments: { query: "사기 형사 절차" },
+              toolKey: "korean-law/search_law",
+            },
+          ],
+          coverageLevel: 4,
+          intent: "형사 절차와 긴급 대응 확인",
+          mode: "deep",
+          type: "tool_calls",
+        }),
+        JSON.stringify({
+          answer:
+            "현재 확보한 자료를 보존하고 수사기관 상담을 준비하세요. [E1]",
+          coverageLevel: 4,
+          intent: "형사 절차와 긴급 대응 확인",
+          mode: "deep",
+          type: "answer",
+        }),
+        "검증 결과를 JSON으로 만들지 못했습니다.",
+      ],
+      toolResults: [
+        {
+          source: "국가법령정보센터",
+          summary: "사기죄의 구성요건과 형사 절차 안내",
+          title: "형법 사기죄",
+          url: "https://example.test/law/fraud",
+        },
+      ],
+    });
+    globalThis.fetch = mock.fetch;
     const events: string[] = [];
 
     const result = await buildResearchPlan(
@@ -1167,30 +1266,62 @@ test("simple legal concepts use the quick answer path", async () => {
     setSetting(db, "llm_api_base_url", "https://llm.example/v1");
     setSetting(db, "llm_model", "test-model");
     setSetting(db, "llm_api_key", "test-key", true);
-    const responses = [
-      JSON.stringify({
-        coverageLevel: 1,
-        intent: "법률 용어의 일반적 의미 설명",
-        mode: "quick",
-        searchQueries: [],
-        targets: [],
-      }),
-      "상계는 서로 같은 종류의 채무를 일정 범위에서 소멸시키는 방식입니다.",
-    ];
-    let requestCount = 0;
-    globalThis.fetch = async () => {
-      requestCount += 1;
-      return Response.json({
-        choices: [{ message: { content: responses.shift() } }],
-      });
-    };
+    const mock = createResearchFetchMock({
+      llmResponses: [
+        JSON.stringify({
+          answer:
+            "상계는 서로 같은 종류의 채무를 일정 범위에서 소멸시키는 방식입니다.",
+          coverageLevel: 1,
+          intent: "법률 용어의 일반적 의미 설명",
+          mode: "quick",
+          type: "answer",
+        }),
+      ],
+    });
+    globalThis.fetch = mock.fetch;
 
     const result = await buildResearchPlan(db, "상계가 무슨 뜻인가요?");
 
     assert.equal(result.mode, "quick");
     assert.equal(result.evidence.length, 0);
     assert.match(result.answer, /서로 같은 종류의 채무/);
-    assert.equal(requestCount, 2);
+    assert.equal(mock.state.llmRequests, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("research questions require an available MCP search tool", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "test-model");
+    setSetting(db, "llm_api_key", "test-key", true);
+    const mock = createResearchFetchMock({
+      llmResponses: [
+        JSON.stringify({
+          calls: [
+            {
+              arguments: { query: "전세 계약 중도 해지" },
+              toolKey: "korean-law/search_law",
+            },
+          ],
+          coverageLevel: 2,
+          intent: "계약 해지 요건 확인",
+          mode: "overview",
+          type: "tool_calls",
+        }),
+      ],
+    });
+    globalThis.fetch = mock.fetch;
+
+    await assert.rejects(
+      buildResearchPlan(db, "전세 계약을 중도 해지할 수 있나요?"),
+      /연결된 MCP 검색 도구가 없습니다/,
+    );
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
