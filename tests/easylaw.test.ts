@@ -63,6 +63,7 @@ import {
   getPublicJudgments,
 } from "../src/lib/queries";
 import { getPublicRequestOrigin } from "../src/lib/request-origin";
+import { optionalSafeNextPath, safeNextPath } from "../src/lib/safe-next-path";
 import { checkAnonymousAccess } from "../src/lib/security/anonymous-access";
 import { decryptSecret } from "../src/lib/security/crypto";
 import { getSessionUser } from "../src/lib/session";
@@ -1043,6 +1044,16 @@ test("public request origin respects reverse proxy headers", () => {
     getPublicRequestOrigin(request).toString(),
     "https://easylaw.example.com/",
   );
+});
+
+test("safe next paths reject external or ambiguous redirects", () => {
+  assert.equal(safeNextPath("/catalog?q=recent#top"), "/catalog?q=recent#top");
+  assert.equal(optionalSafeNextPath("/security"), "/security");
+  assert.equal(safeNextPath("https://evil.example/login"), "/");
+  assert.equal(safeNextPath("//evil.example/login"), "/");
+  assert.equal(safeNextPath("/\\evil.example/login"), "/");
+  assert.equal(safeNextPath("/admin\u0000/settings"), "/");
+  assert.equal(optionalSafeNextPath("https://evil.example/login"), undefined);
 });
 
 test("legal research harness assigns coverage and evidence", async () => {

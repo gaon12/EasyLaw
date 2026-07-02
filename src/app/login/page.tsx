@@ -1,6 +1,7 @@
 import { AuthEmailForm } from "@/components/auth-email-form";
 import { AppShell } from "@/components/site-chrome";
 import { pageMetadata } from "@/lib/metadata";
+import { optionalSafeNextPath } from "@/lib/safe-next-path";
 import styles from "../page.module.css";
 
 type LoginPageProps = {
@@ -35,7 +36,7 @@ function loginNotice(reason: string | undefined, nextPath: string | undefined) {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const nextPath = firstParam(params.next);
+  const nextPath = optionalSafeNextPath(firstParam(params.next));
   const notice = loginNotice(firstParam(params.reason), nextPath);
 
   return (

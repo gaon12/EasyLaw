@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import styles from "@/app/page.module.css";
+import { safeNextPath } from "@/lib/safe-next-path";
 
 export function AuthRequiredLink({
   children,
@@ -14,12 +15,14 @@ export function AuthRequiredLink({
   nextPath: string;
 }) {
   const [open, setOpen] = useState(false);
+  const safePath = safeNextPath(nextPath);
+  const loginHref = `/login?next=${encodeURIComponent(safePath)}&reason=login_required`;
 
   return (
     <>
       <a
         className={className}
-        href={`/login?next=${encodeURIComponent(nextPath)}&reason=login_required`}
+        href={loginHref}
         onClick={(event) => {
           event.preventDefault();
           setOpen(true);
@@ -49,7 +52,8 @@ export function LoginRequiredModal({
   open: boolean;
   title?: string;
 }) {
-  const loginHref = `/login?next=${encodeURIComponent(nextPath)}&reason=login_required`;
+  const safePath = safeNextPath(nextPath);
+  const loginHref = `/login?next=${encodeURIComponent(safePath)}&reason=login_required`;
 
   useEffect(() => {
     if (!open) {

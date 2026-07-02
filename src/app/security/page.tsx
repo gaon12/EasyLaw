@@ -5,6 +5,7 @@ import { AppShell } from "@/components/site-chrome";
 import { getAccountSecurityState } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
+import { optionalSafeNextPath } from "@/lib/safe-next-path";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import styles from "../page.module.css";
 
@@ -25,19 +26,12 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function safeNextPath(value: string | undefined) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return undefined;
-  }
-  return value;
-}
-
 export default async function SecurityPage({
   searchParams,
 }: SecurityPageProps) {
   const params = await searchParams;
   const reason = firstParam(params.reason);
-  const nextPath = safeNextPath(firstParam(params.next));
+  const nextPath = optionalSafeNextPath(firstParam(params.next));
   const db = getDatabase();
   const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
 

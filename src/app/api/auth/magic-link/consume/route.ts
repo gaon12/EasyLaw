@@ -6,6 +6,7 @@ import {
   LOGIN_CHALLENGE_COOKIE,
 } from "@/lib/login-challenge";
 import { getPublicRequestOrigin } from "@/lib/request-origin";
+import { safeNextPath } from "@/lib/safe-next-path";
 import {
   createUserSession,
   getSessionUser,
@@ -79,11 +80,4 @@ function isSecureRequest(request: Request) {
     request.headers.get("x-forwarded-proto") === "https" ||
     new URL(request.url).protocol === "https:"
   );
-}
-
-function safeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
-  return value;
 }

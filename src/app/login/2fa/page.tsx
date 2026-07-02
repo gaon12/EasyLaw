@@ -1,6 +1,7 @@
 import { LoginTotpForm } from "@/components/login-totp-form";
 import { AppShell } from "@/components/site-chrome";
 import { pageMetadata } from "@/lib/metadata";
+import { optionalSafeNextPath } from "@/lib/safe-next-path";
 import styles from "../../page.module.css";
 
 type LoginTotpPageProps = {
@@ -19,7 +20,9 @@ export default async function LoginTotpPage({
   searchParams,
 }: LoginTotpPageProps) {
   const params = await searchParams;
-  const nextPath = Array.isArray(params.next) ? params.next[0] : params.next;
+  const nextPath = optionalSafeNextPath(
+    Array.isArray(params.next) ? params.next[0] : params.next,
+  );
 
   return (
     <AppShell>

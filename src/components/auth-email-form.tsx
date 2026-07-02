@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
+import { safeNextPath } from "@/lib/safe-next-path";
 
 type AuthEmailFormProps = {
   mode: "login" | "signup";
@@ -177,13 +178,6 @@ export function AuthEmailForm({ mode, nextPath }: AuthEmailFormProps) {
       />
     </>
   );
-}
-
-function safeNextPath(value: string | undefined) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
-  return value;
 }
 
 function AuthStatusModal({

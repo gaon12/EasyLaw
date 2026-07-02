@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import styles from "@/app/page.module.css";
+import { safeNextPath } from "@/lib/safe-next-path";
 
 type LoginTotpFormProps = {
   nextPath?: string;
@@ -99,11 +100,4 @@ function loginErrorMessage(status: number, data: unknown) {
     return "필수 2FA가 설정되지 않은 계정이에요. 관리자에게 문의해 주세요.";
   }
   return "인증 앱 코드가 올바르지 않아요.";
-}
-
-function safeNextPath(value: string | undefined) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
-  return value;
 }

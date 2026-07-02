@@ -3,6 +3,7 @@ import { createMagicLink, createSignupMagicLink } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
 import { sendMagicLinkEmail } from "@/lib/notifications";
 import { getPublicRequestOrigin } from "@/lib/request-origin";
+import { optionalSafeNextPath } from "@/lib/safe-next-path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,8 +54,9 @@ function magicLinkUrl(request: Request, token: string, nextPath?: string) {
     getPublicRequestOrigin(request),
   );
   url.searchParams.set("token", token);
-  if (nextPath?.startsWith("/")) {
-    url.searchParams.set("next", nextPath);
+  const safeNext = optionalSafeNextPath(nextPath);
+  if (safeNext) {
+    url.searchParams.set("next", safeNext);
   }
   return url.toString();
 }
