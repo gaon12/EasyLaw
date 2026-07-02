@@ -100,6 +100,11 @@ type OpenLawSearchOptions = {
   page?: number;
 };
 
+export type OpenLawRecordPage = {
+  records: ExternalJudgmentRecord[];
+  totalCount: number | null;
+};
+
 export async function searchExternalJudgments(
   db: SqliteDatabase,
   query: string,
@@ -280,6 +285,16 @@ export async function fetchOpenLawRecords(
   query: string,
   options: OpenLawSearchOptions = {},
 ) {
+  const page = await fetchOpenLawRecordPage(db, target, query, options);
+  return page.records;
+}
+
+export async function fetchOpenLawRecordPage(
+  db: SqliteDatabase,
+  target: OpenLawTarget,
+  query: string,
+  options: OpenLawSearchOptions = {},
+): Promise<OpenLawRecordPage> {
   const config = openLawTargetConfigs[target];
   const oc = getOpenLawOc(db);
   if (!oc) {
@@ -289,7 +304,7 @@ export async function fetchOpenLawRecords(
       service: config.provider,
       status: "skipped",
     });
-    return [];
+    return { records: [], totalCount: null };
   }
 
   const cacheKey = openLawCacheKey(target, query, options);
@@ -304,7 +319,7 @@ export async function fetchOpenLawRecords(
       service: config.provider,
       status: "success",
     });
-    return parseOpenLawSearchResponse(cached, target);
+    return parseOpenLawRecordPage(cached, target);
   }
 
   const url = new URL(OPEN_LAW_SEARCH_API_URL);
@@ -331,20 +346,20 @@ export async function fetchOpenLawRecords(
         service: config.provider,
         status: "failed",
       });
-      return [];
+      return { records: [], totalCount: null };
     }
 
     const payload = (await response.json()) as unknown;
     cacheExternalResponse(db, config.provider, cacheKey, payload);
-    const records = parseOpenLawSearchResponse(payload, target);
+    const page = parseOpenLawRecordPage(payload, target);
     logIntegrationEvent(db, {
       action: config.searchAction,
-      message: `${records.length.toLocaleString("ko-KR")}건의 ${config.label} 후보를 가져왔습니다.`,
-      metadata: { count: records.length, query, target, ...options },
+      message: `${page.records.length.toLocaleString("ko-KR")}건의 ${config.label} 후보를 가져왔습니다.`,
+      metadata: { count: page.records.length, query, target, ...options },
       service: config.provider,
       status: "success",
     });
-    return records;
+    return page;
   } catch (error) {
     logIntegrationEvent(db, {
       action: config.searchAction,
@@ -354,7 +369,7 @@ export async function fetchOpenLawRecords(
       service: config.provider,
       status: "failed",
     });
-    return [];
+    return { records: [], totalCount: null };
   }
 }
 
@@ -425,13 +440,35 @@ export function parseOpenLawSearchResponse(
   payload: unknown,
   target: OpenLawTarget = "prec",
 ): ExternalJudgmentRecord[] {
+  return parseOpenLawRecordPage(payload, target).records;
+}
+
+function parseOpenLawRecordPage(
+  payload: unknown,
+  target: OpenLawTarget,
+): OpenLawRecordPage {
   const config = openLawTargetConfigs[target];
   const root = objectValue(payload, config.rootKey) ?? payload;
   const items = config.itemKeys.flatMap((key) => arrayValue(root, key) ?? []);
 
-  return items
-    .map((item) => parseOpenLawItem(item, target))
-    .filter((item): item is ExternalJudgmentRecord => Boolean(item));
+  return {
+    records: items
+      .map((item) => parseOpenLawItem(item, target))
+      .filter((item): item is ExternalJudgmentRecord => Boolean(item)),
+    totalCount: parseOpenLawTotalCount(root),
+  };
+}
+
+function parseOpenLawTotalCount(root: unknown) {
+  const total =
+    textValue(root, "totalCnt") ??
+    textValue(root, "totalCount") ??
+    textValue(root, "totalcnt");
+  if (!total) {
+    return null;
+  }
+  const count = Number.parseInt(total, 10);
+  return Number.isFinite(count) ? count : null;
 }
 
 function parseOpenLawItem(

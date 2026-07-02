@@ -1,7 +1,7 @@
 import { auditLog } from "./audit";
 import type { SqliteDatabase } from "./db";
 import {
-  fetchOpenLawRecords,
+  fetchOpenLawRecordPage,
   hydrateOpenLawRecordOriginalText,
   openLawCollectionTargets,
   upsertJudgmentFromExternal,
@@ -88,11 +88,6 @@ export type JudgmentCollectionProgress = {
   status: string;
   total: number;
   updatedCount: number;
-};
-
-type CollectionCandidate = {
-  existing: boolean;
-  record: ExternalJudgmentRecord;
 };
 
 type RunInput = {
@@ -355,40 +350,9 @@ async function runJudgmentCollectionInternal(
   });
 
   try {
-    const candidates = await collectOpenLawCandidates(db, runId, {
+    const counts = await collectAndStoreOpenLawRecords(db, runId, {
       forceRefresh: input.forceRefresh,
     });
-    updateRunProgress(db, runId, {
-      current: 0,
-      message:
-        candidates.length > 0
-          ? `본문 확인 및 저장 0/${candidates.length}건`
-          : "새로 확인할 데이터가 없어요.",
-      stage: "saving",
-      total: Math.max(1, candidates.length),
-    });
-    let createdCount = 0;
-    let updatedCount = 0;
-    let importedCount = 0;
-    for (const candidate of candidates) {
-      const hydrated = await hydrateOpenLawRecordOriginalText(
-        db,
-        candidate.record,
-      );
-      upsertJudgmentFromExternal(db, hydrated);
-      importedCount += 1;
-      if (candidate.existing) {
-        updatedCount += 1;
-      } else {
-        createdCount += 1;
-      }
-      updateSavingProgress(db, runId, {
-        createdCount,
-        current: importedCount,
-        total: candidates.length,
-        updatedCount,
-      });
-    }
     updateRunProgress(db, runId, {
       current: 1,
       message: "수집 결과를 정리하고 있어요.",
@@ -410,31 +374,31 @@ async function runJudgmentCollectionInternal(
          progress_message = ?
        WHERE id = ?`,
     ).run(
-      importedCount,
-      createdCount,
-      updatedCount,
+      counts.importedCount,
+      counts.createdCount,
+      counts.updatedCount,
       completedAt,
-      Math.max(1, importedCount),
-      Math.max(1, importedCount),
-      formatSavedMessage(importedCount),
+      Math.max(1, counts.importedCount),
+      Math.max(1, counts.importedCount),
+      formatSavedMessage(counts.importedCount),
       runId,
     );
 
     setSetting(db, settingKeys.status, "success");
     setSetting(db, settingKeys.lastCompletedAt, completedAt);
     deleteSetting(db, settingKeys.lastFailureReason);
-    setSetting(db, settingKeys.lastImportedCount, String(importedCount));
+    setSetting(db, settingKeys.lastImportedCount, String(counts.importedCount));
     setSetting(db, settingKeys.nextRunAt, nextRunAtFromSettings(settings));
 
     logIntegrationEvent(db, {
       action: "collection.run",
-      message: `${importedCount} legal records were collected.`,
+      message: `${counts.importedCount} legal records were collected.`,
       metadata: {
-        createdCount,
+        createdCount: counts.createdCount,
         pageSize: COLLECTION_PAGE_SIZE,
         scope: COLLECTION_SCOPE_LABEL,
         trigger: input.trigger,
-        updatedCount,
+        updatedCount: counts.updatedCount,
       },
       service: SERVICE,
       status: "success",
@@ -444,15 +408,15 @@ async function runJudgmentCollectionInternal(
       action: "judgment_collection.run",
       targetType: "judgment_collection_run",
       targetId: runId,
-      metadata: { createdCount, importedCount, updatedCount },
+      metadata: counts,
     });
 
     return {
       ok: true,
-      createdCount,
-      importedCount,
+      createdCount: counts.createdCount,
+      importedCount: counts.importedCount,
       runId,
-      updatedCount,
+      updatedCount: counts.updatedCount,
     };
   } catch (error) {
     const failureReason =
@@ -504,12 +468,19 @@ function getJudgmentCollectionSettings(
   };
 }
 
-async function collectOpenLawCandidates(
+async function collectAndStoreOpenLawRecords(
   db: SqliteDatabase,
   runId: string,
   options: { forceRefresh?: boolean },
-): Promise<CollectionCandidate[]> {
-  const candidates: CollectionCandidate[] = [];
+): Promise<{
+  createdCount: number;
+  importedCount: number;
+  updatedCount: number;
+}> {
+  let createdCount = 0;
+  let estimatedTotal = 1;
+  let importedCount = 0;
+  let updatedCount = 0;
   const seen = new Set<string>();
 
   for (const [targetIndex, target] of openLawCollectionTargets.entries()) {
@@ -528,11 +499,15 @@ async function collectOpenLawCandidates(
         stage: "listing",
         total: openLawCollectionTargets.length,
       });
-      const pageRecords = await fetchOpenLawRecords(db, target, "", {
+      const result = await fetchOpenLawRecordPage(db, target, "", {
         display: COLLECTION_PAGE_SIZE,
         forceRefresh: options.forceRefresh,
         page,
       });
+      const pageRecords = result.records;
+      if (page === 1 && result.totalCount) {
+        estimatedTotal += result.totalCount;
+      }
       if (pageRecords.length === 0) {
         break;
       }
@@ -555,17 +530,33 @@ async function collectOpenLawCandidates(
           continue;
         }
 
-        candidates.push({ existing: Boolean(existing), record });
+        const hydrated = await hydrateOpenLawRecordOriginalText(db, record);
+        upsertJudgmentFromExternal(db, hydrated);
+        importedCount += 1;
         if (existing) {
           existingCount += 1;
+          updatedCount += 1;
         } else {
           addedCount += 1;
+          createdCount += 1;
         }
+        updateSavingProgress(db, runId, {
+          createdCount,
+          current: importedCount,
+          total: estimatedTotal,
+          updatedCount,
+        });
       }
 
       if (
         !isMutableOpenLawTarget(target) &&
         (addedCount === 0 || existingCount > 0)
+      ) {
+        break;
+      }
+      if (
+        result.totalCount &&
+        page * COLLECTION_PAGE_SIZE >= result.totalCount
       ) {
         break;
       }
@@ -579,7 +570,7 @@ async function collectOpenLawCandidates(
     });
   }
 
-  return candidates;
+  return { createdCount, importedCount, updatedCount };
 }
 
 function getJudgmentSource(
