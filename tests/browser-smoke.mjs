@@ -351,12 +351,15 @@ try {
   await page.goto(`${baseUrl}/admin/dictionary`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "용어 사전 관리" }).waitFor();
   await page.getByRole("button", { name: "표준국어대사전 업데이트" }).waitFor();
+  await page.getByRole("button", { name: "법령용어 업데이트" }).waitFor();
   const dictionaryAdminText = await page.locator("main").innerText();
   if (/GET ZIP|POST ZIP|JSON만|DB에/.test(dictionaryAdminText)) {
     throw new Error("Dictionary administration exposed import internals.");
   }
   if (
-    !dictionaryAdminText.includes("최신 뜻풀이를 가져와 로컬 사전에 반영합니다")
+    !dictionaryAdminText.includes(
+      "국가법령정보센터 법령용어를 가져와 로컬 사전에 반영합니다",
+    )
   ) {
     throw new Error(
       "Dictionary administration did not explain the update clearly.",
@@ -394,7 +397,7 @@ try {
   if ((await page.getByLabel("검색어").count()) !== 0) {
     throw new Error("Judgment collection still exposed a search query field.");
   }
-  await page.getByText("판례·헌재·법령 증분 수집").waitFor();
+  await page.getByText("판례·헌재·법령·행정규칙·자치법규 증분 수집").waitFor();
   if ((await page.getByLabel("한 번에 가져올 건수").count()) !== 0) {
     throw new Error("Judgment collection still exposed a per-run limit.");
   }

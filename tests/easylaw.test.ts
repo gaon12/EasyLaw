@@ -29,6 +29,7 @@ import {
   addLegalDictionaryTerm,
   buildTermExplanation,
   extractDictionaryTerms,
+  updateOpenLawLegalDictionary,
 } from "../src/lib/dictionary";
 import {
   ensurePublicJudgmentOriginalText,
@@ -407,6 +408,77 @@ test("open law parser normalizes constitutional and law records", () => {
   );
 });
 
+test("open law parser normalizes administrative rules and ordinances", () => {
+  const administrativeRules = parseOpenLawSearchResponse(
+    {
+      AdmRulSearch: {
+        admrul: [
+          {
+            발령번호: "2026-12",
+            시행일자: "20260702",
+            소관부처명: "교육부",
+            제개정구분명: "일부개정",
+            행정규칙ID: "ADM001",
+            행정규칙명: "학교 안전 고시",
+            행정규칙상세링크: "/DRF/lawService.do?target=admrul&ID=ADM001",
+            행정규칙종류: "고시",
+          },
+        ],
+      },
+    },
+    "admrul",
+  );
+  const ordinances = parseOpenLawSearchResponse(
+    {
+      OrdinSearch: {
+        ordin: [
+          {
+            공포번호: "55",
+            시행일자: "20260703",
+            자치법규ID: "ORD001",
+            자치법규명: "청소년 보호 조례",
+            자치법규상세링크: "/DRF/lawService.do?target=ordin&ID=ORD001",
+            자치법규종류: "조례",
+            지자체기관명: "서울특별시",
+          },
+        ],
+      },
+    },
+    "ordin",
+  );
+
+  assert.deepEqual(
+    {
+      caseNumber: administrativeRules[0]?.caseNumber,
+      caseType: administrativeRules[0]?.caseType,
+      courtName: administrativeRules[0]?.courtName,
+      sourceProvider: administrativeRules[0]?.sourceProvider,
+      summary: administrativeRules[0]?.summary,
+    },
+    {
+      caseNumber: "행정규칙 ADM001-2026-12",
+      caseType: "law",
+      courtName: "교육부",
+      sourceProvider: "open-law-administrative-rule",
+      summary: "고시 / 일부개정",
+    },
+  );
+  assert.deepEqual(
+    {
+      caseNumber: ordinances[0]?.caseNumber,
+      courtName: ordinances[0]?.courtName,
+      sourceProvider: ordinances[0]?.sourceProvider,
+      title: ordinances[0]?.title,
+    },
+    {
+      caseNumber: "자치법규 ORD001-55",
+      courtName: "서울특별시",
+      sourceProvider: "open-law-ordinance",
+      title: "청소년 보호 조례",
+    },
+  );
+});
+
 test("manual judgment collection stores fetched public judgments", async () => {
   const { db, cleanup } = withDb();
   const originalFetch = globalThis.fetch;
@@ -446,6 +518,18 @@ test("manual judgment collection stores fetched public judgments", async () => {
       }
       if (target === "law") {
         return new Response(JSON.stringify({ LawSearch: { law: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "admrul") {
+        return new Response(JSON.stringify({ AdmRulSearch: { admrul: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "ordin") {
+        return new Response(JSON.stringify({ OrdinSearch: { ordin: [] } }), {
           headers: { "Content-Type": "application/json" },
           status: 200,
         });
@@ -496,9 +580,19 @@ test("manual judgment collection stores fetched public judgments", async () => {
       "prec:3",
       "detc:1",
       "law:1",
+      "admrul:1",
+      "ordin:1",
     ]);
     assert.deepEqual(requestedDetails, ["prec:auto-1", "prec:auto-2"]);
-    assert.deepEqual(requestedQueries, [null, null, null, null, null]);
+    assert.deepEqual(requestedQueries, [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
     assert.equal(result.importedCount, 2);
     assert.equal(result.createdCount, 2);
 
@@ -528,7 +622,7 @@ test("manual judgment collection stores fetched public judgments", async () => {
     assert.equal(runs[0]?.trigger, "manual");
     assert.equal(runs[0]?.status, "success");
     assert.equal(runs[0]?.createdCount, 2);
-    assert.equal(runs[0]?.query, "전체 판례·헌재·법령");
+    assert.equal(runs[0]?.query, "전체 판례·헌재·법령·행정규칙·자치법규");
     const progress = getJudgmentCollectionProgress(db);
     assert.equal(progress?.stage, "done");
     assert.equal(progress?.percent, 100);
@@ -569,6 +663,18 @@ test("manual judgment collection stores fetched public judgments", async () => {
       }
       if (target === "law") {
         return new Response(JSON.stringify({ LawSearch: { law: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "admrul") {
+        return new Response(JSON.stringify({ AdmRulSearch: { admrul: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "ordin") {
+        return new Response(JSON.stringify({ OrdinSearch: { ordin: [] } }), {
           headers: { "Content-Type": "application/json" },
           status: 200,
         });
@@ -615,9 +721,15 @@ test("manual judgment collection stores fetched public judgments", async () => {
     });
     assert.equal(secondResult.ok, true);
     assert.ok(secondResult.ok);
-    assert.deepEqual(requestedSearches, ["prec:1", "detc:1", "law:1"]);
+    assert.deepEqual(requestedSearches, [
+      "prec:1",
+      "detc:1",
+      "law:1",
+      "admrul:1",
+      "ordin:1",
+    ]);
     assert.deepEqual(requestedDetails, ["prec:auto-3"]);
-    assert.deepEqual(requestedQueries, [null, null, null]);
+    assert.deepEqual(requestedQueries, [null, null, null, null, null]);
     assert.equal(secondResult.importedCount, 1);
     assert.equal(secondResult.createdCount, 1);
     const secondProgress = getJudgmentCollectionProgress(db);
@@ -674,6 +786,18 @@ test("manual judgment collection refreshes existing public laws", async () => {
       }
       if (target === "detc") {
         return new Response(JSON.stringify({ DetcSearch: { detc: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "admrul") {
+        return new Response(JSON.stringify({ AdmRulSearch: { admrul: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "ordin") {
+        return new Response(JSON.stringify({ OrdinSearch: { ordin: [] } }), {
           headers: { "Content-Type": "application/json" },
           status: 200,
         });
@@ -1234,6 +1358,59 @@ test("term explanations prefer legal terms over public dictionaries", () => {
       "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
     );
   } finally {
+    cleanup();
+  }
+});
+
+test("open law legal terms import into the priority dictionary", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    const requestedPages: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      requestedPages.push(
+        `${url.searchParams.get("target")}:${url.searchParams.get("page")}`,
+      );
+      return new Response(
+        JSON.stringify({
+          LstrmAISearch: {
+            lstrmAI:
+              url.searchParams.get("page") === "1"
+                ? [
+                    {
+                      법령용어ID: "term-1",
+                      법령용어명: "기판력",
+                      정의: "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
+                      출처법령: "민사소송법",
+                    },
+                  ]
+                : [],
+            totalCnt: "1",
+          },
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    };
+
+    const result = await updateOpenLawLegalDictionary(db);
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.equal(result.importedCount, 1);
+    assert.deepEqual(requestedPages, ["lstrmAI:1"]);
+
+    const explanation = buildTermExplanation(db, { term: "기판력" });
+    assert.equal(explanation.priority, "자체 법률 용어 사전");
+    assert.equal(
+      explanation.definitions[0]?.definition,
+      "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
     cleanup();
   }
 });
