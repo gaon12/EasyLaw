@@ -13,10 +13,12 @@ type ResearchStep = {
 };
 
 type Evidence = {
+  id: string;
   source: string;
   title: string;
   summary: string;
   confidence: "high" | "medium" | "low";
+  url?: string;
 };
 
 type Plan = {
@@ -64,6 +66,7 @@ export function LegalResearchPanel({
   const [plan, setPlan] = useState<Plan | null>(null);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [answer, setAnswer] = useState("");
+  const [phase, setPhase] = useState("");
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
   );
@@ -89,6 +92,21 @@ export function LegalResearchPanel({
     if (event === "token") {
       setAnswer((current) => `${current}${data as string}`);
     }
+    if (event === "phase" && typeof data === "string") {
+      setPhase(data);
+    }
+    if (event === "done") {
+      setStatus("done");
+    }
+    if (event === "error") {
+      setErrorMessage(
+        errorBodyMessage(
+          data,
+          "질문을 처리하지 못했어요. LLM 설정을 확인해 주세요.",
+        ),
+      );
+      setStatus("error");
+    }
   }, []);
 
   const runResearch = useCallback(
@@ -97,6 +115,7 @@ export function LegalResearchPanel({
       setPlan(null);
       setEvidence([]);
       setAnswer("");
+      setPhase("");
 
       try {
         const response = await fetch("/api/research/stream", {
@@ -134,6 +153,13 @@ export function LegalResearchPanel({
             setErrorMessage(
               `질문은 ${LEGAL_RESEARCH_QUERY_MAX_LENGTH.toLocaleString("ko-KR")}자 이내로 입력해 주세요.`,
             );
+          } else if (response.status === 503) {
+            setErrorMessage(
+              errorBodyMessage(
+                errorBody,
+                "관리자 LLM 설정을 먼저 완료해 주세요.",
+              ),
+            );
           } else {
             setErrorMessage(
               "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
@@ -159,7 +185,6 @@ export function LegalResearchPanel({
             applyServerEvent(eventText);
           }
         }
-        setStatus("done");
       } catch (_error) {
         if (!signal.aborted) {
           setStatus("error");
@@ -292,7 +317,13 @@ export function LegalResearchPanel({
                     <article key={`${item.source}-${item.title}`}>
                       <span>{index + 1}</span>
                       <div>
-                        <strong>{item.title}</strong>
+                        {item.url ? (
+                          <a href={item.url} rel="noreferrer" target="_blank">
+                            <strong>{item.title}</strong>
+                          </a>
+                        ) : (
+                          <strong>{item.title}</strong>
+                        )}
                         <small>
                           {item.source} · 신뢰도 {item.confidence}
                         </small>
@@ -334,6 +365,13 @@ export function LegalResearchPanel({
           </div>
         )}
 
+        {status === "loading" && !answer && phase && (
+          <div className={styles.aiStreamingNotice}>
+            <span />
+            {phaseLabel(phase)}
+          </div>
+        )}
+
         {status === "error" && <p className={styles.notice}>{errorMessage}</p>}
         {status === "captcha" && (
           <>
@@ -347,4 +385,14 @@ export function LegalResearchPanel({
       </section>
     </div>
   );
+}
+
+function phaseLabel(phase: string) {
+  const labels: Record<string, string> = {
+    drafting: "검색 근거로 답변을 작성하는 중이에요.",
+    planning: "LLM이 검색 계획을 세우는 중이에요.",
+    retrieving: "내부 DB와 공개법령에서 근거를 찾는 중이에요.",
+    verifying: "인용과 단정 표현을 검증하는 중이에요.",
+  };
+  return labels[phase] ?? "법률 질문을 처리하는 중이에요.";
 }

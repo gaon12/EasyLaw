@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -9,8 +10,42 @@ import { chromium } from "playwright";
 
 const port = Number(process.env.EASYLAW_E2E_PORT ?? 3210);
 const baseUrl = `http://127.0.0.1:${port}`;
+const llmPort = port + 1;
+const llmBaseUrl = `http://127.0.0.1:${llmPort}/v1`;
 const tempDir = join(tmpdir(), `easylaw-browser-${Date.now()}`);
 mkdirSync(tempDir, { recursive: true });
+
+const llmServer = createServer((request, response) => {
+  let body = "";
+  request.setEncoding("utf8");
+  request.on("data", (chunk) => {
+    body += chunk;
+  });
+  request.on("end", () => {
+    const payload = JSON.parse(body);
+    const system = payload.messages?.[0]?.content ?? "";
+    const content = system.includes("검색 계획기")
+      ? JSON.stringify({
+          coverageLevel: 2,
+          intent: "손해 발생 시 책임과 대응 절차 확인",
+          searchQueries: ["손해배상"],
+          targets: ["law", "prec"],
+        })
+      : system.includes("법률 답변 검증자")
+        ? JSON.stringify({
+            answer:
+              "손해와 상대방 행위 사이의 관계를 보여주는 자료를 먼저 정리해야 합니다. [E1]",
+            grounded: true,
+            issues: [],
+          })
+        : "손해와 상대방 행위 사이의 관계를 보여주는 자료를 먼저 정리해야 합니다. [E1]";
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ choices: [{ message: { content } }] }));
+  });
+});
+await new Promise((resolve) => {
+  llmServer.listen(llmPort, "127.0.0.1", resolve);
+});
 
 const env = {
   ...process.env,
@@ -75,6 +110,15 @@ async function stopDevServer() {
   child.stderr.destroy();
   child.removeAllListeners();
   child.unref();
+}
+
+async function stopLlmServer() {
+  if (!llmServer.listening) {
+    return;
+  }
+  await new Promise((resolve, reject) => {
+    llmServer.close((error) => (error ? reject(error) : resolve()));
+  });
 }
 
 function cleanupTempDir() {
@@ -384,6 +428,12 @@ try {
   if ((await page.getByLabel("모델").inputValue()) !== "gemini-3.5-flash") {
     throw new Error("LLM API preset did not update the model.");
   }
+  await page.getByLabel("공급자").fill("Test LLM");
+  await page.getByLabel("API Base URL").fill(llmBaseUrl);
+  await page.getByLabel("모델").fill("test-model");
+  await page.getByLabel("API Key").fill("browser-test-key");
+  await page.getByRole("button", { name: "설정 저장" }).click();
+  await page.getByText("설정을 저장했어요", { exact: false }).waitFor();
   await aiSubNav.getByRole("link", { name: "도구 연결" }).click();
   await page.waitForURL(`${baseUrl}/admin/ai/mcp`);
   await page.getByRole("heading", { name: "도구 연결" }).waitFor();
@@ -844,5 +894,6 @@ try {
   await browser.close();
 } finally {
   await stopDevServer();
+  await stopLlmServer();
   cleanupTempDir();
 }
