@@ -1060,18 +1060,76 @@ test("safe next paths reject external or ambiguous redirects", () => {
 
 test("legal research harness assigns coverage and evidence", async () => {
   const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
   try {
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "test-model");
+    setSetting(db, "llm_api_key", "test-key", true);
+    upsertJudgmentFromExternal(db, {
+      caseNumber: "2024가단100",
+      caseType: "civil",
+      courtName: "서울중앙지방법원",
+      decidedOn: "2024-03-10",
+      externalId: "research-evidence-1",
+      sourceProvider: "open-law",
+      sourceUrl: "https://example.test/judgment/1",
+      summary: "중고거래 사기로 발생한 손해배상 책임과 입증 자료를 판단했다.",
+      title: "중고거래 사기 손해배상",
+    });
+
+    const llmResponses = [
+      JSON.stringify({
+        coverageLevel: 2,
+        intent: "중고거래 사기 피해 회복 가능성 확인",
+        searchQueries: ["중고거래 사기 손해배상"],
+        targets: ["law", "prec"],
+      }),
+      "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
+      JSON.stringify({
+        answer: "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
+        grounded: true,
+        issues: [],
+      }),
+    ];
+    const requestedBodies: unknown[] = [];
+    globalThis.fetch = async (_input, init) => {
+      requestedBodies.push(JSON.parse(String(init?.body)));
+      return Response.json({
+        choices: [{ message: { content: llmResponses.shift() } }],
+      });
+    };
+
     const plan = await buildResearchPlan(
       db,
-      "중고나라에서 물건값을 입금했는데 판매자가 잠적했습니다. 돈은 찾을 수 있나요?",
+      "중고거래 판매자에게 입금했는데 잠적했습니다. 손해배상을 받을 수 있나요?",
     );
 
     assert.equal(plan.coverageLevel, 2);
-    assert.equal(plan.intent, "피해 회복과 민사 청구 가능성 확인");
+    assert.equal(plan.intent, "중고거래 사기 피해 회복 가능성 확인");
     assert.ok(
-      plan.evidence.some((item) => item.source === "공개법령 판례 API"),
+      plan.evidence.some(
+        (item) =>
+          item.id === "E1" &&
+          item.title.includes("2024가단100") &&
+          item.url === "https://example.test/judgment/1",
+      ),
     );
-    assert.match(plan.answer, /하네스 미리보기/);
+    assert.match(plan.answer, /\[E1\]/);
+    assert.equal(requestedBodies.length, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("legal research harness requires configured LLM settings", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    await assert.rejects(
+      buildResearchPlan(db, "계약을 해제할 수 있나요?"),
+      /관리자 LLM 설정/,
+    );
   } finally {
     cleanup();
   }

@@ -7,7 +7,11 @@ import {
 } from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
-import { buildResearchPlan } from "@/lib/legal-research";
+import {
+  buildResearchPlan,
+  isResearchHarnessConfigured,
+} from "@/lib/legal-research";
+import { LlmError } from "@/lib/llm-client";
 import {
   anonymousLimitResponse,
   applyAnonymousCookie,
@@ -53,42 +57,65 @@ export async function POST(request: NextRequest) {
     return anonymousLimitResponse(access);
   }
 
-  const plan = await buildResearchPlan(db, parsed.data.query);
+  if (!isResearchHarnessConfigured(db)) {
+    access.release();
+    return Response.json(
+      {
+        error: "llm_not_configured",
+        message: "관리자 LLM 설정을 먼저 완료해 주세요.",
+      },
+      { status: 503 },
+    );
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        const send = (event: string, data: unknown) => {
+    start(controller) {
+      void (async () => {
+        try {
+          const send = (event: string, data: unknown) => {
+            controller.enqueue(
+              encoder.encode(
+                `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+              ),
+            );
+          };
+          const plan = await buildResearchPlan(
+            db,
+            parsed.data.query,
+            (event) => {
+              if (event.type === "plan") {
+                send("plan", event.plan);
+              } else if (event.type === "evidence") {
+                send("evidence", event.evidence);
+              } else {
+                send("phase", event.phase);
+              }
+            },
+          );
+
+          for (const token of chunkText(plan.answer, 48)) {
+            send("token", token);
+          }
+          send("done", { ok: true });
+        } catch (error) {
+          const code =
+            error instanceof LlmError ? error.code : "research_failed";
+          const message =
+            error instanceof LlmError
+              ? error.message
+              : "법률 질문을 처리하지 못했습니다.";
           controller.enqueue(
             encoder.encode(
-              `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+              `event: error\ndata: ${JSON.stringify({ code, message })}\n\n`,
             ),
           );
-        };
-
-        send("plan", {
-          coverageLabel: plan.coverageLabel,
-          coverageLevel: plan.coverageLevel,
-          intent: plan.intent,
-          steps: plan.steps,
-        });
-
-        for (const item of plan.evidence) {
-          send("evidence", item);
-          await delay(40);
+        } finally {
+          access.release();
+          controller.close();
         }
-
-        for (const token of chunkText(plan.answer, 18)) {
-          send("token", token);
-          await delay(12);
-        }
-
-        send("done", { ok: true });
-        controller.close();
-      } finally {
-        access.release();
-      }
+      })();
     },
   });
 
@@ -97,14 +124,11 @@ export async function POST(request: NextRequest) {
       headers: {
         "Cache-Control": "no-store",
         "Content-Type": "text/event-stream; charset=utf-8",
+        "X-Accel-Buffering": "no",
       },
     }),
     access,
   );
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function chunkText(value: string, chunkSize: number) {
