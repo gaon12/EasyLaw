@@ -17,6 +17,17 @@ export type LlmRequestOptions = {
   onToken?: (token: string) => void;
 };
 
+type OpenAiCompatibleRequestBody = {
+  messages: LlmMessage[];
+  model: string;
+  reasoning?: {
+    effort: "none";
+  };
+  reasoning_effort?: "none";
+  stream?: true;
+  temperature: number;
+};
+
 export class LlmError extends Error {
   constructor(
     readonly code:
@@ -99,9 +110,7 @@ async function requestOpenAiCompatible(
     new URL("chat/completions", ensureTrailingSlash(configuration.baseUrl)),
     {
       body: JSON.stringify({
-        messages,
-        model: configuration.model,
-        temperature: 0.1,
+        ...openAiCompatibleBody(configuration, messages),
       }),
       headers: {
         ...(configuration.apiKey
@@ -133,10 +142,7 @@ async function requestOpenAiCompatibleStream(
     new URL("chat/completions", ensureTrailingSlash(configuration.baseUrl)),
     {
       body: JSON.stringify({
-        messages,
-        model: configuration.model,
-        stream: true,
-        temperature: 0.1,
+        ...openAiCompatibleBody(configuration, messages, { stream: true }),
       }),
       headers: {
         ...(configuration.apiKey
@@ -331,9 +337,52 @@ function isAnthropic(provider: string) {
   return provider.trim().toLowerCase() === "anthropic";
 }
 
+function openAiCompatibleBody(
+  configuration: LlmConfiguration,
+  messages: LlmMessage[],
+  options: { stream?: true } = {},
+): OpenAiCompatibleRequestBody {
+  return {
+    ...reasoningControl(configuration),
+    messages,
+    model: configuration.model,
+    ...options,
+    temperature: 0.1,
+  };
+}
+
+function reasoningControl(
+  configuration: LlmConfiguration,
+): Pick<OpenAiCompatibleRequestBody, "reasoning" | "reasoning_effort"> {
+  if (isOllama(configuration.provider)) {
+    return {
+      reasoning: { effort: "none" },
+      reasoning_effort: "none",
+    };
+  }
+  if (canDisableGeminiThinking(configuration)) {
+    return { reasoning_effort: "none" };
+  }
+  return {};
+}
+
+function isOllama(provider: string) {
+  return provider.trim().toLowerCase() === "ollama";
+}
+
 function isLocalProvider(provider: string) {
   const normalized = provider.trim().toLowerCase();
   return normalized === "ollama" || normalized === "lm studio";
+}
+
+function canDisableGeminiThinking(configuration: LlmConfiguration) {
+  const provider = configuration.provider.trim().toLowerCase();
+  const model = configuration.model.trim().toLowerCase();
+  return (
+    provider === "google" &&
+    model.includes("gemini-2.5") &&
+    !model.includes("pro")
+  );
 }
 
 function ensureTrailingSlash(value: string) {

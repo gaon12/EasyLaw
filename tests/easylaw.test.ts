@@ -62,6 +62,7 @@ import { parseJudgmentDocument } from "../src/lib/judgment-document";
 import { extractRelatedCaseReferences } from "../src/lib/judgment-relations";
 import { resetLegalData } from "../src/lib/legal-data-maintenance";
 import { buildResearchPlan } from "../src/lib/legal-research";
+import { requestLlmText } from "../src/lib/llm-client";
 import {
   completeLoginChallenge,
   createLoginChallenge,
@@ -1382,6 +1383,36 @@ test("legal research harness assigns coverage and evidence", async () => {
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
+  }
+});
+
+test("ollama requests disable reasoning for thinking models", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<Record<string, unknown>> = [];
+  try {
+    globalThis.fetch = async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json({
+        choices: [{ message: { content: "빠른 답변" } }],
+      });
+    };
+
+    const response = await requestLlmText(
+      {
+        apiKey: null,
+        baseUrl: "http://localhost:11434/v1",
+        model: "gemma4",
+        provider: "Ollama",
+      },
+      [{ content: "상계가 무슨 뜻인가요?", role: "user" }],
+    );
+
+    assert.equal(response, "빠른 답변");
+    assert.equal(bodies.length, 1);
+    assert.equal(bodies[0]?.reasoning_effort, "none");
+    assert.deepEqual(bodies[0]?.reasoning, { effort: "none" });
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 
