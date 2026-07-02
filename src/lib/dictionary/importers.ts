@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "../db";
 import { logIntegrationEvent } from "../integration-events";
 import { processJsonZipEntries } from "./download";
@@ -61,7 +62,7 @@ async function importDictionaryZip(
 ) {
   let importedCount = 0;
   const pendingTerms: DictionaryTerm[] = [];
-  const seenTerms = new Set<string>();
+  const dedupe = createImportDedupe(db);
 
   const flush = () => {
     if (pendingTerms.length === 0) {
@@ -73,26 +74,59 @@ async function importDictionaryZip(
     });
   };
 
-  await processJsonZipEntries(requestForSource(source), (entry) => {
-    for (const term of extractDictionaryTerms(entry)) {
-      const key = dictionaryTermKey(source, term);
-      if (seenTerms.has(key)) {
-        continue;
+  try {
+    await processJsonZipEntries(requestForSource(source), (entry) => {
+      for (const term of extractDictionaryTerms(entry)) {
+        if (!dedupe.remember(source, term)) {
+          continue;
+        }
+        pendingTerms.push(term);
+        if (pendingTerms.length >= importBatchSize) {
+          flush();
+        }
       }
-      seenTerms.add(key);
-      pendingTerms.push(term);
-      if (pendingTerms.length >= importBatchSize) {
-        flush();
-      }
-    }
-  });
-  flush();
+    });
+    flush();
+  } finally {
+    dedupe.dispose();
+  }
 
   return importedCount;
 }
 
-function dictionaryTermKey(source: DictionarySource, term: DictionaryTerm) {
-  return `${source}\n${term.word}\n${term.senseNo}\n${term.definition}`;
+function createImportDedupe(db: SqliteDatabase) {
+  db.exec(`
+    CREATE TEMP TABLE IF NOT EXISTS dictionary_import_seen_terms (
+      key_hash TEXT PRIMARY KEY
+    );
+    DELETE FROM dictionary_import_seen_terms;
+  `);
+  const remember = db.prepare<[string]>(
+    `INSERT OR IGNORE INTO dictionary_import_seen_terms (key_hash)
+      VALUES (?)`,
+  );
+
+  return {
+    dispose() {
+      db.exec("DELETE FROM dictionary_import_seen_terms;");
+    },
+    remember(source: DictionarySource, term: DictionaryTerm) {
+      const result = remember.run(dictionaryTermKeyHash(source, term));
+      return result.changes > 0;
+    },
+  };
+}
+
+function dictionaryTermKeyHash(source: DictionarySource, term: DictionaryTerm) {
+  return createHash("sha256")
+    .update(source)
+    .update("\0")
+    .update(term.word)
+    .update("\0")
+    .update(term.senseNo)
+    .update("\0")
+    .update(term.definition)
+    .digest("hex");
 }
 
 export async function updateDownloadableDictionaries(db: SqliteDatabase) {

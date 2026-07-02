@@ -1403,6 +1403,13 @@ test("downloadable dictionary import processes zip entries in batches", async ()
           },
         ]),
       ),
+      "object.json": Buffer.from(
+        JSON.stringify({
+          definition: "A request for review.",
+          sense_no: "1",
+          word: "appeal",
+        }),
+      ),
       "ignored.txt": Buffer.from("not json"),
     });
     const requests: string[] = [];
@@ -1419,7 +1426,7 @@ test("downloadable dictionary import processes zip entries in batches", async ()
 
     const result = await updateDictionarySource(db, "basic");
     assert.equal(result.ok, true);
-    assert.equal(result.ok ? result.importedCount : 0, 2);
+    assert.equal(result.ok ? result.importedCount : 0, 3);
     assert.deepEqual(requests, [
       "GET https://krdict.korean.go.kr/dicBatchDownload?seq=208",
     ]);
@@ -1433,6 +1440,7 @@ test("downloadable dictionary import processes zip entries in batches", async ()
       )
       .all();
     assert.deepEqual(rows, [
+      { definition: "A request for review.", word: "appeal" },
       { definition: "A binding promise.", word: "contract" },
       { definition: "A written legal decision.", word: "judgment" },
     ]);

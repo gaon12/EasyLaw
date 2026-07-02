@@ -14,15 +14,16 @@
     "test:browser": "node tests/browser-smoke.mjs"
   },
   "dependencies": {
+    "7zip-bin-full": "^26.2.0",
     "altcha": "^3.1.0",
     "better-sqlite3": "^12.11.1",
-    "fflate": "^0.8.3",
     "next": "16.2.9",
     "otplib": "^13.4.1",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.16.0",
+    "stream-json": "^3.4.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -33,6 +34,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "fflate": "^0.8.3",
     "playwright": "^1.61.1",
     "tsx": "^4.22.4",
     "typescript": "^5"
