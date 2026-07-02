@@ -1,4 +1,6 @@
-﻿import { AppShell } from "@/components/site-chrome";
+import { cookies } from "next/headers";
+import { AppShell } from "@/components/site-chrome";
+import { listBookmarkedJudgmentIds } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import {
@@ -7,6 +9,7 @@ import {
 } from "@/lib/judgment-search";
 import { pageMetadata } from "@/lib/metadata";
 import { getPublicJudgments } from "@/lib/queries";
+import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { JudgmentExplorer } from "../easylaw-client";
 import styles from "../page.module.css";
 
@@ -29,7 +32,11 @@ export default async function CatalogPage({
   const isRecentView = view === "recent" && !initialQuery;
   const currentPage = parseCatalogPage(page);
   const db = getDatabase();
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
   const allJudgments = getPublicJudgments(db);
+  const initialBookmarkedIds = user
+    ? listBookmarkedJudgmentIds(db, user.id)
+    : [];
   const filters = parseJudgmentSearchQuery(initialQuery);
   const filteredJudgments = initialQuery.trim()
     ? allJudgments.filter((judgment) =>
@@ -83,6 +90,7 @@ export default async function CatalogPage({
           )}
           <JudgmentExplorer
             initialPage={safePage}
+            initialBookmarkedIds={initialBookmarkedIds}
             initialJudgments={judgments}
             initialQuery={initialQuery}
             initialTotalCount={filteredJudgments.length}

@@ -429,4 +429,25 @@ export const migrations = [
         ADD COLUMN progress_message TEXT NOT NULL DEFAULT '';
     `,
   },
+  {
+    id: 13,
+    name: "user_bookmarks",
+    sql: `
+      CREATE TABLE IF NOT EXISTS user_bookmarks (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        judgment_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(user_id, judgment_id),
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY(judgment_id) REFERENCES judgments(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS user_bookmarks_user_created_idx
+        ON user_bookmarks(user_id, created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS user_bookmarks_judgment_idx
+        ON user_bookmarks(judgment_id);
+    `,
+  },
 ] as const;

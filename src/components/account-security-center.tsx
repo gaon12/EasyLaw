@@ -290,7 +290,7 @@ export function AccountSecurityCenter({
           )}
           {securityState.authentication.totpCanDisable && (
             <button
-              className={styles.secondaryButton}
+              className={styles.dangerButton}
               disabled={isBusy}
               onClick={() => setIsDisableFormOpen((current) => !current)}
               type="button"
@@ -319,7 +319,7 @@ export function AccountSecurityCenter({
               value={disableCode}
             />
             <button
-              className={styles.secondaryButton}
+              className={styles.dangerButton}
               disabled={isBusy}
               onClick={disableSecondFactor}
               type="button"
@@ -401,7 +401,7 @@ export function AccountSecurityCenter({
         {isTotpEnabled && (
           <div className={styles.securityActions}>
             <button
-              className={styles.secondaryButton}
+              className={styles.warningButton}
               disabled={isBusy}
               onClick={regenerateCodes}
               type="button"

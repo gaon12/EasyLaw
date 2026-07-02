@@ -181,7 +181,7 @@ export function AdminJudgmentCollectionPanel({
             {isSaving ? "저장 중" : "설정 저장"}
           </button>
           <button
-            className={styles.secondaryButton}
+            className={styles.infoButton}
             disabled={isSaving || isRunning}
             onClick={async () => {
               if (isBusyRef.current) {

@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import styles from "@/app/page.module.css";
 import { AccountMenu } from "@/components/account-menu";
 import {
-  BellIcon,
   BuildingIcon,
   FileTextIcon,
   SearchIcon,
@@ -62,7 +61,7 @@ export async function AppHeader({
       : []),
   ];
   return (
-    <header className={styles.govHeader}>
+    <header className={styles.govHeader} data-term-explainer-ignore>
       <div className={styles.utilityBar}>
         <div className={styles.utilityInner}>
           <a href="/privacy" data-i18n="nav.privacy">
@@ -128,7 +127,7 @@ export async function AppHeader({
 
 export function AppFooter() {
   return (
-    <footer className={styles.footer}>
+    <footer className={styles.footer} data-term-explainer-ignore>
       <div className={styles.footerInner}>
         <a className={styles.footerBrand} href="/">
           <Image
@@ -195,9 +194,9 @@ export const serviceShortcuts = [
   },
   {
     href: "/me",
-    icon: BellIcon,
-    label: "알림 확인",
-    description: "생성 중인 판결문 알림을 관리해요",
+    icon: FileTextIcon,
+    label: "내 문서함",
+    description: "북마크와 직접 등록한 문서를 모아요",
   },
   {
     href: "/org",

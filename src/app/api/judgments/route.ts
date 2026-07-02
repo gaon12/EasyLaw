@@ -12,7 +12,6 @@ import {
   upsertJudgmentFromExternal,
 } from "@/lib/external-law";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
-import { createOrAttachGenerationJob } from "@/lib/jobs";
 import {
   matchesJudgmentSearch,
   parseJudgmentSearchQuery,
@@ -30,7 +29,6 @@ export const dynamic = "force-dynamic";
 const createJudgmentRequest = z.object({
   captchaPayload: z.string().max(12_000).optional(),
   query: z.string().trim().min(1).max(JUDGMENT_SEARCH_QUERY_MAX_LENGTH),
-  email: z.string().email().optional(),
 });
 
 export async function GET() {
@@ -79,10 +77,7 @@ export async function POST(request: NextRequest) {
       ? await searchExternalJudgments(db, filters.text)
       : [];
     for (const record of records) {
-      const judgmentId = upsertJudgmentFromExternal(db, record);
-      if (body.data.email) {
-        createOrAttachGenerationJob(db, judgmentId, body.data.email);
-      }
+      upsertJudgmentFromExternal(db, record);
     }
 
     const judgments = getPublicJudgments(db).filter((judgment) =>

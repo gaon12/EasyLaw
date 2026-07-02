@@ -599,6 +599,9 @@
 
 .primaryButton,
 .secondaryButton,
+.infoButton,
+.warningButton,
+.dangerButton,
 .ghostButton {
   min-height: 44px;
   display: inline-flex;
@@ -630,6 +633,40 @@
 .secondaryButton:hover,
 .ghostButton:hover {
   background: var(--bg-muted);
+}
+
+.infoButton {
+  border-color: color-mix(in oklch, var(--fg-brand) 22%, transparent);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+}
+
+.infoButton:hover {
+  background: color-mix(in oklch, var(--bg-brand-subtle) 72%, var(--bg-brand));
+}
+
+.warningButton {
+  border-color: color-mix(in oklch, var(--fg-warning) 30%, transparent);
+  background: var(--bg-warning-subtle);
+  color: var(--fg-warning);
+}
+
+.warningButton:hover {
+  background: color-mix(
+    in oklch,
+    var(--bg-warning-subtle) 72%,
+    var(--fg-warning)
+  );
+}
+
+.dangerButton {
+  border-color: color-mix(in oklch, var(--fg-danger) 28%, transparent);
+  background: color-mix(in oklch, var(--fg-danger) 12%, var(--bg-surface));
+  color: var(--fg-danger);
+}
+
+.dangerButton:hover {
+  background: color-mix(in oklch, var(--fg-danger) 18%, var(--bg-surface));
 }
 
 .ghostButton {
@@ -736,6 +773,7 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.securityDisableForm .dangerButton,
 .securityDisableForm .secondaryButton {
   width: fit-content;
 }
@@ -2053,6 +2091,7 @@
   gap: 8px;
 }
 
+.judgmentListActions .infoButton,
 .judgmentListActions .secondaryButton {
   min-height: 36px;
   padding: 0 12px;
@@ -2141,6 +2180,8 @@
 .judgmentViewerHero {
   display: flex;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   margin-top: 20px;
   margin-bottom: 18px;
   padding-bottom: 18px;
@@ -2161,6 +2202,14 @@
   color: var(--fg-secondary);
   font-size: 17px;
   line-height: 1.55;
+}
+
+.viewerHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
 }
 
 .judgmentViewer {
@@ -3453,6 +3502,14 @@
   color: var(--fg-tertiary);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.termMissing {
+  border-radius: var(--radius-8);
+  padding: 10px 12px;
+  background: var(--bg-warning-subtle);
+  color: var(--fg-warning);
+  font-weight: 800;
 }
 
 .termAiLink {
@@ -4823,6 +4880,7 @@
     flex-direction: column;
   }
 
+  .judgmentListActions .infoButton,
   .judgmentListActions .secondaryButton {
     width: 100%;
   }

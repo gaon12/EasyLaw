@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { JudgmentDetailView } from "@/components/judgment-detail";
 import { AppShell } from "@/components/site-chrome";
+import { isJudgmentBookmarked } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
 import { extractRelatedCaseReferences } from "@/lib/judgment-relations";
 import { pageMetadata } from "@/lib/metadata";
@@ -48,6 +49,10 @@ export default async function CustomJudgmentPage({
     <AppShell>
       <JudgmentDetailView
         analysis={getLatestAnalysis(db, judgment.id)}
+        bookmarkInitialActive={isJudgmentBookmarked(db, {
+          judgmentId: judgment.id,
+          userId: user.id,
+        })}
         judgment={judgment}
         privateDocument
         relatedJudgments={relatedReferences.map((reference) => {

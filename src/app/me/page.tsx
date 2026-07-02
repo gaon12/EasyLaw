@@ -1,56 +1,53 @@
-import {
-  SearchableCardList,
-  SearchableTable,
-} from "@/components/list-explorer";
+import { cookies } from "next/headers";
+import { SearchableBoardList } from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
+import {
+  listUserBookmarkRows,
+  listUserPrivateJudgmentRows,
+} from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
+import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import styles from "../page.module.css";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = pageMetadata({
   title: "내 문서함",
-  description: "저장한 판결문, 생성 알림, 계정 설정을 확인합니다.",
+  description: "북마크한 판결문과 내가 등록한 문서를 확인합니다.",
   robots: { index: false, follow: false },
 });
 
-export default function MePage() {
+export default async function MePage() {
   const db = getDatabase();
-  const users = db
-    .prepare<
-      [],
-      {
-        id: string;
-        email: string;
-        display_name: string;
-        role: string;
-        totp_enabled: number;
-        totp_required: number;
-      }
-    >(
-      `SELECT id, email, display_name, role, totp_enabled, totp_required
-        FROM users
-        ORDER BY created_at DESC`,
-    )
-    .all();
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
 
-  const notifications = db
-    .prepare<
-      [],
-      {
-        email: string;
-        status: string;
-        type: string;
-        created_at: string;
-      }
-    >(
-      `SELECT email, status, type, created_at
-        FROM notifications
-        ORDER BY created_at DESC
-        LIMIT 10`,
-    )
-    .all();
+  if (!user) {
+    return (
+      <AppShell>
+        <main className={styles.main}>
+          <section className={styles.section}>
+            <div className={styles.sectionTitle}>
+              <div>
+                <h1>내 문서함</h1>
+                <p>
+                  로그인하면 북마크한 판결문·법령과 직접 등록한 문서를 한곳에서
+                  볼 수 있어요.
+                </p>
+              </div>
+              <span className={styles.badge}>로그인 필요</span>
+            </div>
+            <a className={styles.primaryButton} href="/login?next=/me">
+              로그인하고 문서함 보기
+            </a>
+          </section>
+        </main>
+      </AppShell>
+    );
+  }
+
+  const bookmarks = listUserBookmarkRows(db, user.id);
+  const privateDocuments = listUserPrivateJudgmentRows(db, user.id);
 
   return (
     <AppShell>
@@ -60,58 +57,47 @@ export default function MePage() {
             <div>
               <h1>내 문서함</h1>
               <p>
-                분석 이력, 저장 결과, 알림 구독, 삭제 요청, 2차 인증 설정을
-                한곳에서 관리해요.
+                {user.displayName}님이 저장한 판결문·법령과 직접 등록한 문서를
+                모아 보여줘요.
               </p>
             </div>
-            <span className={styles.badge}>이메일 인증 + 2차 인증 권장</span>
+            <a className={styles.infoButton} href="/catalog">
+              판결문 찾아 북마크
+            </a>
           </div>
-          <SearchableCardList
-            emptyMessage="검색 조건에 맞는 계정이 없어요."
-            rows={users.map((user) => {
-              const badgeLabel = user.totp_enabled
-                ? "2차 인증 사용 중"
-                : "2차 인증 권장";
-              const body = user.totp_required
-                ? "관리 기능을 사용하려면 2차 인증이 필요해요."
-                : "계정 설정에서 2차 인증과 복구 코드를 등록하면 더 안전해요.";
-              return {
-                badgeClassName: user.totp_enabled
-                  ? styles.statusReady
-                  : styles.statusPending,
-                badgeLabel,
-                body,
-                id: user.id,
-                meta: [user.email, user.role],
-                searchText: `${user.display_name} ${user.email} ${user.role} ${badgeLabel}`,
-                title: user.display_name,
-              };
-            })}
-            searchLabel="계정 검색"
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>
+            <div>
+              <h2>북마크</h2>
+              <p>다시 볼 판결문과 법령을 저장해두는 공간이에요.</p>
+            </div>
+          </div>
+          <SearchableBoardList
+            emptyMessage="아직 북마크한 항목이 없어요."
+            rows={bookmarks}
+            searchLabel="북마크 검색"
           />
         </section>
 
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h2>알림 구독</h2>
-              <p>생성 완료 이메일은 판결문 생성 작업과 중복 없이 연결해요.</p>
+              <h2>내가 등록한 문서</h2>
+              <p>판결문 검색 화면에서 직접 붙여넣어 저장한 비공개 문서예요.</p>
             </div>
+            <a
+              className={styles.secondaryButton}
+              href="/catalog#custom-judgment"
+            >
+              문서 등록하기
+            </a>
           </div>
-          <SearchableTable
-            columns={["이메일", "유형", "상태", "생성일"]}
-            emptyMessage="검색 조건에 맞는 알림 구독이 없어요."
-            rows={notifications.map((notice) => ({
-              cells: [
-                notice.email,
-                notice.type,
-                notice.status,
-                { kind: "datetime", value: notice.created_at },
-              ],
-              id: `${notice.email}-${notice.created_at}`,
-              searchText: `${notice.email} ${notice.type} ${notice.status} ${notice.created_at}`,
-            }))}
-            searchLabel="알림 검색"
+          <SearchableBoardList
+            emptyMessage="아직 등록한 문서가 없어요."
+            rows={privateDocuments}
+            searchLabel="내 문서 검색"
           />
         </section>
       </main>

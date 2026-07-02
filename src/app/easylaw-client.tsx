@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
 import { LoginRequiredModal } from "@/components/auth-required-link";
+import { BookmarkButton } from "@/components/bookmark-button";
 import { LocalTime } from "@/components/local-time";
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import {
@@ -32,10 +33,6 @@ type Judgment = Pick<
 type JudgmentSearchResponse = {
   count: number;
   judgments: Judgment[];
-};
-
-type NotifyResponse = {
-  jobId: string;
 };
 
 type CustomJudgmentResponse = {
@@ -87,10 +84,6 @@ function isJudgmentSearchResponse(
   );
 }
 
-function isNotifyResponse(value: unknown): value is NotifyResponse {
-  return isRecord(value) && typeof value.jobId === "string";
-}
-
 function isCustomJudgmentResponse(
   value: unknown,
 ): value is CustomJudgmentResponse {
@@ -114,10 +107,12 @@ export function JudgmentExplorer({
   initialQuery = "",
   initialTotalCount = initialJudgments.length,
   initialView,
+  initialBookmarkedIds = [],
   questionMode = false,
   showWorkspace = true,
 }: {
   compact?: boolean;
+  initialBookmarkedIds?: string[];
   initialJudgments: Judgment[];
   initialPage?: number;
   initialQuery?: string;
@@ -127,7 +122,6 @@ export function JudgmentExplorer({
   showWorkspace?: boolean;
 }) {
   const [query, setQuery] = useState(initialQuery);
-  const [email, setEmail] = useState("");
   const [judgments, setJudgments] = useState(initialJudgments);
   const [page, setPage] = useState(initialPage);
   const [hasClientResults, setHasClientResults] = useState(false);
@@ -139,10 +133,6 @@ export function JudgmentExplorer({
   const [isLoading, setIsLoading] = useState(false);
   const isLoadingRef = useRef(false);
   const authRedirectRef = useRef(false);
-  const notificationRef = useRef<string | null>(null);
-  const [pendingNotificationId, setPendingNotificationId] = useState<
-    string | null
-  >(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [customText, setCustomText] = useState("");
@@ -183,7 +173,6 @@ export function JudgmentExplorer({
         },
         body: JSON.stringify({
           captchaPayload,
-          email: email || undefined,
           query,
         }),
       });
@@ -231,43 +220,6 @@ export function JudgmentExplorer({
           : "검색 조건에 맞는 판결문이 없어요.",
       );
     });
-  }
-
-  async function subscribe(judgmentId: string) {
-    if (notificationRef.current) {
-      return;
-    }
-    if (!email) {
-      setMessage("알림을 받을 이메일 주소를 먼저 입력해 주세요.");
-      return;
-    }
-
-    notificationRef.current = judgmentId;
-    setPendingNotificationId(judgmentId);
-    try {
-      const response = await fetch(`/api/judgments/${judgmentId}/notify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data: unknown = await response.json();
-
-      if (!response.ok) {
-        setMessage("알림 등록에 실패했어요. 이메일 주소를 확인해 주세요.");
-        return;
-      }
-      if (!isNotifyResponse(data)) {
-        setMessage("알림 응답 형식을 확인하지 못했어요. 다시 시도해 주세요.");
-        return;
-      }
-
-      setMessage(`생성 작업에 연결했어요. 작업 ID: ${data.jobId}`);
-    } catch (_error) {
-      setMessage("알림 등록 요청이 끊겼어요. 잠시 뒤 다시 시도해 주세요.");
-    } finally {
-      notificationRef.current = null;
-      setPendingNotificationId(null);
-    }
   }
 
   async function createCustomJudgment() {
@@ -345,8 +297,8 @@ export function JudgmentExplorer({
         <div className={styles.workspace}>
           <h2>판결문 검색</h2>
           <p>
-            사건번호나 판결문 제목을 검색하고, 아직 생성되지 않은 결과는 이메일
-            알림을 신청할 수 있어요.
+            사건번호나 판결문 제목으로 바로 찾고, 필요한 항목은 북마크로 모아둘
+            수 있어요.
           </p>
           <div className={styles.workspaceBody}>
             <section className={styles.workspaceSection}>
@@ -354,9 +306,7 @@ export function JudgmentExplorer({
                 <h3>공개 판결문 찾기</h3>
                 <p>
                   사건번호, 법원명, 판결문 제목으로 공개된 판결문을 검색해요.
-                  `연도:2024-2026`, `종류:민사`처럼 태그를 붙이면 조건을 좁힐 수
-                  있어요. 알림 이메일은 생성 대기 문서가 준비됐을 때만
-                  사용합니다.
+                  필요한 경우 아래 추천 조건을 눌러 검색어에 붙일 수 있어요.
                 </p>
                 <p className={styles.workspaceStatus}>{message}</p>
                 {captchaPrompt && (
@@ -382,7 +332,7 @@ export function JudgmentExplorer({
                 placeholder={
                   questionMode
                     ? "어떤 일이 있었고 무엇이 궁금한지 적어보세요"
-                    : "예: 손해배상 연도:2024-2026 종류:민사"
+                    : "예: 손해배상, 해고, 대법원"
                 }
                 value={query}
               />
@@ -390,7 +340,7 @@ export function JudgmentExplorer({
                 <legend className={styles.visuallyHidden}>
                   검색 태그 예시
                 </legend>
-                {judgmentSearchTagExamples.map((tag) => (
+                {judgmentSearchTagExamples.slice(1, 4).map((tag) => (
                   <button
                     className={styles.searchTag}
                     key={tag}
@@ -403,17 +353,6 @@ export function JudgmentExplorer({
                   </button>
                 ))}
               </fieldset>
-              <label className={styles.label} htmlFor="notify-email">
-                완료 알림 이메일
-              </label>
-              <input
-                className={styles.input}
-                id="notify-email"
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                type="email"
-                value={email}
-              />
               <div className={styles.buttonRow}>
                 <button
                   className={styles.primaryButton}
@@ -516,8 +455,7 @@ export function JudgmentExplorer({
                 </div>
                 <div>
                   <p className={styles.meta}>
-                    작업 상태: {judgment.latestJobStatus ?? "아직 없음"} / 알림{" "}
-                    {judgment.notificationCount}건
+                    작업 상태: {judgment.latestJobStatus ?? "아직 없음"}
                   </p>
                   <div className={styles.buttonRow}>
                     <a
@@ -526,10 +464,9 @@ export function JudgmentExplorer({
                     >
                       판결문 보기
                     </a>
-                    <NotifyButton
-                      disabled={pendingNotificationId !== null}
-                      isPending={pendingNotificationId === judgment.id}
-                      onClick={() => subscribe(judgment.id)}
+                    <BookmarkButton
+                      initialActive={initialBookmarkedIds.includes(judgment.id)}
+                      judgmentId={judgment.id}
                     />
                   </div>
                 </div>
@@ -548,7 +485,6 @@ export function JudgmentExplorer({
                   <span>
                     <LocalTime dateOnly dateTime={judgment.decidedOn} />
                   </span>
-                  <span>알림 {judgment.notificationCount}건</span>
                 </div>
                 <div className={styles.judgmentListActions}>
                   <a
@@ -557,10 +493,9 @@ export function JudgmentExplorer({
                   >
                     보기
                   </a>
-                  <NotifyButton
-                    disabled={pendingNotificationId !== null}
-                    isPending={pendingNotificationId === judgment.id}
-                    onClick={() => subscribe(judgment.id)}
+                  <BookmarkButton
+                    initialActive={initialBookmarkedIds.includes(judgment.id)}
+                    judgmentId={judgment.id}
                   />
                 </div>
               </>
@@ -618,27 +553,6 @@ function StatusBadge({ status }: { status: Judgment["status"] }) {
           ? "검토 필요"
           : "생성 대기"}
     </span>
-  );
-}
-
-function NotifyButton({
-  disabled,
-  isPending,
-  onClick,
-}: {
-  disabled: boolean;
-  isPending: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={styles.secondaryButton}
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {isPending ? "알림 등록 중" : "완료 알림 받기"}
-    </button>
   );
 }
 

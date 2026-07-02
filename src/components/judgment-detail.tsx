@@ -1,4 +1,5 @@
 import styles from "@/app/page.module.css";
+import { BookmarkButton } from "@/components/bookmark-button";
 import { JudgmentReaderTabs } from "@/components/judgment-reader-tabs";
 import { LocalTime } from "@/components/local-time";
 import { parseJudgmentDocument } from "@/lib/judgment-document";
@@ -7,11 +8,13 @@ import type { EasyReadAnalysis, JudgmentDetail } from "@/lib/types";
 
 export function JudgmentDetailView({
   analysis,
+  bookmarkInitialActive = false,
   judgment,
   privateDocument = false,
   relatedJudgments = [],
 }: {
   analysis: EasyReadAnalysis | null;
+  bookmarkInitialActive?: boolean;
   judgment: JudgmentDetail;
   privateDocument?: boolean;
   relatedJudgments?: Array<{
@@ -44,6 +47,12 @@ export function JudgmentDetailView({
             {judgment.caseNumber} · {judgment.courtName} · 선고일{" "}
             <LocalTime dateOnly dateTime={judgment.decidedOn} />
           </p>
+        </div>
+        <div className={styles.viewerHeroActions}>
+          <BookmarkButton
+            initialActive={bookmarkInitialActive}
+            judgmentId={judgment.id}
+          />
         </div>
       </section>
 

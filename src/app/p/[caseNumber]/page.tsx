@@ -1,6 +1,8 @@
-﻿import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
 import { JudgmentDetailView } from "@/components/judgment-detail";
 import { AppShell } from "@/components/site-chrome";
+import { isJudgmentBookmarked } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
 import {
   ensurePublicJudgmentOriginalText,
@@ -13,6 +15,7 @@ import {
   getPublicJudgmentByIdentifier,
   getPublicJudgmentsByCaseNumbers,
 } from "@/lib/queries";
+import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +48,7 @@ export default async function PublicJudgmentPage({
 }: PageProps<"/p/[caseNumber]">) {
   const { caseNumber } = await params;
   const db = getDatabase();
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
   await syncExternalCatalog(db);
   let judgment = getPublicJudgmentByIdentifier(db, caseNumber);
   if (!judgment) {
@@ -62,11 +66,18 @@ export default async function PublicJudgmentPage({
       relatedReferences.map((reference) => reference.caseNumber),
     ).map((relatedJudgment) => [relatedJudgment.caseNumber, relatedJudgment]),
   );
+  const bookmarkInitialActive = user
+    ? isJudgmentBookmarked(db, {
+        judgmentId: judgment.id,
+        userId: user.id,
+      })
+    : false;
 
   return (
     <AppShell>
       <JudgmentDetailView
         analysis={getLatestAnalysis(db, judgment.id)}
+        bookmarkInitialActive={bookmarkInitialActive}
         judgment={judgment}
         relatedJudgments={relatedReferences.map((reference) => {
           const linkedJudgment = linkedJudgments.get(reference.caseNumber);
