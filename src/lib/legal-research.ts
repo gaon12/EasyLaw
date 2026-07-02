@@ -37,10 +37,13 @@ export type ResearchEvidence = McpEvidenceDraft & {
 
 export type ResearchPlan = {
   answer: string;
+  assumptions: string[];
   coverageLabel: string;
   coverageLevel: CoverageLevel;
   evidence: ResearchEvidence[];
+  hypothetical: boolean;
   intent: string;
+  legalIssues: string[];
   mode: ResearchMode;
   query: string;
   steps: ResearchHarnessStep[];
@@ -105,8 +108,9 @@ async function runToolLoop(
     toolKey: string;
   }> = [];
   let plan: Omit<ResearchPlan, "answer" | "evidence"> | null = null;
+  const reviewFeedback: string[] = [];
 
-  for (let iteration = 0; iteration < 3; iteration += 1) {
+  for (let iteration = 0; iteration < 5; iteration += 1) {
     onEvent?.({
       phase: iteration === 0 ? "planning" : "retrieving",
       type: "phase",
@@ -116,6 +120,7 @@ async function runToolLoop(
       history,
       plan,
       query,
+      reviewFeedback,
       tools: toolbox.tools,
     });
     plan ??= createPlan(query, decision);
@@ -124,6 +129,22 @@ async function runToolLoop(
     }
 
     if (decision.type === "answer") {
+      const rejection = rejectUngroundedAnswer(
+        plan,
+        evidence,
+        history,
+        decision.answer,
+      );
+      if (rejection) {
+        reviewFeedback.push(rejection);
+        if (toolbox.tools.length === 0) {
+          throw new LlmError(
+            "mcp_unavailable",
+            "검색이 필요한 질문이지만 연결된 MCP 검색 도구가 없습니다.",
+          );
+        }
+        continue;
+      }
       return finishAnswer(
         configuration,
         plan,
@@ -244,11 +265,52 @@ function createPlan(
   decision: AgentDecision,
 ): Omit<ResearchPlan, "answer" | "evidence"> {
   return {
+    assumptions: decision.assumptions,
     coverageLabel: researchModeLabel(decision.mode),
     coverageLevel: decision.coverageLevel,
+    hypothetical: decision.hypothetical,
     intent: decision.intent,
+    legalIssues: decision.legalIssues,
     mode: decision.mode,
     query,
     steps: stepsForResearchMode(decision.mode),
   };
+}
+
+function rejectUngroundedAnswer(
+  plan: Omit<ResearchPlan, "answer" | "evidence">,
+  evidence: ResearchEvidence[],
+  history: Array<{
+    arguments: Record<string, unknown>;
+    status: "completed" | "failed";
+    toolKey: string;
+  }>,
+  answer: string,
+) {
+  if (plan.mode === "quick") {
+    return null;
+  }
+  if (evidence.length === 0) {
+    return "개별 법률상황 답변인데 MCP 근거가 하나도 없다. 쟁점별 도구 검색을 먼저 수행한다.";
+  }
+  const completedSearches = new Set(
+    history
+      .filter((call) => call.status === "completed")
+      .map((call) => `${call.toolKey}:${JSON.stringify(call.arguments)}`),
+  ).size;
+  const requiredSearches = plan.hypothetical
+    ? Math.min(3, Math.max(2, plan.legalIssues.length))
+    : plan.mode === "deep"
+      ? 2
+      : 1;
+  if (completedSearches < requiredSearches) {
+    return `현재 서로 다른 MCP 검색은 ${completedSearches}회뿐이다. 이 질문은 답변 전에 쟁점을 나눈 검색을 최소 ${requiredSearches}회 완료해야 한다.`;
+  }
+  const citedIds = new Set(
+    [...answer.matchAll(/\[(E\d+)\]/g)].map((match) => match[1]),
+  );
+  if (!evidence.some((item) => citedIds.has(item.id))) {
+    return "답변에 실제 MCP 근거 ID 인용이 없다. 필요한 검색을 보완하고 근거 ID를 사실 주장에 연결한다.";
+  }
+  return null;
 }

@@ -106,13 +106,19 @@ function createResearchFetchMock({
   llmResponses: string[];
   toolResults?: Array<Record<string, unknown>>;
 }) {
-  const state = { llmRequests: 0, toolCalls: 0 };
+  const state = {
+    llmBodies: [] as Array<Record<string, unknown>>,
+    llmRequests: 0,
+    toolArguments: [] as Array<Record<string, unknown>>,
+    toolCalls: 0,
+  };
   return {
     state,
     async fetch(input: string | URL | Request, init?: RequestInit) {
       const url = input instanceof Request ? input.url : String(input);
       const body = init?.body ? JSON.parse(String(init.body)) : {};
       if (!url.startsWith("https://mcp.example")) {
+        state.llmBodies.push(body);
         state.llmRequests += 1;
         return Response.json({
           choices: [{ message: { content: llmResponses.shift() } }],
@@ -163,6 +169,18 @@ function createResearchFetchMock({
                   },
                 }
               : {};
+      if (
+        body.method === "tools/call" &&
+        body.params &&
+        typeof body.params === "object" &&
+        "arguments" in body.params &&
+        body.params.arguments &&
+        typeof body.params.arguments === "object"
+      ) {
+        state.toolArguments.push(
+          body.params.arguments as Record<string, unknown>,
+        );
+      }
       return Response.json(
         { id: body.id, jsonrpc: "2.0", result },
         { headers: { "Content-Type": "application/json" } },
@@ -1198,6 +1216,140 @@ test("legal research harness assigns coverage and evidence", async () => {
   }
 });
 
+test("hypothetical legal scenarios keep their premise and require MCP-grounded analysis", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "test-model");
+    setSetting(db, "llm_api_key", "test-key", true);
+    setSetting(db, "mcp_korean_law_endpoint", "https://mcp.example/mcp");
+    const assumptions = [
+      "엘프는 지능과 의사능력이 있고 인간과 같은 생명·신체를 가진다.",
+      "마력 소진은 즉시 처치가 필요한 응급증상을 일으킨다.",
+    ];
+    const legalIssues = [
+      "응급환자 해당성",
+      "응급의료 종사자의 진료 의무와 정당한 사유",
+      "진료 거부의 벌칙과 행정처분",
+      "치료 포기에 따른 부작위 형사책임",
+    ];
+    const groundedAnswer = `엘프를 인간과 같은 생명·신체를 가진 응급환자로 대응시키면, 단순히 종족을 보고 치료를 포기한 의사는 정당한 사유 없는 응급의료 거부에 따른 처벌 가능성이 높습니다. [E1] 관련 벌칙과 행정처분도 검토해야 합니다. [E2] 사망이나 중상해가 발생했다면 보호의무와 인과관계에 따라 부작위 형사책임도 별도로 문제 됩니다. [E3] 다만 응급증상과 치료 가능성은 의료 자료로 확인해야 합니다. [E4]`;
+    const mock = createResearchFetchMock({
+      llmResponses: [
+        JSON.stringify({
+          answer:
+            "엘프는 자연인이 아니므로 현실의 법으로 의사를 처벌할 수 없습니다.",
+          assumptions,
+          coverageLevel: 4,
+          hypothetical: true,
+          intent: "가상 응급환자에 대한 치료 포기의 법적 책임 확인",
+          legalIssues,
+          mode: "deep",
+          type: "answer",
+        }),
+        JSON.stringify({
+          assumptions,
+          calls: [
+            {
+              arguments: { query: "응급의료법 응급환자 정의" },
+              toolKey: "korean-law/search_law",
+            },
+            {
+              arguments: { query: "응급의료법 진료 거부 정당한 사유 벌칙" },
+              toolKey: "korean-law/search_law",
+            },
+            {
+              arguments: { query: "의사 치료 거부 부작위 살인 판례" },
+              toolKey: "korean-law/search_law",
+            },
+            {
+              arguments: { query: "응급의료 진료 거부 행정처분" },
+              toolKey: "korean-law/search_law",
+            },
+          ],
+          coverageLevel: 4,
+          hypothetical: true,
+          intent: "가상 응급환자에 대한 치료 포기의 법적 책임 확인",
+          legalIssues,
+          mode: "deep",
+          type: "tool_calls",
+        }),
+        JSON.stringify({
+          answer: groundedAnswer,
+          assumptions,
+          coverageLevel: 4,
+          hypothetical: true,
+          intent: "가상 응급환자에 대한 치료 포기의 법적 책임 확인",
+          legalIssues,
+          mode: "deep",
+          type: "answer",
+        }),
+        JSON.stringify({
+          answer: groundedAnswer,
+          grounded: true,
+          issues: [],
+        }),
+      ],
+      toolResults: [
+        {
+          source: "국가법령정보센터",
+          summary: "응급환자의 정의와 응급증상 기준",
+          title: "응급의료에 관한 법률 제2조",
+          url: "https://example.test/law/emergency-definition",
+        },
+        {
+          source: "국가법령정보센터",
+          summary: "응급의료 거부 금지와 벌칙",
+          title: "응급의료에 관한 법률 진료 거부 및 벌칙",
+          url: "https://example.test/law/emergency-penalty",
+        },
+        {
+          caseNumber: "2000도0000",
+          source: "대법원",
+          summary: "보증인 지위와 부작위범의 성립 요건",
+          title: "부작위 형사책임 판결",
+          url: "https://example.test/judgment/omission",
+        },
+        {
+          source: "보건복지부",
+          summary: "응급의료 거부 관련 행정처분 기준",
+          title: "의료관계 행정처분 규칙",
+          url: "https://example.test/rule/medical-sanction",
+        },
+      ],
+    });
+    globalThis.fetch = mock.fetch;
+
+    const result = await buildResearchPlan(
+      db,
+      "엘프가 마력을 다 소진한 채 응급실에 실려왔는데 의사가 엘프를 보자마자 치료를 포기했습니다. 의사는 처벌을 받나요?",
+    );
+
+    assert.equal(result.hypothetical, true);
+    assert.deepEqual(result.assumptions, assumptions);
+    assert.deepEqual(result.legalIssues, legalIssues);
+    assert.equal(mock.state.toolCalls, 4);
+    assert.equal(new Set(mock.state.toolArguments.map(JSON.stringify)).size, 4);
+    assert.equal(mock.state.llmRequests, 4);
+    assert.doesNotMatch(result.answer, /자연인이 아니므로.*처벌할 수 없습니다/);
+    assert.match(result.answer, /처벌 가능성이 높습니다/);
+    assert.match(result.answer, /\[E1\]/);
+
+    const firstRequest = mock.state.llmBodies[0];
+    assert.match(
+      JSON.stringify(firstRequest),
+      /가상·초현실적 사실도 질문자가 정한 사실로 받아들인다/,
+    );
+    const secondRequest = mock.state.llmBodies[1];
+    assert.match(JSON.stringify(secondRequest), /MCP 근거가 하나도 없다/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
 test("deep research keeps its overview when verification fails", async () => {
   const { db, cleanup } = withDb();
   const originalFetch = globalThis.fetch;
@@ -1213,6 +1365,10 @@ test("deep research keeps its overview when verification fails", async () => {
           calls: [
             {
               arguments: { query: "사기 형사 절차" },
+              toolKey: "korean-law/search_law",
+            },
+            {
+              arguments: { query: "사기 피해 긴급 증거 보전" },
               toolKey: "korean-law/search_law",
             },
           ],
@@ -1237,6 +1393,12 @@ test("deep research keeps its overview when verification fails", async () => {
           summary: "사기죄의 구성요건과 형사 절차 안내",
           title: "형법 사기죄",
           url: "https://example.test/law/fraud",
+        },
+        {
+          source: "경찰청",
+          summary: "사기 피해 신고와 증거 보전 안내",
+          title: "사기 피해 대응 절차",
+          url: "https://example.test/guide/fraud",
         },
       ],
     });
