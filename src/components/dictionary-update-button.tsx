@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 
-type UpdateSource = "all" | "basic" | "standard";
+type UpdateSource = "all" | "basic" | "standard" | "legal";
 
 const updateStages = [
   "업데이트 요청 준비",
@@ -17,6 +17,7 @@ const updateOptions: { label: string; source: UpdateSource }[] = [
   { label: "전체 업데이트", source: "all" },
   { label: "한국어기초사전 업데이트", source: "basic" },
   { label: "표준국어대사전 업데이트", source: "standard" },
+  { label: "법령용어 업데이트", source: "legal" },
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -142,7 +143,9 @@ export function DictionaryUpdateButton() {
         {updateOptions.map(({ source, label }) => (
           <button
             className={
-              source === "all" ? styles.primaryButton : styles.secondaryButton
+              source === "all" || source === "legal"
+                ? styles.primaryButton
+                : styles.secondaryButton
             }
             disabled={status === "loading"}
             key={source}
@@ -231,6 +234,9 @@ function runningSourceLabel(source: UpdateSource | null) {
   }
   if (source === "standard") {
     return "표준국어대사전";
+  }
+  if (source === "legal") {
+    return "법령용어";
   }
   return "전체";
 }

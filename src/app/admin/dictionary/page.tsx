@@ -47,8 +47,9 @@ export default function AdminDictionaryPage() {
           <div className={styles.contentCard}>
             <h2 className={styles.panelTitle}>공개 사전 데이터 업데이트</h2>
             <p>
-              한국어기초사전과 표준국어대사전의 최신 뜻풀이를 가져와 로컬 사전에
-              반영합니다. 업데이트가 끝나면 검색과 용어 설명에 바로 사용됩니다.
+              한국어기초사전, 표준국어대사전, 국가법령정보센터 법령용어를 가져와
+              로컬 사전에 반영합니다. 업데이트가 끝나면 검색과 용어 설명에 바로
+              사용됩니다.
             </p>
             <DictionaryUpdateButton />
           </div>
@@ -58,8 +59,9 @@ export default function AdminDictionaryPage() {
           <div className={styles.contentCard}>
             <h2 className={styles.panelTitle}>자체 법률 용어 사전</h2>
             <p>
-              서비스가 반드시 먼저 보여줘야 하는 법률 용어 설명을 등록합니다.
-              같은 단어가 여러 사전에 있어도 자체 설명이 1순위입니다.
+              서비스가 반드시 먼저 보여줘야 하는 법률 용어 설명을 직접
+              등록하거나 법령용어 API에서 가져옵니다. 같은 단어가 여러 사전에
+              있어도 이 설명이 1순위입니다.
             </p>
             <LegalTermManager initialTerms={legalTerms} />
           </div>

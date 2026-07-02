@@ -4,7 +4,7 @@ export {
   updateDictionarySource,
   updateDownloadableDictionaries,
 } from "./importers";
-export { addLegalDictionaryTerm } from "./legal";
+export { addLegalDictionaryTerm, updateOpenLawLegalDictionary } from "./legal";
 export type { LegalDictionaryTermRow } from "./repository";
 export {
   findDictionaryTerms,

@@ -5,6 +5,7 @@ import {
   isDictionarySource,
   updateDictionarySource,
   updateDownloadableDictionaries,
+  updateOpenLawLegalDictionary,
 } from "@/lib/dictionary";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
@@ -27,24 +28,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
   const source = input.data.source ?? "all";
-  if (
-    source !== "all" &&
-    source !== "basic" &&
-    source !== "standard" &&
-    !isDictionarySource(source)
-  ) {
-    return Response.json({ error: "invalid_source" }, { status: 400 });
-  }
-  if (source === "legal") {
+  if (source !== "all" && !isDictionarySource(source)) {
     return Response.json({ error: "invalid_source" }, { status: 400 });
   }
 
   const result =
     source === "all"
       ? await updateDownloadableDictionaries(db)
-      : await updateDictionarySource(
-          db,
-          source === "basic" ? "basic" : "standard",
-        );
+      : source === "legal"
+        ? await updateOpenLawLegalDictionary(db)
+        : await updateDictionarySource(
+            db,
+            source === "basic" ? "basic" : "standard",
+          );
   return Response.json(result, { status: result.ok ? 200 : 502 });
 }
