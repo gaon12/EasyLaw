@@ -374,6 +374,16 @@ try {
   await aiSubNav.getByRole("link", { name: "모델 API" }).click();
   await page.waitForURL(`${baseUrl}/admin/ai/llm`);
   await page.getByRole("heading", { name: "모델 API" }).waitFor();
+  await page.getByLabel("프리셋").selectOption("google");
+  if (
+    (await page.getByLabel("API Base URL").inputValue()) !==
+    "https://generativelanguage.googleapis.com/v1beta/openai"
+  ) {
+    throw new Error("LLM API preset did not update the base URL.");
+  }
+  if ((await page.getByLabel("모델").inputValue()) !== "gemini-3.5-flash") {
+    throw new Error("LLM API preset did not update the model.");
+  }
   await aiSubNav.getByRole("link", { name: "도구 연결" }).click();
   await page.waitForURL(`${baseUrl}/admin/ai/mcp`);
   await page.getByRole("heading", { name: "도구 연결" }).waitFor();
