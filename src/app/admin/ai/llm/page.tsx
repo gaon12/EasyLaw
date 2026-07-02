@@ -1,7 +1,8 @@
 import { AdminAiSubnav } from "@/components/admin-ai-subnav";
-import { AdminSettingsForm } from "@/components/admin-settings-form";
+import { LlmSettingsForm } from "@/components/llm-settings-form";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
+import { DEFAULT_LLM_PRESET, detectLlmPreset } from "@/lib/llm-presets";
 import { pageMetadata } from "@/lib/metadata";
 import { getSetting, hasSetting } from "@/lib/settings";
 import styles from "../../../page.module.css";
@@ -17,6 +18,11 @@ export const metadata = pageMetadata({
 
 export default function AdminAiLlmPage() {
   const db = getDatabase();
+  const provider =
+    getSetting(db, "llm_provider") ?? DEFAULT_LLM_PRESET.provider;
+  const baseUrl =
+    getSetting(db, "llm_api_base_url") ?? DEFAULT_LLM_PRESET.baseUrl;
+  const model = getSetting(db, "llm_model") ?? DEFAULT_LLM_PRESET.model;
 
   return (
     <AppShell variant="admin" subNavigation={<AdminAiSubnav active="llm" />}>
@@ -36,39 +42,16 @@ export default function AdminAiLlmPage() {
 
         <section className={styles.section}>
           <div className={styles.contentCard}>
-            <AdminSettingsForm
+            <LlmSettingsForm
               description={
                 hasSetting(db, "llm_api_key")
                   ? "저장된 API Key가 있어요. 새 값을 입력하면 교체됩니다."
                   : "API Key가 없으면 질문 화면은 하네스 미리보기로 동작합니다."
               }
-              fields={[
-                {
-                  key: "llm_provider",
-                  label: "공급자",
-                  placeholder: "OpenAI, Azure OpenAI 등",
-                  value: getSetting(db, "llm_provider") ?? "OpenAI",
-                },
-                {
-                  key: "llm_api_base_url",
-                  label: "API Base URL",
-                  placeholder: "https://api.openai.com/v1",
-                  value: getSetting(db, "llm_api_base_url") ?? "",
-                },
-                {
-                  key: "llm_model",
-                  label: "모델",
-                  placeholder: "gpt-5-mini",
-                  value: getSetting(db, "llm_model") ?? "",
-                },
-                {
-                  key: "llm_api_key",
-                  label: "API Key",
-                  placeholder: "새 키를 입력할 때만 저장",
-                  secret: true,
-                },
-              ]}
-              scope="llm"
+              initialBaseUrl={baseUrl}
+              initialModel={model}
+              initialPreset={detectLlmPreset({ baseUrl, model, provider })}
+              initialProvider={provider}
             />
           </div>
         </section>
