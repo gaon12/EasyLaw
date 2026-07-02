@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClipLoader } from "react-spinners";
 import styles from "@/app/page.module.css";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
 import {
@@ -296,13 +295,7 @@ export function LegalResearchPanel({
 
         {status === "loading" && (
           <div className={styles.aiSearchActivity}>
-            <ClipLoader
-              aria-label="법률 근거를 찾는 중"
-              color="currentColor"
-              loading
-              size={28}
-              speedMultiplier={0.82}
-            />
+            <span aria-hidden="true" className={styles.aiSearchSpinner} />
             <div>
               <strong>{toolStatus || phaseLabel(phase)}</strong>
               <small>
@@ -391,13 +384,6 @@ export function LegalResearchPanel({
             {phase === "verifying"
               ? "고위험 쟁점을 한 번 더 확인하는 중이에요."
               : "다음 문단을 이어서 생성하는 중이에요."}
-          </div>
-        )}
-
-        {status === "loading" && !answer && phase && (
-          <div className={styles.aiStreamingNotice}>
-            <span />
-            {toolStatus || phaseLabel(phase)}
           </div>
         )}
 

@@ -1211,6 +1211,15 @@
   color: var(--fg-brand);
 }
 
+.aiSearchSpinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: aiSearchSpinnerSpin 900ms linear infinite;
+}
+
 .aiSearchActivity strong,
 .aiSearchActivity small {
   display: block;
@@ -4619,6 +4628,12 @@
 @keyframes aiCursorBlink {
   to {
     opacity: 0;
+  }
+}
+
+@keyframes aiSearchSpinnerSpin {
+  to {
+    rotate: 1turn;
   }
 }
 
