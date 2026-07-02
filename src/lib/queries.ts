@@ -6,10 +6,17 @@ import type {
   JudgmentListItem,
 } from "./types";
 
-export function getPublicJudgments(db: SqliteDatabase): JudgmentListItem[] {
+export function getPublicJudgments(
+  db: SqliteDatabase,
+  options: { limit?: number } = {},
+): JudgmentListItem[] {
+  const limitClause =
+    typeof options.limit === "number" && options.limit > 0 ? "LIMIT ?" : "";
+  const parameters = limitClause ? [Math.floor(options.limit ?? 0)] : [];
+
   return db
     .prepare<
-      [],
+      number[],
       {
         id: string;
         case_number: string;
@@ -47,9 +54,10 @@ export function getPublicJudgments(db: SqliteDatabase): JudgmentListItem[] {
         ) AS notification_count
       FROM judgments
       WHERE visibility = 'public'
-      ORDER BY decided_on DESC`,
+      ORDER BY decided_on DESC
+      ${limitClause}`,
     )
-    .all()
+    .all(...parameters)
     .map((row) => ({
       id: row.id,
       caseNumber: row.case_number,
