@@ -390,11 +390,11 @@ try {
   await page.goto(`${baseUrl}/admin/judgments/collection`, {
     waitUntil: "networkidle",
   });
-  await page.getByRole("heading", { name: "판결문 자동 수집" }).waitFor();
+  await page.getByRole("heading", { name: "법률 데이터 자동 수집" }).waitFor();
   if ((await page.getByLabel("검색어").count()) !== 0) {
     throw new Error("Judgment collection still exposed a search query field.");
   }
-  await page.getByText("전체 판례 증분 수집").waitFor();
+  await page.getByText("판례·헌재·법령 증분 수집").waitFor();
   if ((await page.getByLabel("한 번에 가져올 건수").count()) !== 0) {
     throw new Error("Judgment collection still exposed a per-run limit.");
   }

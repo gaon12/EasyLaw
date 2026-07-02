@@ -8,8 +8,8 @@ import type { JudgmentCollectionStatus } from "@/lib/judgment-collection";
 
 const collectionStages = [
   "수집 요청 준비",
-  "공개 판례 목록 확인",
-  "새 판결문 저장",
+  "공개 데이터 목록 확인",
+  "본문 확인 및 저장",
   "수집 결과 정리",
 ] as const;
 
@@ -28,7 +28,7 @@ export function AdminJudgmentCollectionPanel({
 }) {
   const router = useRouter();
   const [message, setMessage] = useState(
-    "전체 판례를 주기적으로 확인하고 새 판결문만 저장해요.",
+    "판례, 헌재결정례, 현행 법령을 주기적으로 확인하고 새 데이터만 저장해요.",
   );
   const [noticeStatus, setNoticeStatus] = useState<
     "idle" | "success" | "error"
@@ -88,7 +88,7 @@ export function AdminJudgmentCollectionPanel({
               },
             });
             setNoticeStatus("success");
-            setMessage("판결문 수집 설정을 저장했어요.");
+            setMessage("수집 설정을 저장했어요.");
             router.refresh();
           } catch (_error) {
             setNoticeStatus("error");
@@ -121,10 +121,10 @@ export function AdminJudgmentCollectionPanel({
           <span>자동 수집 사용</span>
         </label>
         <div className={styles.collectionScope}>
-          <strong>전체 판례 증분 수집</strong>
+          <strong>판례·헌재·법령 증분 수집</strong>
           <p>
-            검색어 없이 공개 판례 목록을 최신순으로 확인하고, 이미 저장된
-            판결문이 나오면 이번 수집을 멈춥니다.
+            검색어 없이 공개 목록을 최신순으로 확인하고, 이미 저장된 데이터가
+            나오면 해당 범주의 수집을 멈춥니다.
           </p>
         </div>
         <label className={styles.settingsField} htmlFor="collection-interval">
@@ -162,7 +162,7 @@ export function AdminJudgmentCollectionPanel({
               setProgressPercent(8);
               setProgressStageIndex(0);
               setRunSummary(null);
-              setMessage("판결문 수집을 시작했어요.");
+              setMessage("수집을 시작했어요.");
               try {
                 const data = await submitRequest({ action: "run" });
                 const summary = isRunResponse(data)
@@ -240,19 +240,19 @@ export function AdminJudgmentCollectionPanel({
           >
             <div className={styles.progressModalHeader}>
               <div className={styles.progressModalTop}>
-                <span className={styles.badge}>판결문 수집</span>
+                <span className={styles.badge}>법률 데이터 수집</span>
                 <strong>{Math.round(progressPercent)}%</strong>
               </div>
               <h2 id="judgment-collection-progress-title">
                 {isRunning
-                  ? "판결문을 수집하고 있어요"
+                  ? "법률 데이터를 수집하고 있어요"
                   : noticeStatus === "error"
                     ? "수집을 마치지 못했어요"
                     : "수집이 끝났어요"}
               </h2>
               <p>
                 {runSummary ??
-                  "공개 판례 목록을 확인하면서 새 판결문만 저장하고 있어요."}
+                  "공개 목록을 확인하면서 새 데이터만 저장하고 있어요."}
               </p>
             </div>
             <div className={styles.progressMeta}>

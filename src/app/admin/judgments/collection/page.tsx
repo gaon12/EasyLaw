@@ -13,8 +13,8 @@ import styles from "../../../page.module.css";
 export const dynamic = "force-dynamic";
 
 export const metadata = pageMetadata({
-  title: "판결문 자동 수집",
-  description: "공개 판결문 자동 수집 주기와 수동 실행을 관리합니다.",
+  title: "법률 데이터 자동 수집",
+  description: "공개 법률 데이터 자동 수집 주기와 수동 실행을 관리합니다.",
   robots: { index: false, follow: false },
 });
 
@@ -32,9 +32,10 @@ export default function AdminJudgmentCollectionPage() {
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>판결문 자동 수집</h1>
+              <h1>법률 데이터 자동 수집</h1>
               <p>
-                공개 판례 전체 목록을 주기적으로 확인하고 새 판결문만 저장해요.
+                판례, 헌재결정례, 현행 법령을 주기적으로 확인하고 새 데이터만
+                저장해요.
               </p>
             </div>
             <span className={styles.badge}>Open Law</span>
@@ -51,10 +52,10 @@ export default function AdminJudgmentCollectionPage() {
           </div>
           <SearchableTable
             columns={["시각", "실행", "상태", "결과", "실패 사유"]}
-            emptyMessage="아직 판결문 수집 실행 이력이 없어요."
+            emptyMessage="아직 법률 데이터 수집 실행 이력이 없어요."
             rows={collectionRuns.map((run) => {
               const result = `${run.importedCount}건 / 신규 ${run.createdCount} / 갱신 ${run.updatedCount}`;
-              const scope = "전체 판례";
+              const scope = "전체 판례·헌재·법령";
               return {
                 cells: [
                   { kind: "datetime", value: run.startedAt },

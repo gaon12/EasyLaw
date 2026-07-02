@@ -28,7 +28,13 @@ export type ExternalJudgmentRecord = {
   decidedOn: string;
   title: string;
   sourceUrl?: string;
-  caseType: "civil" | "criminal" | "administrative" | "family";
+  caseType:
+    | "civil"
+    | "criminal"
+    | "administrative"
+    | "family"
+    | "constitutional"
+    | "law";
   summary?: string;
   originalText?: string;
 };
@@ -43,6 +49,7 @@ export type JudgmentListItem = {
   status: JudgmentStatus;
   visibility: JudgmentVisibility;
   sourceProvider: string;
+  sourceExternalId: string;
   latestJobStatus: JobStatus | null;
   notificationCount: number;
 };

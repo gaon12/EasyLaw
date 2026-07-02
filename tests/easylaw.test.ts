@@ -337,6 +337,71 @@ test("open law parser normalizes public case records", () => {
     },
   );
   assert.ok(records[0].sourceUrl?.startsWith("https://www.law.go.kr/"));
+  assert.equal(records[0].sourceUrl?.includes("OC="), false);
+});
+
+test("open law parser normalizes constitutional and law records", () => {
+  const constitutionalRecords = parseOpenLawSearchResponse(
+    {
+      DetcSearch: {
+        detc: [
+          {
+            사건명: "탄핵심판",
+            사건번호: "2024헌나1",
+            종국일자: "20240530",
+            헌재결정례상세링크: "/DRF/lawService.do?target=detc&ID=456",
+            헌재결정례일련번호: 456,
+          },
+        ],
+      },
+    },
+    "detc",
+  );
+  const lawRecords = parseOpenLawSearchResponse(
+    {
+      LawSearch: {
+        law: [
+          {
+            공포번호: "12345",
+            법령ID: "001234",
+            법령구분명: "법률",
+            법령명한글: "민법",
+            법령상세링크: "/DRF/lawService.do?target=law&ID=001234",
+            시행일자: "20260702",
+            소관부처명: "법무부",
+          },
+        ],
+      },
+    },
+    "law",
+  );
+
+  assert.deepEqual(
+    {
+      caseType: constitutionalRecords[0]?.caseType,
+      courtName: constitutionalRecords[0]?.courtName,
+      sourceProvider: constitutionalRecords[0]?.sourceProvider,
+    },
+    {
+      caseType: "constitutional",
+      courtName: "헌법재판소",
+      sourceProvider: "open-law-constitutional",
+    },
+  );
+  assert.deepEqual(
+    {
+      caseNumber: lawRecords[0]?.caseNumber,
+      caseType: lawRecords[0]?.caseType,
+      courtName: lawRecords[0]?.courtName,
+      sourceProvider: lawRecords[0]?.sourceProvider,
+    },
+    {
+      caseNumber: "법령 001234-12345",
+      caseType: "law",
+      courtName: "법무부",
+      sourceProvider: "open-law-law",
+    },
+  );
 });
 
 test("manual judgment collection stores fetched public judgments", async () => {
@@ -344,13 +409,44 @@ test("manual judgment collection stores fetched public judgments", async () => {
   const originalFetch = globalThis.fetch;
   try {
     setSetting(db, "open_law_oc", "test-oc");
-    const requestedPages: string[] = [];
+    const requestedSearches: string[] = [];
+    const requestedDetails: string[] = [];
     const requestedQueries: Array<string | null> = [];
     globalThis.fetch = async (input) => {
       const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      if (url.pathname.endsWith("/lawService.do")) {
+        requestedDetails.push(`${target}:${url.searchParams.get("ID")}`);
+        return new Response(
+          JSON.stringify({
+            PrecService: {
+              판례내용: `상세 본문 ${url.searchParams.get("ID")}`,
+            },
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
       const page = url.searchParams.get("page") ?? "1";
-      requestedPages.push(page);
-      requestedQueries.push(url.searchParams.get("query"));
+      requestedSearches.push(`${target}:${page}`);
+      (requestedQueries as Array<string | null>).push(
+        url.searchParams.get("query"),
+      );
+      if (target === "detc") {
+        return new Response(JSON.stringify({ DetcSearch: { detc: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "law") {
+        return new Response(JSON.stringify({ LawSearch: { law: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
       const prec =
         page === "1"
           ? [
@@ -391,8 +487,15 @@ test("manual judgment collection stores fetched public judgments", async () => {
     });
     assert.equal(result.ok, true);
     assert.ok(result.ok);
-    assert.deepEqual(requestedPages, ["1", "2", "3"]);
-    assert.deepEqual(requestedQueries, [null, null, null]);
+    assert.deepEqual(requestedSearches, [
+      "prec:1",
+      "prec:2",
+      "prec:3",
+      "detc:1",
+      "law:1",
+    ]);
+    assert.deepEqual(requestedDetails, ["prec:auto-1", "prec:auto-2"]);
+    assert.deepEqual(requestedQueries, [null, null, null, null, null]);
     assert.equal(result.importedCount, 2);
     assert.equal(result.createdCount, 2);
 
@@ -407,6 +510,10 @@ test("manual judgment collection stores fetched public judgments", async () => {
     );
     assert.equal(collected?.caseNumber, "2026Da1001");
     assert.equal(collected?.title, "Collected damages judgment");
+    assert.equal(
+      getPublicJudgmentByIdentifier(db, collected?.id ?? "")?.originalText,
+      "상세 본문 auto-1",
+    );
     assert.equal(secondCollected?.title, "Collected warranty judgment");
 
     const status = getJudgmentCollectionStatus(db);
@@ -418,15 +525,46 @@ test("manual judgment collection stores fetched public judgments", async () => {
     assert.equal(runs[0]?.trigger, "manual");
     assert.equal(runs[0]?.status, "success");
     assert.equal(runs[0]?.createdCount, 2);
-    assert.equal(runs[0]?.query, "전체 판례");
+    assert.equal(runs[0]?.query, "전체 판례·헌재·법령");
 
-    requestedPages.length = 0;
+    requestedSearches.length = 0;
+    requestedDetails.length = 0;
     requestedQueries.length = 0;
     globalThis.fetch = async (input) => {
       const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      if (url.pathname.endsWith("/lawService.do")) {
+        requestedDetails.push(`${target}:${url.searchParams.get("ID")}`);
+        return new Response(
+          JSON.stringify({
+            PrecService: {
+              판례내용: `상세 본문 ${url.searchParams.get("ID")}`,
+            },
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
       const page = url.searchParams.get("page") ?? "1";
-      requestedPages.push(page);
-      requestedQueries.push(url.searchParams.get("query"));
+      requestedSearches.push(`${target}:${page}`);
+      (requestedQueries as Array<string | null>).push(
+        url.searchParams.get("query"),
+      );
+      if (target === "detc") {
+        return new Response(JSON.stringify({ DetcSearch: { detc: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      if (target === "law") {
+        return new Response(JSON.stringify({ LawSearch: { law: [] } }), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
       const prec =
         page === "1"
           ? [
@@ -469,8 +607,9 @@ test("manual judgment collection stores fetched public judgments", async () => {
     });
     assert.equal(secondResult.ok, true);
     assert.ok(secondResult.ok);
-    assert.deepEqual(requestedPages, ["1"]);
-    assert.deepEqual(requestedQueries, [null]);
+    assert.deepEqual(requestedSearches, ["prec:1", "detc:1", "law:1"]);
+    assert.deepEqual(requestedDetails, ["prec:auto-3"]);
+    assert.deepEqual(requestedQueries, [null, null, null]);
     assert.equal(secondResult.importedCount, 1);
     assert.equal(secondResult.createdCount, 1);
     const afterIncremental = getPublicJudgments(db).filter(

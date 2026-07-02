@@ -20,6 +20,7 @@ export function getPublicJudgments(db: SqliteDatabase): JudgmentListItem[] {
         status: "pending" | "ready" | "needs_review";
         visibility: "public" | "private" | "organization";
         source_provider: string;
+        source_external_id: string;
         latest_job_status: string | null;
         notification_count: number;
       }
@@ -33,6 +34,7 @@ export function getPublicJudgments(db: SqliteDatabase): JudgmentListItem[] {
         judgments.status,
         judgments.visibility,
         judgments.source_provider,
+        judgments.source_external_id,
         (
           SELECT status FROM judgment_generation_jobs
           WHERE judgment_generation_jobs.judgment_id = judgments.id
@@ -58,6 +60,7 @@ export function getPublicJudgments(db: SqliteDatabase): JudgmentListItem[] {
       status: row.status,
       visibility: row.visibility,
       sourceProvider: row.source_provider,
+      sourceExternalId: row.source_external_id,
       latestJobStatus:
         row.latest_job_status as JudgmentListItem["latestJobStatus"],
       notificationCount: row.notification_count,
@@ -94,6 +97,7 @@ const judgmentDetailSql = `SELECT judgments.id,
   judgments.status,
   judgments.visibility,
   judgments.source_provider,
+  judgments.source_external_id,
   judgments.source_url,
   judgments.source_trust,
   judgments.source_summary,
@@ -121,6 +125,7 @@ type JudgmentDetailRow = {
   status: JudgmentDetail["status"];
   visibility: JudgmentDetail["visibility"];
   source_provider: string;
+  source_external_id: string;
   source_url: string | null;
   source_trust: JudgmentDetail["sourceTrust"];
   source_summary: string | null;
@@ -141,6 +146,7 @@ function mapJudgmentDetail(row: JudgmentDetailRow): JudgmentDetail {
     status: row.status,
     visibility: row.visibility,
     sourceProvider: row.source_provider,
+    sourceExternalId: row.source_external_id,
     sourceUrl: row.source_url,
     sourceTrust: row.source_trust,
     sourceSummary: row.source_summary,

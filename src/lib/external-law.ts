@@ -6,8 +6,51 @@ import { getSetting } from "./settings";
 import { addMinutesIso, nowIso } from "./time";
 import type { ExternalJudgmentRecord } from "./types";
 
-const OPEN_LAW_PROVIDER = "open-law";
-const OPEN_LAW_DEFAULT_API_URL = "https://www.law.go.kr/DRF/lawSearch.do";
+const OPEN_LAW_SEARCH_API_URL = "https://www.law.go.kr/DRF/lawSearch.do";
+const OPEN_LAW_SERVICE_API_URL = "https://www.law.go.kr/DRF/lawService.do";
+
+export const openLawCollectionTargets = ["prec", "detc", "law"] as const;
+export type OpenLawTarget = (typeof openLawCollectionTargets)[number];
+
+type OpenLawTargetConfig = {
+  provider: string;
+  rootKey: string;
+  serviceRootKey: string;
+  itemKeys: string[];
+  searchAction: string;
+  cacheAction: string;
+  label: string;
+};
+
+const openLawTargetConfigs: Record<OpenLawTarget, OpenLawTargetConfig> = {
+  prec: {
+    provider: "open-law",
+    rootKey: "PrecSearch",
+    serviceRootKey: "PrecService",
+    itemKeys: ["prec", "Prec", "item"],
+    searchAction: "prec.search",
+    cacheAction: "prec.search.cache",
+    label: "판례",
+  },
+  detc: {
+    provider: "open-law-constitutional",
+    rootKey: "DetcSearch",
+    serviceRootKey: "DetcService",
+    itemKeys: ["detc", "Detc", "item"],
+    searchAction: "detc.search",
+    cacheAction: "detc.search.cache",
+    label: "헌재결정례",
+  },
+  law: {
+    provider: "open-law-law",
+    rootKey: "LawSearch",
+    serviceRootKey: "LawService",
+    itemKeys: ["law", "Law", "item"],
+    searchAction: "law.search",
+    cacheAction: "law.search.cache",
+    label: "법령",
+  },
+};
 
 const sampleExternalRecords: ExternalJudgmentRecord[] = [
   {
@@ -228,38 +271,49 @@ export async function fetchOpenLawJudgments(
   query: string,
   options: OpenLawSearchOptions = {},
 ) {
+  return fetchOpenLawRecords(db, "prec", query, options);
+}
+
+export async function fetchOpenLawRecords(
+  db: SqliteDatabase,
+  target: OpenLawTarget,
+  query: string,
+  options: OpenLawSearchOptions = {},
+) {
+  const config = openLawTargetConfigs[target];
   const oc = getOpenLawOc(db);
   if (!oc) {
     logIntegrationEvent(db, {
-      action: "prec.search",
+      action: config.searchAction,
       message: "OC 키가 없어 공개법령 API 호출을 건너뛰었습니다.",
-      service: OPEN_LAW_PROVIDER,
+      service: config.provider,
       status: "skipped",
     });
     return [];
   }
 
-  const cacheKey = openLawCacheKey(query, options);
+  const cacheKey = openLawCacheKey(target, query, options);
   const cached = options.forceRefresh
     ? null
-    : readCachedOpenLawResponse(db, cacheKey);
+    : readCachedOpenLawResponse(db, config.provider, cacheKey);
   if (cached) {
     logIntegrationEvent(db, {
-      action: "prec.search.cache",
+      action: config.cacheAction,
       message: "캐시된 공개법령 API 응답을 사용했습니다.",
-      metadata: { query, ...options },
-      service: OPEN_LAW_PROVIDER,
+      metadata: { query, target, ...options },
+      service: config.provider,
       status: "success",
     });
-    return parseOpenLawSearchResponse(cached);
+    return parseOpenLawSearchResponse(cached, target);
   }
 
-  const url = new URL(OPEN_LAW_DEFAULT_API_URL);
+  const url = new URL(OPEN_LAW_SEARCH_API_URL);
   url.searchParams.set("OC", oc);
-  url.searchParams.set("target", "prec");
+  url.searchParams.set("target", target);
   url.searchParams.set("type", "JSON");
   url.searchParams.set("display", String(options.display ?? 20));
   url.searchParams.set("page", String(options.page ?? 1));
+  setDefaultSort(url, target);
   if (query.trim()) {
     url.searchParams.set("query", query.trim());
   }
@@ -271,33 +325,33 @@ export async function fetchOpenLawJudgments(
     });
     if (!response.ok) {
       logIntegrationEvent(db, {
-        action: "prec.search",
+        action: config.searchAction,
         message: `공개법령 API가 ${response.status} 상태를 반환했습니다.`,
-        metadata: { query, status: response.status, ...options },
-        service: OPEN_LAW_PROVIDER,
+        metadata: { query, status: response.status, target, ...options },
+        service: config.provider,
         status: "failed",
       });
       return [];
     }
 
     const payload = (await response.json()) as unknown;
-    cacheExternalResponse(db, OPEN_LAW_PROVIDER, cacheKey, payload);
-    const records = parseOpenLawSearchResponse(payload);
+    cacheExternalResponse(db, config.provider, cacheKey, payload);
+    const records = parseOpenLawSearchResponse(payload, target);
     logIntegrationEvent(db, {
-      action: "prec.search",
-      message: `${records.length.toLocaleString("ko-KR")}건의 판례 후보를 가져왔습니다.`,
-      metadata: { count: records.length, query, ...options },
-      service: OPEN_LAW_PROVIDER,
+      action: config.searchAction,
+      message: `${records.length.toLocaleString("ko-KR")}건의 ${config.label} 후보를 가져왔습니다.`,
+      metadata: { count: records.length, query, target, ...options },
+      service: config.provider,
       status: "success",
     });
     return records;
   } catch (error) {
     logIntegrationEvent(db, {
-      action: "prec.search",
+      action: config.searchAction,
       message:
         error instanceof Error ? error.message : "공개법령 API 호출 실패",
-      metadata: { query, ...options },
-      service: OPEN_LAW_PROVIDER,
+      metadata: { query, target, ...options },
+      service: config.provider,
       status: "failed",
     });
     return [];
@@ -311,13 +365,27 @@ export async function ensurePublicJudgmentOriginalText(
     originalText: string | null;
     sourceUrl: string | null;
     sourceProvider: string;
+    sourceExternalId?: string;
+    caseNumber?: string;
+    title?: string;
   },
 ) {
-  if (input.originalText || input.sourceProvider !== OPEN_LAW_PROVIDER) {
+  if (input.originalText) {
     return input.originalText;
   }
 
-  const originalText = await fetchOpenLawOriginalText(db, input.sourceUrl);
+  const target = targetFromProvider(input.sourceProvider);
+  if (!target) {
+    return null;
+  }
+
+  const originalText = await fetchOpenLawOriginalText(db, {
+    caseNumber: input.caseNumber,
+    externalId: input.sourceExternalId,
+    sourceUrl: input.sourceUrl,
+    target,
+    title: input.title,
+  });
   if (!originalText) {
     return null;
   }
@@ -330,56 +398,95 @@ export async function ensurePublicJudgmentOriginalText(
   return originalText;
 }
 
+export async function hydrateOpenLawRecordOriginalText(
+  db: SqliteDatabase,
+  record: ExternalJudgmentRecord,
+) {
+  if (record.originalText) {
+    return record;
+  }
+
+  const target = targetFromProvider(record.sourceProvider);
+  if (!target) {
+    return record;
+  }
+
+  const originalText = await fetchOpenLawOriginalText(db, {
+    caseNumber: record.caseNumber,
+    externalId: record.externalId,
+    sourceUrl: record.sourceUrl ?? null,
+    target,
+    title: record.title,
+  });
+  return originalText ? { ...record, originalText } : record;
+}
+
 export function parseOpenLawSearchResponse(
   payload: unknown,
+  target: OpenLawTarget = "prec",
 ): ExternalJudgmentRecord[] {
-  const root = objectValue(payload, "PrecSearch") ?? payload;
-  const items =
-    arrayValue(root, "prec") ??
-    arrayValue(root, "Prec") ??
-    arrayValue(root, "item") ??
-    [];
+  const config = openLawTargetConfigs[target];
+  const root = objectValue(payload, config.rootKey) ?? payload;
+  const items = config.itemKeys.flatMap((key) => arrayValue(root, key) ?? []);
 
   return items
-    .map((item) => parseOpenLawItem(item))
+    .map((item) => parseOpenLawItem(item, target))
     .filter((item): item is ExternalJudgmentRecord => Boolean(item));
 }
 
-function parseOpenLawItem(item: unknown): ExternalJudgmentRecord | null {
+function parseOpenLawItem(
+  item: unknown,
+  target: OpenLawTarget,
+): ExternalJudgmentRecord | null {
   if (!isRecord(item)) {
     return null;
   }
 
+  if (target === "detc") {
+    return parseConstitutionalItem(item);
+  }
+  if (target === "law") {
+    return parseLawItem(item);
+  }
+  return parsePrecedentItem(item);
+}
+
+function parsePrecedentItem(
+  item: Record<string, unknown>,
+): ExternalJudgmentRecord | null {
   const externalId =
-    stringValue(item, "판례일련번호") ??
-    stringValue(item, "precSeq") ??
-    stringValue(item, "id");
+    textValue(item, "판례일련번호") ??
+    textValue(item, "판례정보일련번호") ??
+    textValue(item, "precSeq") ??
+    textValue(item, "ID") ??
+    textValue(item, "id");
   const caseNumber =
-    stringValue(item, "사건번호") ?? stringValue(item, "caseNumber");
-  const caseName = stringValue(item, "사건명");
-  const summary = stringValue(item, "판시사항") ?? stringValue(item, "summary");
+    textValue(item, "사건번호") ?? textValue(item, "caseNumber");
+  const caseName = textValue(item, "사건명");
+  const summary = textValue(item, "판시사항") ?? textValue(item, "summary");
   const title = buildOpenLawTitle({
     fallbackTitle:
-      stringValue(item, "판례명") ?? stringValue(item, "title") ?? caseNumber,
+      textValue(item, "판례명") ?? textValue(item, "title") ?? caseNumber,
     caseName,
     summary,
   });
   const courtName =
-    stringValue(item, "법원명") ?? stringValue(item, "courtName") ?? "법원";
+    textValue(item, "법원명") ?? textValue(item, "courtName") ?? "법원";
   const decidedOn = normalizeDate(
-    stringValue(item, "선고일자") ?? stringValue(item, "decidedOn"),
+    textValue(item, "선고일자") ?? textValue(item, "decidedOn"),
   );
 
   if (!externalId || !caseNumber || !title || !decidedOn) {
     return null;
   }
 
-  const sourceUrl = normalizeOpenLawUrl(
-    stringValue(item, "판례상세링크") ?? stringValue(item, "detailLink"),
-  );
+  const sourceUrl =
+    normalizeOpenLawUrl(
+      textValue(item, "판례상세링크") ?? textValue(item, "detailLink"),
+    ) ?? openLawPublicServiceUrl("prec", externalId);
 
   return {
-    sourceProvider: OPEN_LAW_PROVIDER,
+    sourceProvider: openLawTargetConfigs.prec.provider,
     externalId,
     caseNumber,
     courtName,
@@ -388,19 +495,137 @@ function parseOpenLawItem(item: unknown): ExternalJudgmentRecord | null {
     sourceUrl,
     caseType: classifyCaseType(caseNumber, title),
     summary,
-    originalText: openLawOriginalText(item),
+    originalText: openLawOriginalText(item, "prec"),
+  };
+}
+
+function parseConstitutionalItem(
+  item: Record<string, unknown>,
+): ExternalJudgmentRecord | null {
+  const externalId =
+    textValue(item, "헌재결정례일련번호") ??
+    textValue(item, "detcSeq") ??
+    textValue(item, "ID") ??
+    textValue(item, "id");
+  const caseNumber =
+    textValue(item, "사건번호") ?? textValue(item, "caseNumber");
+  const title =
+    textValue(item, "사건명") ??
+    textValue(item, "헌재결정례명") ??
+    textValue(item, "title") ??
+    caseNumber;
+  const decidedOn = normalizeDate(
+    textValue(item, "종국일자") ??
+      textValue(item, "선고일자") ??
+      textValue(item, "decidedOn"),
+  );
+
+  if (!externalId || !caseNumber || !title || !decidedOn) {
+    return null;
+  }
+
+  const sourceUrl =
+    normalizeOpenLawUrl(
+      textValue(item, "헌재결정례상세링크") ??
+        textValue(item, "헌재결정례 상세링크") ??
+        textValue(item, "detailLink"),
+    ) ?? openLawPublicServiceUrl("detc", externalId);
+
+  return {
+    sourceProvider: openLawTargetConfigs.detc.provider,
+    externalId,
+    caseNumber,
+    courtName: "헌법재판소",
+    decidedOn,
+    title,
+    sourceUrl,
+    caseType: "constitutional",
+    summary: textValue(item, "판시사항") ?? textValue(item, "결정요지"),
+    originalText: openLawOriginalText(item, "detc"),
+  };
+}
+
+function parseLawItem(
+  item: Record<string, unknown>,
+): ExternalJudgmentRecord | null {
+  const lawId = textValue(item, "법령ID") ?? textValue(item, "ID");
+  const masterId =
+    textValue(item, "법령일련번호") ??
+    textValue(item, "MST") ??
+    textValue(item, "id");
+  const externalId = lawId ?? masterId;
+  const title =
+    textValue(item, "법령명한글") ??
+    textValue(item, "법령명_한글") ??
+    textValue(item, "법령명") ??
+    textValue(item, "title");
+  const decidedOn = normalizeDate(
+    textValue(item, "시행일자") ??
+      textValue(item, "공포일자") ??
+      textValue(item, "decidedOn"),
+  );
+
+  if (!externalId || !title || !decidedOn) {
+    return null;
+  }
+
+  const sourceUrl =
+    normalizeOpenLawUrl(
+      textValue(item, "법령상세링크") ?? textValue(item, "detailLink"),
+    ) ?? openLawPublicServiceUrl("law", externalId);
+  const announcementNumber = textValue(item, "공포번호");
+  const caseNumber = announcementNumber
+    ? `법령 ${externalId}-${announcementNumber}`
+    : `법령 ${externalId}`;
+  const ministry = textValue(item, "소관부처명") ?? "법제처";
+  const lawKind = textValue(item, "법령구분명");
+
+  return {
+    sourceProvider: openLawTargetConfigs.law.provider,
+    externalId,
+    caseNumber,
+    courtName: ministry,
+    decidedOn,
+    title,
+    sourceUrl,
+    caseType: "law",
+    summary: [lawKind, textValue(item, "제개정구분명")]
+      .filter(Boolean)
+      .join(" / "),
+    originalText: openLawOriginalText(item, "law"),
   };
 }
 
 async function fetchOpenLawOriginalText(
   db: SqliteDatabase,
-  sourceUrl: string | null,
+  input: {
+    caseNumber?: string;
+    externalId?: string;
+    sourceUrl: string | null;
+    target: OpenLawTarget;
+    title?: string;
+  },
 ) {
-  if (!sourceUrl) {
+  const oc = getOpenLawOc(db);
+  if (!oc) {
     return null;
   }
 
-  const url = openLawJsonUrl(sourceUrl, getOpenLawOc(db) ?? undefined);
+  const detailUrl = openLawJsonUrl(input, oc);
+  const jsonText = detailUrl
+    ? await fetchOpenLawJsonText(detailUrl, input.target)
+    : null;
+  if (jsonText) {
+    return jsonText;
+  }
+
+  return (
+    (await fetchOpenLawHtmlFallback(input)) ??
+    (input.target === "prec" ? await fetchNtsTaxLawPrecedentText(input) : null)
+  );
+}
+
+async function fetchOpenLawJsonText(url: URL, target: OpenLawTarget) {
   try {
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -409,29 +634,263 @@ async function fetchOpenLawOriginalText(
     if (!response.ok) {
       return null;
     }
-    return parseOpenLawOriginalText((await response.json()) as unknown);
+    return parseOpenLawOriginalText((await response.json()) as unknown, target);
   } catch (_error) {
     return null;
   }
 }
 
-function parseOpenLawOriginalText(payload: unknown) {
-  const root = objectValue(payload, "PrecService") ?? payload;
-  return openLawOriginalText(root);
+async function fetchOpenLawHtmlFallback(input: {
+  caseNumber?: string;
+  externalId?: string;
+  sourceUrl: string | null;
+  target: OpenLawTarget;
+  title?: string;
+}) {
+  const htmlUrl =
+    input.sourceUrl ?? openLawPublicServiceUrl(input.target, input.externalId);
+  if (!htmlUrl) {
+    return null;
+  }
+
+  const html = await fetchText(htmlUrl);
+  if (!html) {
+    return null;
+  }
+
+  const frameUrl = extractHtmlAttribute(html, "iframe", "src");
+  if (frameUrl) {
+    const frameText = await fetchText(new URL(frameUrl, htmlUrl).toString());
+    const normalizedFrameText = htmlToPlainText(frameText);
+    if (isUsefulOriginalText(normalizedFrameText)) {
+      return normalizedFrameText;
+    }
+  }
+
+  const mobileText = await fetchOpenLawMobilePrecedentText(html, htmlUrl);
+  if (mobileText) {
+    return mobileText;
+  }
+
+  const normalizedText = htmlToPlainText(html);
+  return isUsefulOriginalText(normalizedText) ? normalizedText : null;
 }
 
-function openLawOriginalText(item: unknown) {
-  return stringValue(item, "판례내용") ?? stringValue(item, "내용");
+async function fetchNtsTaxLawPrecedentText(input: {
+  caseNumber?: string;
+  title?: string;
+}) {
+  const expectedTitle = normalizeComparableText(input.title);
+  const expectedCaseNumber = normalizeComparableText(input.caseNumber);
+  if (!expectedTitle && !expectedCaseNumber) {
+    return null;
+  }
+
+  for (let startCount = 1; startCount <= 5; startCount += 1) {
+    const payload = await fetchNtsTaxLawAction("ASIPDI002PR01", {
+      collectionName: "precedent,precedent_gr",
+      dcmClCdCtl: ["001_09"],
+      schDtBase: "DCM_RGT_DTM",
+      sortField: "DCM_RGT_DTM/DESC",
+      startCount,
+      viewCount: 50,
+    });
+    const rows =
+      arrayValue(objectValue(payload, "ASIPDI002PR01"), "body") ?? [];
+    for (const row of rows) {
+      const dcm = objectValue(row, "dcm");
+      if (
+        !dcm ||
+        !matchesNtsTaxLawPrecedent(dcm, expectedTitle, expectedCaseNumber)
+      ) {
+        continue;
+      }
+
+      const text = normalizeWhitespace(textValue(dcm, "FILE_CN"));
+      if (text && isUsefulOriginalText(text)) {
+        return text;
+      }
+    }
+  }
+
+  return null;
 }
 
-function openLawJsonUrl(value: string, oc: string | undefined) {
+async function fetchNtsTaxLawAction(actionId: string, paramData: unknown) {
+  try {
+    const response = await fetch("https://taxlaw.nts.go.kr/action.do", {
+      body: new URLSearchParams({
+        actionId,
+        paramData: JSON.stringify(paramData),
+      }),
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: "https://taxlaw.nts.go.kr/pd/USEPDI001M.do",
+      },
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const payload = (await response.json()) as unknown;
+    return objectValue(payload, "data");
+  } catch (_error) {
+    return null;
+  }
+}
+
+function matchesNtsTaxLawPrecedent(
+  dcm: Record<string, unknown>,
+  expectedTitle: string,
+  expectedCaseNumber: string,
+) {
+  const title = normalizeComparableText(textValue(dcm, "TTL"));
+  const caseNumber = normalizeComparableText(
+    textValue(dcm, "NTST_DCM_DSCM_CNTN"),
+  );
+  return Boolean(
+    (expectedTitle && title.includes(expectedTitle)) ||
+      (expectedCaseNumber && caseNumber.includes(expectedCaseNumber)),
+  );
+}
+
+async function fetchOpenLawMobilePrecedentText(html: string, baseUrl: string) {
+  const precSeq = /id=["']precSeq["']\s+value\s*=\s*["']?([^"'\s/>]+)/i.exec(
+    html,
+  )?.[1];
+  if (!precSeq) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(new URL("/DRF/mobilePrecInfoR.do", baseUrl), {
+      body: new URLSearchParams({ precSeq }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const normalizedText = htmlToPlainText(await response.text());
+    return isUsefulOriginalText(normalizedText) ? normalizedText : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function fetchText(url: string | URL) {
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "text/html,application/xhtml+xml,text/plain" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return response.text();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function parseOpenLawOriginalText(payload: unknown, target: OpenLawTarget) {
+  const config = openLawTargetConfigs[target];
+  const root = objectValue(payload, config.serviceRootKey) ?? payload;
+  return openLawOriginalText(root, target);
+}
+
+function openLawOriginalText(item: unknown, target: OpenLawTarget) {
+  const direct = directOriginalText(item, target);
+  if (direct) {
+    return direct;
+  }
+
+  if (target !== "law") {
+    return undefined;
+  }
+
+  return collectTextValues(item, [
+    "조문내용",
+    "항내용",
+    "호내용",
+    "목내용",
+    "부칙내용",
+    "별표내용",
+    "개정문내용",
+    "제개정이유내용",
+  ]).join("\n\n");
+}
+
+function directOriginalText(item: unknown, target: OpenLawTarget) {
+  if (target === "detc") {
+    return (
+      textValue(item, "전문") ??
+      textValue(item, "헌재결정례내용") ??
+      textValue(item, "결정문") ??
+      textValue(item, "내용")
+    );
+  }
+  if (target === "law") {
+    return (
+      textValue(item, "법령내용") ??
+      textValue(item, "조문내용") ??
+      textValue(item, "내용")
+    );
+  }
+  return textValue(item, "판례내용") ?? textValue(item, "내용");
+}
+
+function openLawJsonUrl(
+  input: {
+    externalId?: string;
+    sourceUrl: string | null;
+    target: OpenLawTarget;
+  },
+  oc: string,
+) {
+  const value =
+    input.sourceUrl ?? openLawPublicServiceUrl(input.target, input.externalId);
+  if (!value) {
+    return null;
+  }
+
   const url = new URL(value);
-  url.searchParams.set("target", "prec");
+  url.searchParams.set("OC", oc);
+  url.searchParams.set("target", input.target);
   url.searchParams.set("type", "JSON");
-  if (oc && !url.searchParams.get("OC")) {
-    url.searchParams.set("OC", oc);
+  if (
+    input.target === "law" &&
+    !url.searchParams.get("ID") &&
+    !url.searchParams.get("MST") &&
+    input.externalId
+  ) {
+    url.searchParams.set("ID", input.externalId);
+  } else if (
+    input.target !== "law" &&
+    !url.searchParams.get("ID") &&
+    input.externalId
+  ) {
+    url.searchParams.set("ID", input.externalId);
   }
   return url;
+}
+
+function openLawPublicServiceUrl(
+  target: OpenLawTarget,
+  externalId: string | undefined,
+) {
+  if (!externalId) {
+    return undefined;
+  }
+
+  const url = new URL(OPEN_LAW_SERVICE_API_URL);
+  url.searchParams.set("target", target);
+  url.searchParams.set("type", "HTML");
+  url.searchParams.set("ID", externalId);
+  return url.toString();
 }
 
 function buildOpenLawTitle(input: {
@@ -502,18 +961,26 @@ function getOpenLawOc(db: SqliteDatabase) {
   );
 }
 
-function openLawCacheKey(query: string, options: OpenLawSearchOptions) {
+function openLawCacheKey(
+  target: OpenLawTarget,
+  query: string,
+  options: OpenLawSearchOptions,
+) {
   const params = new URLSearchParams({
     display: String(options.display ?? 20),
     page: String(options.page ?? 1),
     query: query.trim(),
-    target: "prec",
+    target,
     type: "JSON",
   });
   return params.toString();
 }
 
-function readCachedOpenLawResponse(db: SqliteDatabase, cacheKey: string) {
+function readCachedOpenLawResponse(
+  db: SqliteDatabase,
+  provider: string,
+  cacheKey: string,
+) {
   const row = db
     .prepare<[string, string, string], { response_json: string }>(
       `SELECT response_json
@@ -521,7 +988,7 @@ function readCachedOpenLawResponse(db: SqliteDatabase, cacheKey: string) {
         WHERE provider = ? AND cache_key = ? AND expires_at > ?
         LIMIT 1`,
     )
-    .get(OPEN_LAW_PROVIDER, cacheKey, nowIso());
+    .get(provider, cacheKey, nowIso());
   if (!row) {
     return null;
   }
@@ -530,6 +997,25 @@ function readCachedOpenLawResponse(db: SqliteDatabase, cacheKey: string) {
     return JSON.parse(row.response_json) as unknown;
   } catch (_error) {
     return null;
+  }
+}
+
+function targetFromProvider(provider: string): OpenLawTarget | null {
+  const entry = openLawCollectionTargets.find(
+    (target) => openLawTargetConfigs[target].provider === provider,
+  );
+  return entry ?? null;
+}
+
+function setDefaultSort(url: URL, target: OpenLawTarget) {
+  if (target === "prec") {
+    url.searchParams.set("sort", "ddes");
+  }
+  if (target === "detc") {
+    url.searchParams.set("sort", "efdes");
+  }
+  if (target === "law") {
+    url.searchParams.set("sort", "ddes");
   }
 }
 
@@ -545,10 +1031,12 @@ function normalizeOpenLawUrl(value: string | undefined) {
   if (!value) {
     return undefined;
   }
-  if (value.startsWith("http://") || value.startsWith("https://")) {
-    return value;
-  }
-  return new URL(value, "https://www.law.go.kr").toString();
+  const url =
+    value.startsWith("http://") || value.startsWith("https://")
+      ? new URL(value)
+      : new URL(value, "https://www.law.go.kr");
+  url.searchParams.delete("OC");
+  return url.toString();
 }
 
 function classifyCaseType(
@@ -568,16 +1056,118 @@ function classifyCaseType(
   return "civil";
 }
 
+function collectTextValues(source: unknown, keys: string[]) {
+  const values: string[] = [];
+  const seen = new Set<string>();
+
+  function visit(value: unknown) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item);
+      }
+      return;
+    }
+    if (!isRecord(value)) {
+      return;
+    }
+    for (const [key, child] of Object.entries(value)) {
+      const text = keys.includes(key)
+        ? normalizeWhitespace(scalarText(child))
+        : undefined;
+      if (text && !seen.has(text)) {
+        seen.add(text);
+        values.push(text);
+      }
+      visit(child);
+    }
+  }
+
+  visit(source);
+  return values;
+}
+
+function extractHtmlAttribute(html: string, tag: string, attribute: string) {
+  const tagPattern = new RegExp(`<${tag}\\b[^>]*>`, "i");
+  const tagMatch = tagPattern.exec(html);
+  if (!tagMatch) {
+    return null;
+  }
+  const attrPattern = new RegExp(`${attribute}\\s*=\\s*["']([^"']+)["']`, "i");
+  return attrPattern.exec(tagMatch[0])?.[1] ?? null;
+}
+
+function htmlToPlainText(value: string | null) {
+  if (!value) {
+    return "";
+  }
+  return decodeHtmlEntities(
+    value
+      .replaceAll(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replaceAll(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replaceAll(/<br\s*\/?>/gi, "\n")
+      .replaceAll(/<\/(p|div|li|tr|h[1-6]|section|article)>/gi, "\n")
+      .replaceAll(/<[^>]+>/g, " "),
+  )
+    .split("\n")
+    .map((line) => normalizeWhitespace(line))
+    .filter(Boolean)
+    .join("\n");
+}
+
+function decodeHtmlEntities(value: string) {
+  const named: Record<string, string> = {
+    amp: "&",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
+    apos: "'",
+  };
+  return value.replaceAll(/&(#x?[0-9a-f]+|[a-z]+);/gi, (entity, body) => {
+    const key = String(body).toLowerCase();
+    if (key.startsWith("#x")) {
+      return String.fromCodePoint(Number.parseInt(key.slice(2), 16));
+    }
+    if (key.startsWith("#")) {
+      return String.fromCodePoint(Number.parseInt(key.slice(1), 10));
+    }
+    return named[key] ?? entity;
+  });
+}
+
+function isUsefulOriginalText(value: string) {
+  return value.length >= 200 && !value.includes("오류페이지");
+}
+
+function normalizeWhitespace(value: string | undefined) {
+  return value?.replaceAll(/\s+/g, " ").trim() ?? "";
+}
+
+function normalizeComparableText(value: string | undefined) {
+  return normalizeWhitespace(value)
+    .replaceAll(/[()[\]{}【】"'`.,·\s-]/g, "")
+    .toLowerCase();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function stringValue(source: unknown, key: string) {
+function scalarText(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value);
+  }
+  return undefined;
+}
+
+function textValue(source: unknown, key: string) {
   if (!isRecord(source)) {
     return undefined;
   }
-  const value = source[key];
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  return normalizeWhitespace(scalarText(source[key])) || undefined;
 }
 
 function objectValue(source: unknown, key: string) {

@@ -1,7 +1,9 @@
 import { auditLog } from "./audit";
 import type { SqliteDatabase } from "./db";
 import {
-  fetchOpenLawJudgments,
+  fetchOpenLawRecords,
+  hydrateOpenLawRecordOriginalText,
+  openLawCollectionTargets,
   upsertJudgmentFromExternal,
 } from "./external-law";
 import { logIntegrationEvent } from "./integration-events";
@@ -11,7 +13,7 @@ import { addMinutesIso, nowIso } from "./time";
 import type { ExternalJudgmentRecord } from "./types";
 
 const SERVICE = "judgment-collection";
-const COLLECTION_SCOPE_LABEL = "전체 판례";
+const COLLECTION_SCOPE_LABEL = "전체 판례·헌재·법령";
 const COLLECTION_PAGE_SIZE = 100;
 const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
@@ -260,7 +262,7 @@ async function runJudgmentCollectionInternal(
   setSetting(db, settingKeys.lastRunAt, startedAt);
 
   try {
-    const records = await fetchAllOpenLawJudgments(db, {
+    const records = await fetchAllOpenLawRecords(db, {
       forceRefresh: input.forceRefresh,
     });
     let createdCount = 0;
@@ -298,7 +300,7 @@ async function runJudgmentCollectionInternal(
 
     logIntegrationEvent(db, {
       action: "collection.run",
-      message: `${records.length} judgment records were collected.`,
+      message: `${records.length} legal records were collected.`,
       metadata: {
         createdCount,
         pageSize: COLLECTION_PAGE_SIZE,
@@ -371,44 +373,58 @@ function getJudgmentCollectionSettings(
   };
 }
 
-async function fetchAllOpenLawJudgments(
+async function fetchAllOpenLawRecords(
   db: SqliteDatabase,
   options: { forceRefresh?: boolean },
 ) {
   const records: ExternalJudgmentRecord[] = [];
   const seen = new Set<string>();
-  let page = 1;
 
-  while (true) {
-    const pageRecords = await fetchOpenLawJudgments(db, "", {
-      display: COLLECTION_PAGE_SIZE,
-      forceRefresh: options.forceRefresh,
-      page,
-    });
-    if (pageRecords.length === 0) {
-      break;
-    }
+  for (const target of openLawCollectionTargets) {
+    let page = 1;
 
-    let addedCount = 0;
-    let existingCount = 0;
-    for (const record of pageRecords) {
-      const key = `${record.sourceProvider}:${record.externalId}`;
-      if (seen.has(key)) {
-        continue;
+    while (true) {
+      const pageRecords = await fetchOpenLawRecords(db, target, "", {
+        display: COLLECTION_PAGE_SIZE,
+        forceRefresh: options.forceRefresh,
+        page,
+      });
+      if (pageRecords.length === 0) {
+        break;
       }
-      seen.add(key);
-      if (hasJudgmentSource(db, record.sourceProvider, record.externalId)) {
-        existingCount += 1;
-        continue;
-      }
-      records.push(record);
-      addedCount += 1;
-    }
 
-    if (addedCount === 0 || existingCount > 0) {
-      break;
+      let addedCount = 0;
+      let existingCount = 0;
+      for (const record of pageRecords) {
+        const key = `${record.sourceProvider}:${record.externalId}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        const existing = getJudgmentSource(
+          db,
+          record.sourceProvider,
+          record.externalId,
+        );
+        if (existing?.originalText) {
+          existingCount += 1;
+          continue;
+        }
+
+        const hydrated = await hydrateOpenLawRecordOriginalText(db, record);
+        records.push(hydrated);
+        if (existing) {
+          existingCount += 1;
+        } else {
+          addedCount += 1;
+        }
+      }
+
+      if (addedCount === 0 || existingCount > 0) {
+        break;
+      }
+      page += 1;
     }
-    page += 1;
   }
 
   return records;
@@ -419,16 +435,23 @@ function hasJudgmentSource(
   sourceProvider: string,
   externalId: string,
 ) {
-  return Boolean(
-    db
-      .prepare<[string, string], { id: string }>(
-        `SELECT id
-         FROM judgments
-         WHERE source_provider = ? AND source_external_id = ?
-         LIMIT 1`,
-      )
-      .get(sourceProvider, externalId),
-  );
+  return Boolean(getJudgmentSource(db, sourceProvider, externalId));
+}
+
+function getJudgmentSource(
+  db: SqliteDatabase,
+  sourceProvider: string,
+  externalId: string,
+) {
+  return db
+    .prepare<[string, string], { id: string; originalText: string | null }>(
+      `SELECT id,
+        original_text AS originalText
+       FROM judgments
+       WHERE source_provider = ? AND source_external_id = ?
+       LIMIT 1`,
+    )
+    .get(sourceProvider, externalId);
 }
 
 function nextRunAtFromSettings(settings: JudgmentCollectionSettings) {

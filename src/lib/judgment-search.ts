@@ -4,7 +4,9 @@ export type JudgmentCaseTypeFilter =
   | "civil"
   | "criminal"
   | "administrative"
-  | "family";
+  | "family"
+  | "constitutional"
+  | "law";
 
 export type JudgmentSearchFilters = {
   text: string;
@@ -22,6 +24,12 @@ const caseTypeAliases: Record<string, JudgmentCaseTypeFilter> = {
   행정: "administrative",
   family: "family",
   가사: "family",
+  constitutional: "constitutional",
+  헌재: "constitutional",
+  헌법: "constitutional",
+  law: "law",
+  법령: "law",
+  법률: "law",
 };
 
 export const judgmentSearchTagExamples = [
@@ -29,6 +37,8 @@ export const judgmentSearchTagExamples = [
   "종류:민사",
   "종류:형사",
   "종류:행정",
+  "종류:헌재",
+  "종류:법령",
 ] as const;
 
 export function parseJudgmentSearchQuery(
@@ -115,6 +125,10 @@ export function displayJudgmentCaseType(caseType: string) {
       return "행정";
     case "family":
       return "가사";
+    case "constitutional":
+      return "헌재";
+    case "law":
+      return "법령";
     default:
       return caseType;
   }
@@ -150,6 +164,8 @@ function isJudgmentCaseTypeFilter(
     value === "civil" ||
     value === "criminal" ||
     value === "administrative" ||
-    value === "family"
+    value === "family" ||
+    value === "constitutional" ||
+    value === "law"
   );
 }
