@@ -27,6 +27,16 @@ const headingAliases: Record<string, string> = {
   참조판례: "참조판례",
 };
 
+const implicitHeadings = [
+  "판시사항",
+  "판결요지",
+  "청구취지",
+  "참조조문",
+  "참조판례",
+  "주문",
+  "이유",
+] as const;
+
 export function parseJudgmentDocument(
   originalText: string,
 ): JudgmentDocumentSection[] {
@@ -80,6 +90,14 @@ function normalizeJudgmentText(originalText: string) {
     .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
     .replace(/<[^>]+>/g, "")
     .replace(/【([^】]+)】/g, "\n§§$1§§\n")
+    .replace(
+      new RegExp(
+        `(^|[\\n\\r]|[.!?。]\\s+)(${implicitHeadings.map(spacedHeadingPattern).join("|")})(?=\\s)`,
+        "g",
+      ),
+      (_match, prefix: string, heading: string) =>
+        `${prefix}\n§§${compactHeading(heading)}§§\n`,
+    )
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) =>
@@ -97,15 +115,23 @@ function headingFromLine(line: string) {
 }
 
 function displayHeading(heading: string) {
-  const compact = heading.replace(/\s+/g, "");
+  const compact = compactHeading(heading);
   return headingAliases[compact] ?? heading.replace(/\s+/g, " ");
+}
+
+function compactHeading(heading: string) {
+  return heading.replace(/\s+/g, "");
+}
+
+function spacedHeadingPattern(heading: string) {
+  return heading.split("").join("\\s*");
 }
 
 function pushSection(
   sections: JudgmentDocumentSection[],
   section: MutableSection,
 ) {
-  const blocks = linesToBlocks(section.lines);
+  const blocks = linesToBlocks(section.lines, section.heading);
   if (blocks.length === 0 && sections.length > 0) {
     return;
   }
@@ -132,16 +158,27 @@ function sectionKind(title: string): JudgmentDocumentSection["kind"] {
   return "default";
 }
 
-function linesToBlocks(lines: string[]): JudgmentDocumentBlock[] {
-  return lines.map(lineToBlock);
+function linesToBlocks(
+  lines: string[],
+  sectionTitle?: string,
+): JudgmentDocumentBlock[] {
+  return lines
+    .flatMap(splitInlineBlocks)
+    .map((line) => lineToBlock(line, sectionTitle));
 }
 
 function splitBlocks(text: string): JudgmentDocumentBlock[] {
-  return normalizeJudgmentText(text).map(lineToBlock);
+  return normalizeJudgmentText(text).map((line) => lineToBlock(line));
 }
 
-function lineToBlock(line: string): JudgmentDocumentBlock {
-  const headingLevel = headingLevelFromNumberedLine(line);
+function lineToBlock(
+  line: string,
+  sectionTitle?: string,
+): JudgmentDocumentBlock {
+  const headingLevel =
+    sectionTitle === "주문" || sectionTitle === "청구취지"
+      ? null
+      : headingLevelFromNumberedLine(line);
   if (headingLevel) {
     return {
       kind: "heading",
@@ -155,6 +192,49 @@ function lineToBlock(line: string): JudgmentDocumentBlock {
     numbered: numberedLinePattern.test(line),
     text: line,
   };
+}
+
+function splitInlineBlocks(line: string) {
+  const splitIndexes = inlineBlockSplitIndexes(line);
+  if (splitIndexes.length === 0) {
+    return [line];
+  }
+
+  const indexes = [0, ...splitIndexes, line.length];
+  const blocks: string[] = [];
+  for (let index = 0; index < indexes.length - 1; index += 1) {
+    const text = line.slice(indexes[index], indexes[index + 1]).trim();
+    if (text) {
+      blocks.push(text);
+    }
+  }
+  return blocks;
+}
+
+function inlineBlockSplitIndexes(line: string) {
+  if (!numberedLinePattern.test(line)) {
+    return [];
+  }
+
+  const indexes: number[] = [];
+  const pattern =
+    /\s(\d{1,2}\.\s+[가-힣A-Za-z]|[가-힣]\.\s+[가-힣A-Za-z]|\d{1,2}\)\s+[가-힣A-Za-z])/g;
+  let match = pattern.exec(line);
+  while (match) {
+    const markerIndex = match.index + 1;
+    const prefix = line.slice(0, markerIndex);
+    if (isDateFragmentPrefix(prefix)) {
+      match = pattern.exec(line);
+      continue;
+    }
+    indexes.push(markerIndex);
+    match = pattern.exec(line);
+  }
+  return indexes;
+}
+
+function isDateFragmentPrefix(prefix: string) {
+  return /\d{4}\.\s+\d{1,2}\.\s*$/.test(prefix);
 }
 
 function headingLevelFromNumberedLine(line: string): 3 | 4 | 5 | null {

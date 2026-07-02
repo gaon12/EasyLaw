@@ -662,6 +662,41 @@ test("judgment document parser splits bracket headings and numbered reasons", ()
   assert.equal(sections[2].blocks[2].kind, "paragraph");
 });
 
+test("judgment document parser splits inline spaced judgment headings", () => {
+  const sections = parseJudgmentDocument(
+    "주 문 1. 원고의 청구를 기각한다. 2. 소송비용은 원고가 부담한다. 청 구 취 지 피고가 2024. 4. 4. 원고에게 한 부과처분을 취소한다. 이 유 1. 처분의 경위 가. 원고는 토지를 양도하였다.",
+  );
+
+  assert.deepEqual(
+    sections.map((section) => ({
+      kind: section.kind,
+      title: section.title,
+    })),
+    [
+      { kind: "order", title: "주문" },
+      { kind: "default", title: "청구취지" },
+      { kind: "reason", title: "이유" },
+    ],
+  );
+  assert.equal(sections[0].blocks.length, 2);
+  assert.deepEqual(sections[0].blocks[0], {
+    kind: "paragraph",
+    numbered: true,
+    text: "1. 원고의 청구를 기각한다.",
+  });
+  assert.equal(sections[1].blocks[0].text.startsWith("피고가"), true);
+  assert.deepEqual(sections[2].blocks[0], {
+    kind: "heading",
+    level: 3,
+    text: "1. 처분의 경위",
+  });
+  assert.deepEqual(sections[2].blocks[1], {
+    kind: "paragraph",
+    numbered: true,
+    text: "가. 원고는 토지를 양도하였다.",
+  });
+});
+
 test("judgment relation parser extracts lower court case numbers", () => {
   const references = extractRelatedCaseReferences(
     "【원심판결】 서울중앙지법 2024. 1. 23. 선고 2023나4119 판결<br/>【이 유】 현재 사건은 2024다222212이다.",
