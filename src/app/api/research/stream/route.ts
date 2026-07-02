@@ -81,23 +81,28 @@ export async function POST(request: NextRequest) {
               ),
             );
           };
-          const plan = await buildResearchPlan(
-            db,
-            parsed.data.query,
-            (event) => {
-              if (event.type === "plan") {
+          await buildResearchPlan(db, parsed.data.query, (event) => {
+            switch (event.type) {
+              case "plan":
                 send("plan", event.plan);
-              } else if (event.type === "evidence") {
+                break;
+              case "evidence":
                 send("evidence", event.evidence);
-              } else {
+                break;
+              case "answer":
+                send("answer", {
+                  text: event.answer,
+                  verified: event.verified,
+                });
+                break;
+              case "warning":
+                send("warning", event.message);
+                break;
+              case "phase":
                 send("phase", event.phase);
-              }
-            },
-          );
-
-          for (const token of chunkText(plan.answer, 48)) {
-            send("token", token);
-          }
+                break;
+            }
+          });
           send("done", { ok: true });
         } catch (error) {
           const code =
@@ -129,12 +134,4 @@ export async function POST(request: NextRequest) {
     }),
     access,
   );
-}
-
-function chunkText(value: string, chunkSize: number) {
-  const chunks: string[] = [];
-  for (let index = 0; index < value.length; index += chunkSize) {
-    chunks.push(value.slice(index, index + chunkSize));
-  }
-  return chunks;
 }

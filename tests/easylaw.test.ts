@@ -1082,15 +1082,11 @@ test("legal research harness assigns coverage and evidence", async () => {
       JSON.stringify({
         coverageLevel: 2,
         intent: "중고거래 사기 피해 회복 가능성 확인",
+        mode: "overview",
         searchQueries: ["중고거래 사기 손해배상"],
         targets: ["law", "prec"],
       }),
       "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
-      JSON.stringify({
-        answer: "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
-        grounded: true,
-        issues: [],
-      }),
     ];
     const requestedBodies: unknown[] = [];
     globalThis.fetch = async (_input, init) => {
@@ -1116,7 +1112,85 @@ test("legal research harness assigns coverage and evidence", async () => {
       ),
     );
     assert.match(plan.answer, /\[E1\]/);
-    assert.equal(requestedBodies.length, 3);
+    assert.equal(requestedBodies.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("deep research keeps its overview when verification fails", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "test-model");
+    setSetting(db, "llm_api_key", "test-key", true);
+    const responses = [
+      JSON.stringify({
+        coverageLevel: 4,
+        intent: "형사 절차와 긴급 대응 확인",
+        mode: "deep",
+        searchQueries: ["사기 형사 절차"],
+        targets: ["law", "prec"],
+      }),
+      "현재 확보한 자료를 보존하고 수사기관 상담을 준비하세요.",
+      "검증 결과를 JSON으로 만들지 못했습니다.",
+    ];
+    globalThis.fetch = async () =>
+      Response.json({
+        choices: [{ message: { content: responses.shift() } }],
+      });
+    const events: string[] = [];
+
+    const result = await buildResearchPlan(
+      db,
+      "사기 피해로 긴급하게 형사 절차를 확인해야 합니다.",
+      (event) => events.push(event.type),
+    );
+
+    assert.match(result.answer, /자료를 보존/);
+    assert.ok(events.includes("answer"));
+    assert.ok(events.includes("warning"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("simple legal concepts use the quick answer path", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "test-model");
+    setSetting(db, "llm_api_key", "test-key", true);
+    const responses = [
+      JSON.stringify({
+        coverageLevel: 1,
+        intent: "법률 용어의 일반적 의미 설명",
+        mode: "quick",
+        searchQueries: [],
+        targets: [],
+      }),
+      "상계는 서로 같은 종류의 채무를 일정 범위에서 소멸시키는 방식입니다.",
+    ];
+    let requestCount = 0;
+    globalThis.fetch = async () => {
+      requestCount += 1;
+      return Response.json({
+        choices: [{ message: { content: responses.shift() } }],
+      });
+    };
+
+    const result = await buildResearchPlan(db, "상계가 무슨 뜻인가요?");
+
+    assert.equal(result.mode, "quick");
+    assert.equal(result.evidence.length, 0);
+    assert.match(result.answer, /서로 같은 종류의 채무/);
+    assert.equal(requestCount, 2);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
