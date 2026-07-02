@@ -1,5 +1,5 @@
+// biome-ignore-all lint/security/noDangerouslySetInnerHtml: Next.js requires trusted inline scripts for pre-hydration theme setup and JSON-LD.
 import type { Metadata } from "next";
-import Script from "next/script";
 import type { ReactNode } from "react";
 import { ReadingProgress } from "@/components/reading-progress";
 import { TermExplainer } from "@/components/term-explainer";
@@ -7,6 +7,31 @@ import { getSiteUrl, siteDescription, siteName } from "@/lib/metadata";
 import "./globals.css";
 
 const siteUrl = getSiteUrl();
+const themeInitScript = `try {
+  const theme = localStorage.getItem("easylaw-theme");
+  if (theme === "light" || theme === "dark") {
+    document.documentElement.dataset.theme = theme;
+  }
+  const textSize = localStorage.getItem("easylaw_text_size");
+  if (textSize === "normal" || textSize === "large" || textSize === "larger") {
+    document.documentElement.dataset.textSize = textSize;
+  }
+} catch {}`;
+const structuredDataJson = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: siteName,
+  applicationCategory: "LegalTechApplication",
+  operatingSystem: "Web",
+  url: siteUrl.toString(),
+  description: siteDescription,
+  inLanguage: "ko-KR",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "KRW",
+  },
+}).replace(/</g, "\\u003c");
 
 export const metadata: Metadata = {
   metadataBase: siteUrl,
@@ -64,28 +89,12 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
-        <Script src="/theme-init.js" strategy="beforeInteractive" />
-        <Script
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script
+          dangerouslySetInnerHTML={{ __html: structuredDataJson }}
           id="easylaw-structured-data"
-          strategy="beforeInteractive"
           type="application/ld+json"
-        >
-          {JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            name: siteName,
-            applicationCategory: "LegalTechApplication",
-            operatingSystem: "Web",
-            url: siteUrl.toString(),
-            description: siteDescription,
-            inLanguage: "ko-KR",
-            offers: {
-              "@type": "Offer",
-              price: "0",
-              priceCurrency: "KRW",
-            },
-          })}
-        </Script>
+        />
       </head>
       <body>
         <ReadingProgress />
