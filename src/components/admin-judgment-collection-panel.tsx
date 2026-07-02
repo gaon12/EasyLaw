@@ -41,7 +41,7 @@ export function AdminJudgmentCollectionPanel({
 }) {
   const router = useRouter();
   const [message, setMessage] = useState(
-    "판례, 헌재결정례, 현행 법령을 주기적으로 확인하고 새 데이터만 저장해요.",
+    "판례, 헌재결정례, 법령, 행정규칙, 자치법규를 주기적으로 확인하고 새 데이터만 저장해요.",
   );
   const [noticeStatus, setNoticeStatus] = useState<
     "idle" | "success" | "error"
@@ -153,7 +153,7 @@ export function AdminJudgmentCollectionPanel({
           <span>자동 수집 사용</span>
         </label>
         <div className={styles.collectionScope}>
-          <strong>판례·헌재·법령 증분 수집</strong>
+          <strong>판례·헌재·법령·행정규칙·자치법규 증분 수집</strong>
           <p>
             검색어 없이 공개 목록을 최신순으로 확인하고, 이미 저장된 데이터가
             나오면 해당 범주의 수집을 멈춥니다.

@@ -9,13 +9,19 @@ import type { ExternalJudgmentRecord } from "./types";
 const OPEN_LAW_SEARCH_API_URL = "https://www.law.go.kr/DRF/lawSearch.do";
 const OPEN_LAW_SERVICE_API_URL = "https://www.law.go.kr/DRF/lawService.do";
 
-export const openLawCollectionTargets = ["prec", "detc", "law"] as const;
+export const openLawCollectionTargets = [
+  "prec",
+  "detc",
+  "law",
+  "admrul",
+  "ordin",
+] as const;
 export type OpenLawTarget = (typeof openLawCollectionTargets)[number];
 
 type OpenLawTargetConfig = {
   provider: string;
-  rootKey: string;
-  serviceRootKey: string;
+  rootKeys: string[];
+  serviceRootKeys: string[];
   itemKeys: string[];
   searchAction: string;
   cacheAction: string;
@@ -25,8 +31,8 @@ type OpenLawTargetConfig = {
 const openLawTargetConfigs: Record<OpenLawTarget, OpenLawTargetConfig> = {
   prec: {
     provider: "open-law",
-    rootKey: "PrecSearch",
-    serviceRootKey: "PrecService",
+    rootKeys: ["PrecSearch"],
+    serviceRootKeys: ["PrecService"],
     itemKeys: ["prec", "Prec", "item"],
     searchAction: "prec.search",
     cacheAction: "prec.search.cache",
@@ -34,8 +40,8 @@ const openLawTargetConfigs: Record<OpenLawTarget, OpenLawTargetConfig> = {
   },
   detc: {
     provider: "open-law-constitutional",
-    rootKey: "DetcSearch",
-    serviceRootKey: "DetcService",
+    rootKeys: ["DetcSearch"],
+    serviceRootKeys: ["DetcService"],
     itemKeys: ["detc", "Detc", "item"],
     searchAction: "detc.search",
     cacheAction: "detc.search.cache",
@@ -43,12 +49,30 @@ const openLawTargetConfigs: Record<OpenLawTarget, OpenLawTargetConfig> = {
   },
   law: {
     provider: "open-law-law",
-    rootKey: "LawSearch",
-    serviceRootKey: "LawService",
+    rootKeys: ["LawSearch"],
+    serviceRootKeys: ["LawService"],
     itemKeys: ["law", "Law", "item"],
     searchAction: "law.search",
     cacheAction: "law.search.cache",
     label: "법령",
+  },
+  admrul: {
+    provider: "open-law-administrative-rule",
+    rootKeys: ["AdmRulSearch", "AdmrulSearch"],
+    serviceRootKeys: ["AdmRulService", "AdmrulService"],
+    itemKeys: ["admrul", "AdmRul", "item"],
+    searchAction: "admrul.search",
+    cacheAction: "admrul.search.cache",
+    label: "행정규칙",
+  },
+  ordin: {
+    provider: "open-law-ordinance",
+    rootKeys: ["OrdinSearch"],
+    serviceRootKeys: ["OrdinService"],
+    itemKeys: ["ordin", "Ordin", "item"],
+    searchAction: "ordin.search",
+    cacheAction: "ordin.search.cache",
+    label: "자치법규",
   },
 };
 
@@ -448,7 +472,7 @@ function parseOpenLawRecordPage(
   target: OpenLawTarget,
 ): OpenLawRecordPage {
   const config = openLawTargetConfigs[target];
-  const root = objectValue(payload, config.rootKey) ?? payload;
+  const root = findOpenLawRoot(payload, config.rootKeys, config.itemKeys);
   const items = config.itemKeys.flatMap((key) => arrayValue(root, key) ?? []);
 
   return {
@@ -484,6 +508,12 @@ function parseOpenLawItem(
   }
   if (target === "law") {
     return parseLawItem(item);
+  }
+  if (target === "admrul") {
+    return parseAdministrativeRuleItem(item);
+  }
+  if (target === "ordin") {
+    return parseOrdinanceItem(item);
   }
   return parsePrecedentItem(item);
 }
@@ -630,6 +660,104 @@ function parseLawItem(
       .filter(Boolean)
       .join(" / "),
     originalText: openLawOriginalText(item, "law"),
+  };
+}
+
+function parseAdministrativeRuleItem(
+  item: Record<string, unknown>,
+): ExternalJudgmentRecord | null {
+  const sequenceId = textValue(item, "행정규칙일련번호");
+  const ruleId = textValue(item, "행정규칙ID") ?? textValue(item, "ID");
+  const externalId =
+    ruleId ?? sequenceId ?? textValue(item, "MST") ?? textValue(item, "id");
+  const title = textValue(item, "행정규칙명") ?? textValue(item, "title");
+  const decidedOn = normalizeDate(
+    textValue(item, "시행일자") ??
+      textValue(item, "발령일자") ??
+      textValue(item, "생성일자") ??
+      textValue(item, "decidedOn"),
+  );
+
+  if (!externalId || !title || !decidedOn) {
+    return null;
+  }
+
+  const sourceUrl =
+    normalizeOpenLawUrl(
+      textValue(item, "행정규칙상세링크") ?? textValue(item, "detailLink"),
+    ) ?? openLawPublicServiceUrl("admrul", externalId);
+  const announcementNumber = textValue(item, "발령번호");
+  const caseNumber = announcementNumber
+    ? `행정규칙 ${externalId}-${announcementNumber}`
+    : `행정규칙 ${externalId}`;
+
+  return {
+    sourceProvider: openLawTargetConfigs.admrul.provider,
+    externalId,
+    caseNumber,
+    courtName: textValue(item, "소관부처명") ?? "법제처",
+    decidedOn,
+    title,
+    sourceUrl,
+    caseType: "law",
+    summary: [
+      textValue(item, "행정규칙종류"),
+      textValue(item, "제개정구분명"),
+      textValue(item, "현행연혁구분"),
+    ]
+      .filter(Boolean)
+      .join(" / "),
+    originalText: openLawOriginalText(item, "admrul"),
+  };
+}
+
+function parseOrdinanceItem(
+  item: Record<string, unknown>,
+): ExternalJudgmentRecord | null {
+  const sequenceId = textValue(item, "자치법규일련번호");
+  const ordinanceId = textValue(item, "자치법규ID") ?? textValue(item, "ID");
+  const externalId =
+    ordinanceId ??
+    sequenceId ??
+    textValue(item, "MST") ??
+    textValue(item, "id");
+  const title = textValue(item, "자치법규명") ?? textValue(item, "title");
+  const decidedOn = normalizeDate(
+    textValue(item, "시행일자") ??
+      textValue(item, "공포일자") ??
+      textValue(item, "decidedOn"),
+  );
+
+  if (!externalId || !title || !decidedOn) {
+    return null;
+  }
+
+  const sourceUrl =
+    normalizeOpenLawUrl(
+      textValue(item, "자치법규상세링크") ?? textValue(item, "detailLink"),
+    ) ?? openLawPublicServiceUrl("ordin", externalId);
+  const announcementNumber = textValue(item, "공포번호");
+  const caseNumber = announcementNumber
+    ? `자치법규 ${externalId}-${announcementNumber}`
+    : `자치법규 ${externalId}`;
+
+  return {
+    sourceProvider: openLawTargetConfigs.ordin.provider,
+    externalId,
+    caseNumber,
+    courtName: textValue(item, "지자체기관명") ?? "지방자치단체",
+    decidedOn,
+    title,
+    sourceUrl,
+    caseType: "law",
+    summary: [
+      textValue(item, "자치법규종류"),
+      textValue(item, "제개정구분명"),
+      textValue(item, "자치법규분야명"),
+    ]
+      .filter(Boolean)
+      .join(" / "),
+    originalText: openLawOriginalText(item, "ordin"),
   };
 }
 
@@ -876,7 +1004,7 @@ async function fetchText(url: string | URL) {
 
 function parseOpenLawOriginalText(payload: unknown, target: OpenLawTarget) {
   const config = openLawTargetConfigs[target];
-  const root = objectValue(payload, config.serviceRootKey) ?? payload;
+  const root = firstObjectValue(payload, config.serviceRootKeys) ?? payload;
   return openLawOriginalText(root, target);
 }
 
@@ -886,7 +1014,7 @@ function openLawOriginalText(item: unknown, target: OpenLawTarget) {
     return direct;
   }
 
-  if (target !== "law") {
+  if (target !== "law" && target !== "admrul" && target !== "ordin") {
     return undefined;
   }
 
@@ -899,6 +1027,8 @@ function openLawOriginalText(item: unknown, target: OpenLawTarget) {
     "별표내용",
     "개정문내용",
     "제개정이유내용",
+    "행정규칙내용",
+    "자치법규내용",
   ]).join("\n\n");
 }
 
@@ -911,9 +1041,11 @@ function directOriginalText(item: unknown, target: OpenLawTarget) {
       textValue(item, "내용")
     );
   }
-  if (target === "law") {
+  if (target === "law" || target === "admrul" || target === "ordin") {
     return (
       textValue(item, "법령내용") ??
+      textValue(item, "행정규칙내용") ??
+      textValue(item, "자치법규내용") ??
       textValue(item, "조문내용") ??
       textValue(item, "내용")
     );
@@ -1092,7 +1224,7 @@ function setDefaultSort(url: URL, target: OpenLawTarget) {
   if (target === "detc") {
     url.searchParams.set("sort", "efdes");
   }
-  if (target === "law") {
+  if (target === "law" || target === "admrul" || target === "ordin") {
     url.searchParams.set("sort", "ddes");
   }
 }
@@ -1258,6 +1390,39 @@ function objectValue(source: unknown, key: string) {
   }
   const value = source[key];
   return isRecord(value) ? value : undefined;
+}
+
+function firstObjectValue(source: unknown, keys: readonly string[]) {
+  for (const key of keys) {
+    const value = objectValue(source, key);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function findOpenLawRoot(
+  payload: unknown,
+  rootKeys: readonly string[],
+  itemKeys: readonly string[],
+) {
+  const configuredRoot = firstObjectValue(payload, rootKeys);
+  if (configuredRoot) {
+    return configuredRoot;
+  }
+  if (!isRecord(payload)) {
+    return payload;
+  }
+  for (const value of Object.values(payload)) {
+    if (
+      isRecord(value) &&
+      itemKeys.some((itemKey) => arrayValue(value, itemKey))
+    ) {
+      return value;
+    }
+  }
+  return payload;
 }
 
 function arrayValue(source: unknown, key: string) {

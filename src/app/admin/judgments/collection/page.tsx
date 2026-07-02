@@ -34,8 +34,8 @@ export default function AdminJudgmentCollectionPage() {
             <div>
               <h1>법률 데이터 자동 수집</h1>
               <p>
-                판례, 헌재결정례, 현행 법령을 주기적으로 확인하고 새 데이터만
-                저장해요.
+                판례, 헌재결정례, 법령, 행정규칙, 자치법규를 주기적으로 확인하고
+                새 데이터만 저장해요.
               </p>
             </div>
             <span className={styles.badge}>Open Law</span>
@@ -55,7 +55,7 @@ export default function AdminJudgmentCollectionPage() {
             emptyMessage="아직 법률 데이터 수집 실행 이력이 없어요."
             rows={collectionRuns.map((run) => {
               const result = `${run.importedCount}건 / 신규 ${run.createdCount} / 갱신 ${run.updatedCount}`;
-              const scope = "전체 판례·헌재·법령";
+              const scope = "전체 판례·헌재·법령·행정규칙·자치법규";
               return {
                 cells: [
                   { kind: "datetime", value: run.startedAt },

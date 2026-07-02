@@ -13,7 +13,7 @@ import { addMinutesIso, nowIso } from "./time";
 import type { ExternalJudgmentRecord } from "./types";
 
 const SERVICE = "judgment-collection";
-const COLLECTION_SCOPE_LABEL = "전체 판례·헌재·법령";
+const COLLECTION_SCOPE_LABEL = "전체 판례·헌재·법령·행정규칙·자치법규";
 const COLLECTION_PAGE_SIZE = 100;
 const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
@@ -590,11 +590,15 @@ function getJudgmentSource(
 }
 
 function isMutableOpenLawRecord(record: ExternalJudgmentRecord) {
-  return record.sourceProvider === "open-law-law";
+  return (
+    record.sourceProvider === "open-law-law" ||
+    record.sourceProvider === "open-law-administrative-rule" ||
+    record.sourceProvider === "open-law-ordinance"
+  );
 }
 
 function isMutableOpenLawTarget(target: string) {
-  return target === "law";
+  return target === "law" || target === "admrul" || target === "ordin";
 }
 
 function updateRunProgress(
