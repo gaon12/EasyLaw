@@ -44,27 +44,37 @@ Next 16 App Router (Node runtime)
   기존 데이터를 코퍼스로 옮긴다.
 - **백업은 easylaw.sqlite + legal-corpus.sqlite + .master-key를 함께.**
 
-### AI 스택
+### AI 스택 (answer-first)
+
+리서치는 latency 우선 설계다. LLM에게 JSON 계획을 먼저 만들게 하는
+단계가 없고, 규칙 기반 라우터가 즉시 경로를 정한다.
 
 ```
 사용자 질문
   → POST /api/research/stream (SSE, 15초 heartbeat)
   → buildResearchPlan (legal-research.ts)
-      ├─ connectMcpToolbox (mcp-client.ts)      외부 MCP 검색 서버
-      ├─ createLocalLegalToolbox               코퍼스 검색 폴백
-      └─ runToolLoop                            최대 5회 결정 루프
-          ├─ requestAgentDecision (legal-research-agent.ts)
-          ├─ executeToolCalls → evidence[E#]
-          ├─ rejectUngroundedAnswer             근거 없는 답 반려
-          └─ finishAnswer → compose/verify
-  → llm-client.ts                              전송 계층
+      ├─ routeResearchQuery (규칙 기반, LLM 호출 없음)
+      ├─ quick    : 즉시 스트리밍 답변, 검색 없음
+      ├─ overview : ★기본값 — 초안 스트리밍을 즉시 시작
+      │             + 검색형 도구(코퍼스 FTS·MCP) 병렬 호출
+      │             → 검색 완료 시 "근거 확인" 섹션 이어서 스트리밍
+      └─ deep     : 고위험 신호(형사·소송 등)만 —
+                    에이전트 루프 + 근거 강제 + 심층 검증 유지
+                    (루프 내 도구 호출은 병렬)
+  → llm-client.ts (OpenAI SDK)                  전송 계층
 ```
 
-`llm-client.ts`는 모든 요청을 **스트리밍**으로 보내고 타임아웃을 4단계로
-나눈다: connect(헤더), first_chunk(첫 토큰), idle(청크 간), total(전체).
-청크가 계속 오는 동안에는 끊지 않으므로 생성이 느린 로컬 모델(Ollama,
-LM Studio)도 안전하다. 전체 상한은 관리자 설정 `llm_timeout_seconds`
-(기본: 클라우드 180초, 로컬 600초)로 조정한다.
+overview에서 첫 토큰은 라우팅(수 ms) 직후 초안 스트리밍으로 나온다.
+근거 없는 단정을 막는 `rejectUngroundedAnswer` 루프는 deep 전용이다.
+초안 프롬프트는 "근거 확인 전"임을 명시해 단정을 피하고, 검색 근거가
+없으면 경고와 함께 일반 안내로만 남는다.
+
+`llm-client.ts`는 **OpenAI SDK + provider별 base URL**로 모든 공급자를
+통일한다(Anthropic도 OpenAI 호환 엔드포인트 사용). 요청은 항상
+스트리밍이며 타임아웃은 4단계: connect(응답 시작), first_chunk(첫 토큰),
+idle(토큰 간), total(전체). 토큰이 계속 오는 동안에는 끊지 않으므로
+느린 로컬 모델(Ollama, LM Studio)도 안전하다. 전체 상한은 관리자 설정
+`llm_timeout_seconds`(기본: 클라우드 180초, 로컬 600초).
 
 Easy-Read 생성은 `easyread-generation.ts`가 담당한다.
 `judgment_generation_jobs` 큐를 30초 주기 스케줄러

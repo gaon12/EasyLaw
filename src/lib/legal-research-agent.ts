@@ -46,6 +46,97 @@ const verificationSchema = z.object({
 
 export type AgentDecision = z.infer<typeof agentDecisionSchema>;
 
+/** quick 모드: 검색 없이 즉시 스트리밍으로 답한다. */
+export async function streamQuickAnswer(
+  configuration: LlmConfiguration,
+  query: string,
+  onToken: (token: string) => void,
+) {
+  return requestLlmText(
+    configuration,
+    [
+      {
+        role: "system",
+        content: `대한민국 법률 용어와 개념을 쉬운 한국어로 설명하는 도우미다.
+Markdown으로 간결하게 답한다. 핵심 정의를 먼저, 필요한 경우 짧은 예시를 덧붙인다.
+개별 사건의 결과를 예측하거나 법률 자문을 제공하지 않는다.`,
+      },
+      { role: "user", content: query },
+    ],
+    { onToken },
+  );
+}
+
+/**
+ * overview 모드 1단계: 근거 검색이 도는 동안 즉시 스트리밍을 시작하는
+ * 초안. 근거 확인 전이므로 단정하지 않고 일반적 방향을 설명한다.
+ */
+export async function streamDraftAnswer(
+  configuration: LlmConfiguration,
+  query: string,
+  intent: string,
+  onToken: (token: string) => void,
+) {
+  return requestLlmText(
+    configuration,
+    [
+      {
+        role: "system",
+        content: `대한민국 법률 질문에 대한 AI 오버뷰의 첫 부분을 Markdown으로 작성한다.
+아직 법령·판례 근거를 확인하기 전이다. 지금은 검색이 병렬로 진행 중이고,
+검색이 끝나면 "근거 확인" 섹션이 뒤에 붙는다.
+
+규칙:
+- 일반적으로 알려진 법적 방향과 절차를 먼저 설명하되, 조문 번호나 판례를 단정적으로 인용하지 않는다.
+- "~일 수 있습니다", "일반적으로 ~입니다"처럼 확인 전임이 드러나는 표현을 쓴다.
+- 질문의 가상 사실은 전제로 존중한다.
+- 6~10문장 이내로 간결하게. 제목 없이 본문만 출력한다.
+- 법률 자문이 아니라 이해를 돕는 안내임을 한 문장으로 밝힌다.`,
+      },
+      { role: "user", content: JSON.stringify({ intent, query }) },
+    ],
+    { onToken },
+  );
+}
+
+/**
+ * overview 모드 2단계: 병렬 검색으로 모인 근거로 초안을 보정하는
+ * "근거 확인" 섹션을 스트리밍한다.
+ */
+export async function streamGroundedRevision(
+  configuration: LlmConfiguration,
+  query: string,
+  draft: string,
+  evidence: ResearchEvidence[],
+  onToken: (token: string) => void,
+) {
+  return requestLlmText(
+    configuration,
+    [
+      {
+        role: "system",
+        content: `법률 질문의 초안 답변을 검색된 근거와 대조해 "근거 확인" 섹션 본문을 Markdown으로 작성한다.
+제목은 쓰지 말고 본문만 출력한다.
+
+구성:
+- 근거로 뒷받침되는 내용: 사실 주장 뒤에 [E1] 형식의 근거 ID를 붙인다.
+- 초안과 다르거나 보완이 필요한 부분: 무엇이 어떻게 다른지 짚는다.
+- 근거에서 확인되지 않은 부분: 추가 확인이 필요하다고 명확히 적는다.
+
+규칙:
+- 제공된 근거만 사실 근거로 사용한다. 근거 ID는 실제 존재하는 것만 인용한다.
+- 초안을 반복하지 말고 확인·교정에 집중한다.
+- 8문장 이내로 간결하게.`,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({ draft, evidence, query }),
+      },
+    ],
+    { onToken },
+  );
+}
+
 export async function requestAgentDecision(
   configuration: LlmConfiguration,
   context: {

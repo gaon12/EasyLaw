@@ -70,6 +70,7 @@ import {
 } from "../src/lib/judgment-texts";
 import { resetLegalData } from "../src/lib/legal-data-maintenance";
 import { buildResearchPlan } from "../src/lib/legal-research";
+import { routeResearchQuery } from "../src/lib/legal-research-router";
 import { requestLlmText } from "../src/lib/llm-client";
 import {
   completeLoginChallenge,
@@ -1701,27 +1702,10 @@ test("legal research harness assigns coverage and evidence", async () => {
     setSetting(db, "mcp_korean_law_endpoint", "https://mcp.example/mcp");
     const mock = createResearchFetchMock({
       llmResponses: [
-        JSON.stringify({
-          calls: [
-            {
-              arguments: { query: "중고거래 사기 손해배상" },
-              toolKey: "korean-law/search_law",
-            },
-          ],
-          coverageLevel: 2,
-          intent: "중고거래 사기 피해 회복 가능성 확인",
-          mode: "overview",
-          type: "tool_calls",
-        }),
-        JSON.stringify({
-          answer: "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
-          coverageLevel: 2,
-          intent: "중고거래 사기 피해 회복 가능성 확인",
-          mode: "overview",
-          type: "answer",
-        }),
-        "판매자의 기망과 손해를 입증할 자료를 확보해야 합니다. [E1]",
-        "입금 내역, 대화 기록, 판매 게시글을 보존한 뒤 민사상 손해배상과 형사 고소 가능성을 함께 검토하세요. [E1]",
+        // 1) 검색과 병렬로 즉시 스트리밍되는 초안
+        "일반적으로 판매자가 대금을 받고 잠적한 경우 민사상 손해배상 청구를 검토할 수 있습니다.",
+        // 2) 검색 결과로 초안을 보정하는 근거 확인 섹션
+        "입금 내역과 대화 기록으로 기망을 입증할 수 있다는 점이 판례로 확인됩니다. [E1]",
       ],
       toolResults: [
         {
@@ -1740,8 +1724,8 @@ test("legal research harness assigns coverage and evidence", async () => {
       "중고거래 판매자에게 입금했는데 잠적했습니다. 손해배상을 받을 수 있나요?",
     );
 
+    assert.equal(plan.mode, "overview");
     assert.equal(plan.coverageLevel, 2);
-    assert.equal(plan.intent, "중고거래 사기 피해 회복 가능성 확인");
     assert.ok(
       plan.evidence.some(
         (item) =>
@@ -1751,12 +1735,16 @@ test("legal research harness assigns coverage and evidence", async () => {
       ),
       JSON.stringify(plan.evidence),
     );
+    // 초안 + "근거 확인" 섹션이 하나의 답으로 합쳐진다.
+    assert.match(plan.answer, /민사상 손해배상 청구/);
+    assert.match(plan.answer, /## 근거 확인/);
     assert.match(plan.answer, /\[E1\]/);
-    assert.equal(mock.state.llmRequests, 4);
+    // LLM 호출은 초안·근거확인 딱 2번뿐이다(계획 JSON 호출 없음).
+    assert.equal(mock.state.llmRequests, 2);
     assert.equal(mock.state.toolCalls, 1);
     assert.ok(
-      mock.state.llmBodies.some((body) => body.stream === true),
-      "final answer should be streamed",
+      mock.state.llmBodies.every((body) => body.stream === true),
+      "all research requests should stream",
     );
     assert.ok(
       mock.state.llmBodies.every((body) => !("reasoning" in body)),
@@ -2058,6 +2046,34 @@ test("deep research keeps its overview when verification fails", async () => {
   }
 });
 
+test("the rule-based router classifies queries without an LLM call", () => {
+  // 용어·개념 질문은 quick.
+  assert.equal(routeResearchQuery("상계가 무슨 뜻인가요?").mode, "quick");
+  assert.equal(routeResearchQuery("기판력의 정의가 뭐야").mode, "quick");
+
+  // 일반 상황 질문은 answer-first overview가 기본값.
+  const overview = routeResearchQuery(
+    "중고거래 판매자가 잠적했는데 손해배상을 받을 수 있나요?",
+  );
+  assert.equal(overview.mode, "overview");
+  assert.ok(overview.legalIssues.includes("손해배상"));
+
+  // 고위험(형사·소송 등) 신호는 검증 하네스(deep)로 보낸다.
+  const deep = routeResearchQuery("무면허 운전으로 처벌을 받을 수 있나요?");
+  assert.equal(deep.mode, "deep");
+  assert.equal(deep.coverageLevel, 4);
+
+  // 용어 패턴이 있어도 고위험 신호가 우선한다.
+  assert.equal(routeResearchQuery("구속영장이 무슨 뜻인가요?").mode, "deep");
+
+  // 가상 전제는 표시하되 모드 자체는 위험도로 정한다.
+  const fantasy = routeResearchQuery(
+    "엘프가 계약을 어기면 손해배상 책임이 있나요?",
+  );
+  assert.equal(fantasy.hypothetical, true);
+  assert.equal(fantasy.mode, "overview");
+});
+
 test("simple legal concepts use the quick answer path", async () => {
   const { db, cleanup } = withDb();
   const originalFetch = globalThis.fetch;
@@ -2068,14 +2084,7 @@ test("simple legal concepts use the quick answer path", async () => {
     setSetting(db, "llm_api_key", "test-key", true);
     const mock = createResearchFetchMock({
       llmResponses: [
-        JSON.stringify({
-          answer:
-            "상계는 서로 같은 종류의 채무를 일정 범위에서 소멸시키는 방식입니다.",
-          coverageLevel: 1,
-          intent: "법률 용어의 일반적 의미 설명",
-          mode: "quick",
-          type: "answer",
-        }),
+        "상계는 서로 같은 종류의 채무를 일정 범위에서 소멸시키는 방식입니다.",
       ],
     });
     globalThis.fetch = mock.fetch;
@@ -2115,26 +2124,7 @@ test("research questions fall back to local legal data when MCP is unavailable",
     setSetting(db, "llm_api_key", "test-key", true);
     const mock = createResearchFetchMock({
       llmResponses: [
-        JSON.stringify({
-          calls: [
-            {
-              arguments: { query: "전세 계약 중도 해지" },
-              toolKey: "local-legal/search_local_legal_data",
-            },
-          ],
-          coverageLevel: 2,
-          intent: "계약 해지 요건 확인",
-          mode: "overview",
-          type: "tool_calls",
-        }),
-        JSON.stringify({
-          answer: "계약 내용과 해지 사유를 먼저 확인해야 합니다. [E1]",
-          coverageLevel: 2,
-          intent: "계약 해지 요건 확인",
-          mode: "overview",
-          type: "answer",
-        }),
-        "계약 내용과 귀책 사유에 따라 중도 해지 가능성이 달라집니다. [E1]",
+        "계약 내용과 귀책 사유에 따라 중도 해지 가능성이 달라집니다.",
         "해지 통지와 손해배상 범위를 함께 검토해야 합니다. [E1]",
       ],
     });
@@ -2148,7 +2138,9 @@ test("research questions fall back to local legal data when MCP is unavailable",
     assert.equal(result.evidence.length, 1);
     assert.match(result.evidence[0]?.source ?? "", /국가법령정보센터 판례/);
     assert.match(result.answer, /\[E1\]/);
+    // MCP 엔드포인트가 없으면 내부 코퍼스 검색만으로 근거를 채운다.
     assert.equal(mock.state.toolCalls, 0);
+    assert.equal(mock.state.llmRequests, 2);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
@@ -2165,26 +2157,8 @@ test("local legal research returns the grounded draft without extra composition"
     setSetting(db, "mcp_korean_law_endpoint", "https://mcp.example/mcp");
     const mock = createResearchFetchMock({
       llmResponses: [
-        JSON.stringify({
-          calls: [
-            {
-              arguments: { query: "물물교환 결제수단" },
-              toolKey: "korean-law/search_law",
-            },
-          ],
-          coverageLevel: 2,
-          intent: "물물교환 방식의 거래 가능성 확인",
-          mode: "overview",
-          type: "tool_calls",
-        }),
-        JSON.stringify({
-          answer:
-            "당사자가 합의하면 교환계약으로 볼 여지가 있지만 매장 정책과 세무 처리가 문제될 수 있습니다. [E1]",
-          coverageLevel: 2,
-          intent: "물물교환 방식의 거래 가능성 확인",
-          mode: "overview",
-          type: "answer",
-        }),
+        "당사자가 합의하면 물물교환도 계약으로 볼 여지가 있습니다.",
+        "민법상 교환계약 규정이 적용될 수 있음이 확인됩니다. [E1]",
       ],
       toolResults: [
         {
@@ -2202,10 +2176,11 @@ test("local legal research returns the grounded draft without extra composition"
       "고블린이 편의점에서 현금 대신 포션으로 거래하자는데 가능한가요?",
     );
 
+    // 가상 전제여도 고위험 신호가 없으면 answer-first 오버뷰로 처리한다.
     assert.equal(result.mode, "overview");
+    assert.equal(result.hypothetical, true);
     assert.match(result.answer, /교환계약/);
-    // 로컬 모델은 결정 1회 + 답변 1회로 끝나야 한다(문단별 재생성·검증 패스 없음).
-    // 전송 계층은 항상 스트리밍이므로 요청 횟수로 확인한다.
+    // 로컬 모델도 동일하게 초안+근거확인 2회 호출로 끝난다.
     assert.equal(mock.state.llmRequests, 2);
   } finally {
     globalThis.fetch = originalFetch;

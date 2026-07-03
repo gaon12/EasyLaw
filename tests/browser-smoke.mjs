@@ -103,37 +103,12 @@ const llmServer = createServer((request, response) => {
       return;
     }
     const system = payload.messages?.[0]?.content ?? "";
-    const context = JSON.parse(payload.messages?.[1]?.content ?? "{}");
-    const content = system.includes("법률 검색 오버뷰 에이전트")
-      ? context.evidence?.length
-        ? JSON.stringify({
-            answer: overviewAnswer,
-            coverageLevel: 2,
-            intent: "손해 발생 시 책임과 대응 절차 확인",
-            mode: "overview",
-            type: "answer",
-          })
-        : JSON.stringify({
-            calls: [
-              {
-                arguments: { query: "손해배상" },
-                toolKey: "korean-law/search_law",
-              },
-            ],
-            coverageLevel: 2,
-            intent: "손해 발생 시 책임과 대응 절차 확인",
-            mode: "overview",
-            type: "tool_calls",
-          })
-      : system.includes("법률 답변 검증자")
-        ? JSON.stringify({
-            answer: overviewAnswer,
-            grounded: true,
-            issues: [],
-          })
-        : context.section?.title === "핵심 결론"
-          ? "## 핵심 답변\n\n**손해 자료**를 먼저 정리해야 합니다. [E1]"
-          : "- 이체 내역\n- 상대방과의 대화 내용";
+    // answer-first 흐름: 초안 스트리밍 → 병렬 검색 → "근거 확인" 보정.
+    const content = system.includes("AI 오버뷰의 첫 부분")
+      ? "일반적으로 **손해 자료**를 먼저 정리하는 것이 좋습니다. 이 안내는 법률 자문이 아니라 이해를 돕는 정보입니다."
+      : system.includes("근거 확인")
+        ? "판례에 따르면 이체 내역과 상대방과의 대화 내용이 입증 자료로 인정됩니다. [E1]"
+        : overviewAnswer;
     if (payload.stream === true) {
       response.writeHead(200, { "Content-Type": "text/event-stream" });
       response.end(
@@ -983,7 +958,7 @@ try {
   await page
     .getByRole("heading", { name: "AI 답변" })
     .waitFor({ timeout: 15_000 });
-  await page.getByRole("heading", { name: "핵심 답변" }).waitFor();
+  await page.getByRole("heading", { name: "근거 확인" }).waitFor();
   await page.getByText("손해 자료", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Markdown" }).waitFor();
   await page.getByRole("button", { name: "PDF" }).waitFor();

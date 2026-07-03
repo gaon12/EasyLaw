@@ -4,6 +4,9 @@ import {
   composeResearchAnswer,
   forceResearchAnswer,
   requestAgentDecision,
+  streamDraftAnswer,
+  streamGroundedRevision,
+  streamQuickAnswer,
   verifyResearchAnswer,
 } from "./legal-research-agent";
 import {
@@ -11,6 +14,7 @@ import {
   researchModeLabel,
   stepsForResearchMode,
 } from "./legal-research-policy";
+import { routeResearchQuery } from "./legal-research-router";
 import {
   isLocalLlmConfiguration,
   type LlmConfiguration,
@@ -52,8 +56,10 @@ export type ResearchPlan = {
   steps: ResearchHarnessStep[];
 };
 
+type PlanDraft = Omit<ResearchPlan, "answer" | "evidence">;
+
 export type ResearchHarnessEvent =
-  | { type: "plan"; plan: Omit<ResearchPlan, "answer" | "evidence"> }
+  | { type: "plan"; plan: PlanDraft }
   | { type: "evidence"; evidence: ResearchEvidence }
   | { type: "answer"; answer: string; verified: boolean }
   | {
@@ -78,6 +84,10 @@ export type ResearchHarnessEvent =
         | "verifying";
     };
 
+const OVERVIEW_EVIDENCE_LIMIT = 12;
+const OVERVIEW_SEARCH_TOOL_LIMIT = 4;
+const GROUNDING_HEADING = "\n\n## 근거 확인\n\n";
+
 export function getResearchHarnessFlowchart() {
   return researchHarnessFlowchart();
 }
@@ -86,6 +96,13 @@ export function isResearchHarnessConfigured(db: SqliteDatabase) {
   return readLlmConfiguration(db) !== null;
 }
 
+/**
+ * answer-first 하네스. 규칙 기반 라우터가 즉시 모드를 정하고:
+ * - quick: 검색 없이 바로 스트리밍.
+ * - overview(기본): 초안 스트리밍을 즉시 시작하고 검색을 병렬로 돌린 뒤
+ *   "근거 확인" 섹션으로 보정한다.
+ * - deep(고위험): 기존 에이전트 루프 + 근거 강제 + 검증을 유지한다.
+ */
 export async function buildResearchPlan(
   db: SqliteDatabase,
   query: string,
@@ -100,23 +117,217 @@ export async function buildResearchPlan(
     );
   }
 
+  onEvent?.({ phase: "planning", type: "phase" });
+  const route = routeResearchQuery(normalizedQuery);
+  let plan: PlanDraft = {
+    assumptions: [],
+    coverageLabel: researchModeLabel(route.mode),
+    coverageLevel: route.coverageLevel,
+    hypothetical: route.hypothetical,
+    intent: route.intent,
+    legalIssues: route.legalIssues,
+    mode: route.mode,
+    query: normalizedQuery,
+    steps: stepsForResearchMode(route.mode),
+  };
+  onEvent?.({ plan, type: "plan" });
+
+  if (route.mode === "quick") {
+    onEvent?.({ phase: "composing", type: "phase" });
+    let streamed = "";
+    const answer = await streamQuickAnswer(
+      configuration,
+      normalizedQuery,
+      (token) => {
+        streamed += token;
+        onEvent?.({ answer: streamed, type: "answer", verified: false });
+      },
+    );
+    onEvent?.({ answer, type: "answer", verified: false });
+    return { ...plan, answer, evidence: [] };
+  }
+
+  if (route.mode === "overview") {
+    return runAnswerFirstOverview(db, configuration, plan, onEvent);
+  }
+
   onEvent?.({ phase: "connecting", type: "phase" });
   const toolbox = mergeToolboxes(
     await connectMcpToolbox(db),
     createLocalLegalToolbox(db),
   );
   try {
-    return await runToolLoop(configuration, toolbox, normalizedQuery, onEvent);
+    return await runDeepToolLoop(
+      configuration,
+      toolbox,
+      plan,
+      onEvent,
+      (updated) => {
+        plan = updated;
+      },
+    );
   } finally {
     await toolbox.close();
   }
 }
 
-async function runToolLoop(
+/** overview: 초안 스트리밍과 병렬 검색을 동시에 시작한다. */
+async function runAnswerFirstOverview(
+  db: SqliteDatabase,
   configuration: LlmConfiguration,
-  toolbox: McpToolbox,
+  plan: PlanDraft,
+  onEvent?: (event: ResearchHarnessEvent) => void,
+): Promise<ResearchPlan> {
+  onEvent?.({ phase: "composing", type: "phase" });
+  let draftText = "";
+  const draftPromise = streamDraftAnswer(
+    configuration,
+    plan.query,
+    plan.intent,
+    (token) => {
+      draftText += token;
+      onEvent?.({ answer: draftText, type: "answer", verified: false });
+    },
+  );
+  const evidencePromise = retrieveEvidenceInParallel(db, plan.query, onEvent);
+
+  const [draftResult, evidenceResult] = await Promise.allSettled([
+    draftPromise,
+    evidencePromise,
+  ]);
+  if (draftResult.status === "rejected") {
+    throw draftResult.reason;
+  }
+  const draft = draftResult.value.trim();
+  const evidence =
+    evidenceResult.status === "fulfilled" ? evidenceResult.value : [];
+
+  if (evidence.length === 0) {
+    onEvent?.({
+      message:
+        "확인 가능한 법령·판례 근거를 찾지 못했어요. 일반적인 안내로만 참고해 주세요.",
+      type: "warning",
+    });
+    onEvent?.({ answer: draft, type: "answer", verified: false });
+    return { ...plan, answer: draft, evidence };
+  }
+
+  onEvent?.({ phase: "verifying", type: "phase" });
+  let sectionText = "";
+  try {
+    const section = await streamGroundedRevision(
+      configuration,
+      plan.query,
+      draft,
+      evidence,
+      (token) => {
+        sectionText += token;
+        onEvent?.({
+          answer: `${draft}${GROUNDING_HEADING}${sectionText}`,
+          type: "answer",
+          verified: false,
+        });
+      },
+    );
+    const answer = `${draft}${GROUNDING_HEADING}${section.trim()}`;
+    onEvent?.({ answer, type: "answer", verified: true });
+    return { ...plan, answer, evidence };
+  } catch (error) {
+    if (!(error instanceof LlmError)) {
+      throw error;
+    }
+    onEvent?.({
+      message: "근거 확인 섹션 생성에 실패해 초안 답변만 표시합니다.",
+      type: "warning",
+    });
+    onEvent?.({ answer: draft, type: "answer", verified: false });
+    return { ...plan, answer: draft, evidence };
+  }
+}
+
+/**
+ * 사용자 질문을 그대로 넣을 수 있는 검색형 도구들을 병렬 호출한다.
+ * LLM에게 도구 선택을 맡기지 않으므로 검색이 초안 생성과 겹쳐 돈다.
+ */
+async function retrieveEvidenceInParallel(
+  db: SqliteDatabase,
   query: string,
   onEvent?: (event: ResearchHarnessEvent) => void,
+): Promise<ResearchEvidence[]> {
+  const toolbox = mergeToolboxes(
+    await connectMcpToolbox(db),
+    createLocalLegalToolbox(db),
+  );
+  try {
+    const searchTools = toolbox.tools
+      .filter((tool) => queryPropertyName(tool) !== null)
+      .slice(0, OVERVIEW_SEARCH_TOOL_LIMIT);
+    const settled = await Promise.allSettled(
+      searchTools.map(async (tool) => {
+        onEvent?.({ stage: "calling", tool: tool.title, type: "tool" });
+        try {
+          const property = queryPropertyName(tool) ?? "query";
+          const result = await toolbox.call(tool.key, { [property]: query });
+          onEvent?.({
+            stage: result.isError ? "failed" : "completed",
+            tool: tool.title,
+            type: "tool",
+          });
+          return result.isError
+            ? []
+            : evidenceFromMcpResult(tool, { [property]: query }, result);
+        } catch (error) {
+          onEvent?.({ stage: "failed", tool: tool.title, type: "tool" });
+          throw error;
+        }
+      }),
+    );
+
+    const evidence: ResearchEvidence[] = [];
+    for (const outcome of settled) {
+      if (outcome.status !== "fulfilled") {
+        continue;
+      }
+      for (const draft of outcome.value) {
+        if (evidence.length >= OVERVIEW_EVIDENCE_LIMIT) {
+          break;
+        }
+        const item = { ...draft, id: `E${evidence.length + 1}` };
+        evidence.push(item);
+        onEvent?.({ evidence: item, type: "evidence" });
+      }
+    }
+    return evidence;
+  } finally {
+    await toolbox.close();
+  }
+}
+
+function queryPropertyName(tool: McpToolDefinition): string | null {
+  const schema = tool.inputSchema as {
+    properties?: Record<string, unknown>;
+    required?: unknown;
+  };
+  const properties = schema?.properties;
+  if (!properties) {
+    return null;
+  }
+  const candidates = ["query", "q", "keyword", "keywords", "search", "text"];
+  const property = candidates.find((name) => name in properties);
+  if (!property) {
+    return null;
+  }
+  const required = Array.isArray(schema.required) ? schema.required : [];
+  return required.every((name) => name === property) ? property : null;
+}
+
+/** deep: 근거 강제·검증을 유지하는 기존 에이전트 루프. 도구 호출은 병렬. */
+async function runDeepToolLoop(
+  configuration: LlmConfiguration,
+  toolbox: McpToolbox,
+  initialPlan: PlanDraft,
+  onEvent?: (event: ResearchHarnessEvent) => void,
+  onPlanUpdate?: (plan: PlanDraft) => void,
 ): Promise<ResearchPlan> {
   const evidence: ResearchEvidence[] = [];
   const history: Array<{
@@ -124,7 +335,7 @@ async function runToolLoop(
     status: "completed" | "failed";
     toolKey: string;
   }> = [];
-  let plan: Omit<ResearchPlan, "answer" | "evidence"> | null = null;
+  let plan = initialPlan;
   const reviewFeedback: string[] = [];
 
   for (let iteration = 0; iteration < 5; iteration += 1) {
@@ -136,12 +347,13 @@ async function runToolLoop(
       evidence,
       history,
       plan,
-      query,
+      query: plan.query,
       reviewFeedback,
       tools: toolbox.tools,
     });
-    plan ??= createPlan(query, decision);
     if (iteration === 0) {
+      plan = mergeDecisionIntoPlan(plan, decision);
+      onPlanUpdate?.(plan);
       onEvent?.({ plan, type: "plan" });
     }
 
@@ -173,7 +385,7 @@ async function runToolLoop(
         plan,
         evidence,
         decision.answer,
-        query,
+        plan.query,
         onEvent,
       );
     }
@@ -194,19 +406,34 @@ async function runToolLoop(
     );
   }
 
-  if (!plan) {
-    throw new LlmError(
-      "llm_response_invalid",
-      "질문 처리 계획을 만들지 못했습니다.",
-    );
-  }
   const answer = await forceResearchAnswer(
     configuration,
-    query,
+    plan.query,
     plan,
     evidence,
   );
-  return finishAnswer(configuration, plan, evidence, answer, query, onEvent);
+  return finishAnswer(
+    configuration,
+    plan,
+    evidence,
+    answer,
+    plan.query,
+    onEvent,
+  );
+}
+
+function mergeDecisionIntoPlan(
+  plan: PlanDraft,
+  decision: AgentDecision,
+): PlanDraft {
+  return {
+    ...plan,
+    assumptions: decision.assumptions,
+    hypothetical: plan.hypothetical || decision.hypothetical,
+    intent: decision.intent || plan.intent,
+    legalIssues:
+      decision.legalIssues.length > 0 ? decision.legalIssues : plan.legalIssues,
+  };
 }
 
 async function executeToolCalls(
@@ -221,43 +448,58 @@ async function executeToolCalls(
   }>,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ) {
-  for (const call of calls) {
-    const tool = tools.find((item) => item.key === call.toolKey);
-    if (!tool) {
-      history.push({ ...call, status: "failed" });
-      continue;
-    }
-    onEvent?.({ stage: "calling", tool: tool.title, type: "tool" });
-    try {
-      const result = await toolbox.call(call.toolKey, call.arguments);
-      const drafts = result.isError
-        ? []
-        : evidenceFromMcpResult(tool, call.arguments, result);
-      for (const draft of drafts) {
-        const item = { ...draft, id: `E${evidence.length + 1}` };
-        evidence.push(item);
-        onEvent?.({ evidence: item, type: "evidence" });
+  // 한 결정에 담긴 검색들은 서로 독립적이므로 병렬로 실행한다.
+  const settled = await Promise.all(
+    calls.map(async (call) => {
+      const tool = tools.find((item) => item.key === call.toolKey);
+      if (!tool) {
+        return {
+          call,
+          drafts: [] as McpEvidenceDraft[],
+          status: "failed" as const,
+        };
       }
-      const status = result.isError ? "failed" : "completed";
-      history.push({ ...call, status });
-      onEvent?.({ stage: status, tool: tool.title, type: "tool" });
-    } catch {
-      history.push({ ...call, status: "failed" });
-      onEvent?.({ stage: "failed", tool: tool.title, type: "tool" });
+      onEvent?.({ stage: "calling", tool: tool.title, type: "tool" });
+      try {
+        const result = await toolbox.call(call.toolKey, call.arguments);
+        const drafts = result.isError
+          ? []
+          : evidenceFromMcpResult(tool, call.arguments, result);
+        const status = result.isError
+          ? ("failed" as const)
+          : ("completed" as const);
+        onEvent?.({ stage: status, tool: tool.title, type: "tool" });
+        return { call, drafts, status };
+      } catch {
+        onEvent?.({ stage: "failed", tool: tool.title, type: "tool" });
+        return {
+          call,
+          drafts: [] as McpEvidenceDraft[],
+          status: "failed" as const,
+        };
+      }
+    }),
+  );
+
+  for (const outcome of settled) {
+    for (const draft of outcome.drafts) {
+      const item = { ...draft, id: `E${evidence.length + 1}` };
+      evidence.push(item);
+      onEvent?.({ evidence: item, type: "evidence" });
     }
+    history.push({ ...outcome.call, status: outcome.status });
   }
 }
 
 async function finishAnswer(
   configuration: LlmConfiguration,
-  plan: Omit<ResearchPlan, "answer" | "evidence">,
+  plan: PlanDraft,
   evidence: ResearchEvidence[],
   draft: string,
   query: string,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ): Promise<ResearchPlan> {
-  const shouldUseDraftAnswer =
-    plan.mode === "quick" || isLocalLlmConfiguration(configuration);
+  const shouldUseDraftAnswer = isLocalLlmConfiguration(configuration);
   const answer = shouldUseDraftAnswer
     ? draft
     : await composeVisibleAnswer(
@@ -271,7 +513,7 @@ async function finishAnswer(
   if (shouldUseDraftAnswer) {
     onEvent?.({ answer, type: "answer", verified: false });
   }
-  if (plan.mode !== "deep" || isLocalLlmConfiguration(configuration)) {
+  if (isLocalLlmConfiguration(configuration)) {
     return { ...plan, answer, evidence };
   }
 
@@ -299,7 +541,7 @@ async function finishAnswer(
 
 async function composeVisibleAnswer(
   configuration: LlmConfiguration,
-  plan: Omit<ResearchPlan, "answer" | "evidence">,
+  plan: PlanDraft,
   evidence: ResearchEvidence[],
   draft: string,
   query: string,
@@ -353,25 +595,8 @@ async function composeVisibleAnswer(
   }
 }
 
-function createPlan(
-  query: string,
-  decision: AgentDecision,
-): Omit<ResearchPlan, "answer" | "evidence"> {
-  return {
-    assumptions: decision.assumptions,
-    coverageLabel: researchModeLabel(decision.mode),
-    coverageLevel: decision.coverageLevel,
-    hypothetical: decision.hypothetical,
-    intent: decision.intent,
-    legalIssues: decision.legalIssues,
-    mode: decision.mode,
-    query,
-    steps: stepsForResearchMode(decision.mode),
-  };
-}
-
 function rejectUngroundedAnswer(
-  plan: Omit<ResearchPlan, "answer" | "evidence">,
+  plan: PlanDraft,
   evidence: ResearchEvidence[],
   history: Array<{
     arguments: Record<string, unknown>;
@@ -380,9 +605,6 @@ function rejectUngroundedAnswer(
   }>,
   answer: string,
 ) {
-  if (plan.mode === "quick") {
-    return null;
-  }
   if (evidence.length === 0) {
     return "개별 법률상황 답변인데 MCP 근거가 하나도 없다. 쟁점별 도구 검색을 먼저 수행한다.";
   }
@@ -393,9 +615,7 @@ function rejectUngroundedAnswer(
   ).size;
   const requiredSearches = plan.hypothetical
     ? Math.min(3, Math.max(2, plan.legalIssues.length))
-    : plan.mode === "deep"
-      ? 2
-      : 1;
+    : 2;
   if (completedSearches < requiredSearches) {
     return `현재 서로 다른 MCP 검색은 ${completedSearches}회뿐이다. 이 질문은 답변 전에 쟁점을 나눈 검색을 최소 ${requiredSearches}회 완료해야 한다.`;
   }
