@@ -3920,6 +3920,17 @@
   width: min(320px, 100%);
 }
 
+.endpointCode {
+  display: inline-block;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .dictionarySearch {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

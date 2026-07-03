@@ -73,6 +73,20 @@ export default function AdminAiMcpPage() {
             <ConnectionTestButton kind="mcp" />
           </div>
         </section>
+
+        <section className={styles.section}>
+          <div className={styles.contentCard}>
+            <h2 className={styles.contentCardTitle}>EasyLaw MCP 서버</h2>
+            <p className={styles.contentCardDescription}>
+              이 서비스가 수집한 공개 법률 코퍼스는 외부 MCP 클라이언트에도
+              제공돼요. 아래 주소를 Streamable HTTP MCP 서버로 등록하면{" "}
+              <code>search_legal_corpus</code>(전문 검색)와{" "}
+              <code>get_legal_document</code>(원문 조회) 도구를 쓸 수 있어요.
+              공개 데이터만 노출되고 IP당 시간당 300회로 제한됩니다.
+            </p>
+            <code className={styles.endpointCode}>/api/mcp</code>
+          </div>
+        </section>
       </main>
     </AppShell>
   );

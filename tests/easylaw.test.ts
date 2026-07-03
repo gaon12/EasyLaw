@@ -75,6 +75,7 @@ import {
   completeLoginChallenge,
   createLoginChallenge,
 } from "../src/lib/login-challenge";
+import { handleMcpRequest } from "../src/lib/mcp-server";
 import { sendReadyNotifications } from "../src/lib/notifications";
 import { isOrganizationMember } from "../src/lib/organizations";
 import {
@@ -951,6 +952,166 @@ test("open law parser normalizes administrative rules and ordinances", () => {
       title: "청소년 보호 조례",
     },
   );
+});
+
+test("judgment collection resumes an interrupted run from its cursor", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    const staleProgressAt = new Date(Date.now() - 5 * 60_000).toISOString();
+    db.prepare(
+      `INSERT INTO judgment_collection_runs
+        (id, trigger, status, query, display, started_at, imported_count,
+          created_count, updated_count, cursor_target, cursor_page,
+          last_progress_at)
+       VALUES ('resume-test-run', 'manual', 'running', '테스트', 100, ?, 3, 3, 0,
+         'prec', 2, ?)`,
+    ).run(staleProgressAt, staleProgressAt);
+
+    const requestedPages: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      if (url.pathname.endsWith("/lawService.do")) {
+        return new Response(
+          JSON.stringify({ PrecService: { 판례내용: "이어받은 상세 본문" } }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+      const page = url.searchParams.get("page") ?? "1";
+      requestedPages.push(`${target}:${page}`);
+      if (target !== "prec") {
+        return new Response(JSON.stringify({}), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      const prec =
+        page === "2"
+          ? [
+              {
+                caseNumber: "2026Da2001",
+                courtName: "Supreme Court",
+                decidedOn: "20260703",
+                detailLink: "/DRF/lawService.do?target=prec&ID=resume-1",
+                precSeq: "resume-1",
+                title: "Resumed collection judgment",
+              },
+            ]
+          : [];
+      return new Response(JSON.stringify({ PrecSearch: { prec } }), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
+
+    const result = await runJudgmentCollection(db, { trigger: "manual" });
+    assert.ok(result.ok);
+    assert.equal(result.runId, "resume-test-run");
+    // 이전 run의 누계(3)에 이어받은 1건이 더해져야 한다.
+    assert.equal(result.importedCount, 4);
+    assert.ok(
+      !requestedPages.includes("prec:1"),
+      "resume must not restart from page 1",
+    );
+    assert.ok(requestedPages.includes("prec:2"));
+
+    const stored = db
+      .prepare<[], { status: string; imported_count: number }>(
+        "SELECT status, imported_count FROM judgment_collection_runs WHERE id = 'resume-test-run'",
+      )
+      .get();
+    assert.equal(stored?.status, "success");
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("the MCP endpoint serves corpus search and document tools", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    seedExternalFixture(db);
+
+    const initialized = await handleMcpRequest(db, {
+      id: 1,
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: { protocolVersion: "2025-03-26" },
+    });
+    assert.equal(initialized.kind, "json");
+    assert.ok(initialized.kind === "json");
+    const initResult = initialized.body.result as {
+      serverInfo: { name: string };
+    };
+    assert.equal(initResult.serverInfo.name, "easylaw-legal-corpus");
+
+    const listed = await handleMcpRequest(db, {
+      id: 2,
+      jsonrpc: "2.0",
+      method: "tools/list",
+    });
+    assert.ok(listed.kind === "json");
+    const toolNames = (
+      listed.body.result as { tools: Array<{ name: string }> }
+    ).tools.map((tool) => tool.name);
+    assert.deepEqual(toolNames.sort(), [
+      "get_legal_document",
+      "search_legal_corpus",
+    ]);
+
+    const searched = await handleMcpRequest(db, {
+      id: 3,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { query: "손해배상" },
+        name: "search_legal_corpus",
+      },
+    });
+    assert.ok(searched.kind === "json");
+    const searchResult = searched.body.result as {
+      isError: boolean;
+      structuredContent: { records: Array<{ title: string }> };
+    };
+    assert.equal(searchResult.isError, false);
+    assert.ok(
+      searchResult.structuredContent.records.some((record) =>
+        record.title.includes("손해배상"),
+      ),
+    );
+
+    const fetched = await handleMcpRequest(db, {
+      id: 4,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { identifier: "2023구합54112" },
+        name: "get_legal_document",
+      },
+    });
+    assert.ok(fetched.kind === "json");
+    const documentResult = fetched.body.result as {
+      isError: boolean;
+      structuredContent: { caseNumber: string; originalText: string | null };
+    };
+    assert.equal(documentResult.isError, false);
+    assert.equal(documentResult.structuredContent.caseNumber, "2023구합54112");
+    assert.match(
+      documentResult.structuredContent.originalText ?? "",
+      /영업정지/,
+    );
+
+    // 알림은 202로 수신만 확인한다.
+    const notified = await handleMcpRequest(db, {
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+    });
+    assert.deepEqual(notified, { kind: "empty", status: 202 });
+  } finally {
+    cleanup();
+  }
 });
 
 test("manual judgment collection stores fetched public judgments", async () => {

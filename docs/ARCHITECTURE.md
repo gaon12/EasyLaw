@@ -81,6 +81,25 @@ Easy-Read 생성은 `easyread-generation.ts`가 담당한다.
 관리자 진단: `POST /api/admin/llm/test`(실제 모델 왕복),
 `POST /api/admin/mcp/test`(서버별 도구 목록/실패 사유).
 
+### MCP 서버 노출
+
+수집된 공개 코퍼스는 외부 MCP 클라이언트에도 제공된다. `/api/mcp`가
+stateless Streamable HTTP MCP 서버(`src/lib/mcp-server.ts`)로 동작하며
+도구는 읽기 전용 2개: `search_legal_corpus`(FTS 전문 검색),
+`get_legal_document`(공개 문서 메타+원문). 공개 데이터만 노출되고 IP당
+시간당 300회로 제한된다. 세션·SSE 스트림은 지원하지 않는다(GET 405).
+
+### 데이터 수집 (초기 대량 수집 포함)
+
+공개법령 API 수집은 HTTP 요청에 묶이지 않는다. 관리자의 "지금 수집"은
+`startJudgmentCollection`으로 백그라운드 실행을 시작하고 즉시 202를
+반환하며, UI는 진행 상황을 폴링한다. 수집 루프는 페이지 단위로 커서
+(`cursor_target`, `cursor_page`)와 `last_progress_at`을 run 행에
+남기므로, 최초 전체 수집 중 서버가 재시작돼도 스케줄러가 2분 이상
+진행이 멈춘 running 상태 run을 감지해 저장된 커서부터 이어서 실행한다
+(`resumeInterruptedJudgmentCollection`). 외부 API 호출은 페이지당
+15초 타임아웃이라 개별 요청이 길어질 일은 없다.
+
 ### 보안 모델
 
 - 설정 값은 전부 AES-256-GCM으로 암호화해 `service_settings`에 저장.
