@@ -14,6 +14,7 @@ import { NavLinks } from "@/components/nav-links";
 import { ReadingPreferences } from "@/components/reading-preferences";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getDatabase } from "@/lib/db";
+import { ensureEasyReadGenerationScheduler } from "@/lib/easyread-generation-scheduler";
 import { ensureJudgmentCollectionScheduler } from "@/lib/judgment-collection-scheduler";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
@@ -37,6 +38,7 @@ const signedInNav = [
 const adminNav = [
   { href: "/admin", key: "admin.home", label: "관리 개요" },
   { href: "/admin/ai", key: "admin.ai", label: "AI 설정" },
+  { href: "/admin/reviews", key: "admin.reviews", label: "결과 검토" },
   { href: "/admin/judgments", key: "admin.judgments", label: "판결문 데이터" },
   { href: "/admin/captcha", key: "admin.captcha", label: "CAPTCHA" },
   { href: "/admin/dictionary", key: "admin.dictionary", label: "용어 사전" },
@@ -49,6 +51,7 @@ export async function AppHeader({
   variant?: ShellVariant;
 }) {
   ensureJudgmentCollectionScheduler();
+  ensureEasyReadGenerationScheduler();
   const sessionUser = getSessionUser(
     getDatabase(),
     (await cookies()).get(SESSION_COOKIE)?.value,
@@ -140,7 +143,7 @@ export function AppFooter() {
           />
           <span>EasyLaw</span>
         </a>
-        <p>
+        <p data-i18n="footer.disclaimer">
           EasyLaw는 판결문 이해를 돕는 서비스예요. 법률 자문을 대체하지 않으며,
           중요한 판단은 변호사 등 전문가와 확인해 주세요.
         </p>

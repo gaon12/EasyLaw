@@ -1,6 +1,9 @@
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { getDatabase } from "@/lib/db";
-import { completeGenerationJob, failGenerationJob } from "@/lib/jobs";
+import { processGenerationJob } from "@/lib/easyread-generation";
+import { failGenerationJob } from "@/lib/jobs";
+import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +48,13 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const db = getDatabase();
+  // 작업 상태 전환은 이메일 발송까지 유발하므로 운영자만 가능하다.
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
+  if (!user || !["admin", "super_admin"].includes(user.role)) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
   const { id } = await params;
   const body = jobActionRequest.safeParse(await request.json());
   if (!body.success) {
@@ -54,9 +64,14 @@ export async function POST(
     );
   }
 
-  const db = getDatabase();
   if (body.data.action === "complete") {
-    await completeGenerationJob(db, id);
+    const result = await processGenerationJob(db, id);
+    if (!result.ok) {
+      return Response.json(
+        { error: result.reason, message: result.message ?? null },
+        { status: result.reason === "job_not_found" ? 404 : 502 },
+      );
+    }
   } else {
     failGenerationJob(db, id, body.data.reason);
   }

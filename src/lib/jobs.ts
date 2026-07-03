@@ -1,9 +1,9 @@
 import { auditLog } from "./audit";
 import type { SqliteDatabase } from "./db";
-import { sampleAnalysis } from "./easyread";
 import { sendReadyNotifications } from "./notifications";
 import { newId } from "./security/crypto";
 import { nowIso } from "./time";
+import type { EasyReadAnalysis } from "./types";
 
 export function createOrAttachGenerationJob(
   db: SqliteDatabase,
@@ -68,35 +68,17 @@ export function createOrAttachGenerationJob(
   return jobId;
 }
 
-export function lockNextGenerationJob(db: SqliteDatabase) {
-  const job = db
-    .prepare<[], { id: string; judgment_id: string; attempts: number }>(
-      `SELECT id, judgment_id, attempts
-        FROM judgment_generation_jobs
-        WHERE status = 'queued'
-        ORDER BY created_at ASC
-        LIMIT 1`,
-    )
-    .get();
-
-  if (!job) {
-    return null;
-  }
-
-  const now = nowIso();
-  db.prepare(
-    `UPDATE judgment_generation_jobs
-      SET status = 'generating',
-        locked_at = ?,
-        attempts = attempts + 1,
-        updated_at = ?
-      WHERE id = ? AND status = 'queued'`,
-  ).run(now, now, job.id);
-
-  return job;
-}
-
-export async function completeGenerationJob(db: SqliteDatabase, jobId: string) {
+export async function completeGenerationJob(
+  db: SqliteDatabase,
+  jobId: string,
+  result: {
+    analysis: EasyReadAnalysis;
+    modelName: string;
+    promptVersion: string;
+    confidenceLabel?: string;
+  },
+  options: { review?: boolean } = {},
+) {
   const job = db
     .prepare<[string], { id: string; judgment_id: string }>(
       "SELECT id, judgment_id FROM judgment_generation_jobs WHERE id = ?",
@@ -107,6 +89,7 @@ export async function completeGenerationJob(db: SqliteDatabase, jobId: string) {
     throw new Error("Generation job not found");
   }
 
+  const status = options.review ? "needs_review" : "ready";
   const now = nowIso();
   const tx = db.transaction(() => {
     db.prepare(
@@ -119,33 +102,125 @@ export async function completeGenerationJob(db: SqliteDatabase, jobId: string) {
       job.judgment_id,
       job.id,
       "easy_read",
-      JSON.stringify(sampleAnalysis),
-      "external_grounded_mock",
-      "easyread-beta-001",
-      "mock-generator",
+      JSON.stringify(result.analysis),
+      result.confidenceLabel ?? "ai_generated",
+      result.promptVersion,
+      result.modelName,
       now,
     );
     db.prepare(
       `UPDATE judgment_generation_jobs
-        SET status = 'ready', updated_at = ?, completed_at = ?
+        SET status = ?, updated_at = ?, completed_at = ?
         WHERE id = ?`,
-    ).run(now, now, job.id);
+    ).run(status, now, now, job.id);
     db.prepare(
       `UPDATE judgments
-        SET status = 'ready', updated_at = ?
+        SET status = ?, updated_at = ?
         WHERE id = ?`,
-    ).run(now, job.judgment_id);
+    ).run(status, now, job.judgment_id);
   });
   tx();
 
   auditLog(db, {
-    action: "job.completed",
+    action: options.review ? "job.needs_review" : "job.completed",
     targetType: "generation_job",
     targetId: job.id,
     metadata: { judgmentId: job.judgment_id },
   });
 
+  if (!options.review) {
+    await sendReadyNotifications(db, job.id);
+  }
+}
+
+/** 검토 대기(needs_review) 결과를 승인해 공개하고 알림을 발송한다. */
+export async function approveGenerationJob(db: SqliteDatabase, jobId: string) {
+  const job = db
+    .prepare<[string], { id: string; judgment_id: string; status: string }>(
+      "SELECT id, judgment_id, status FROM judgment_generation_jobs WHERE id = ?",
+    )
+    .get(jobId);
+  if (!job || job.status !== "needs_review") {
+    return false;
+  }
+
+  const now = nowIso();
+  db.prepare(
+    `UPDATE judgment_generation_jobs
+      SET status = 'ready', updated_at = ?
+      WHERE id = ?`,
+  ).run(now, job.id);
+  db.prepare(
+    `UPDATE judgments SET status = 'ready', updated_at = ? WHERE id = ?`,
+  ).run(now, job.judgment_id);
+  auditLog(db, {
+    action: "job.review_approved",
+    targetType: "generation_job",
+    targetId: job.id,
+    metadata: { judgmentId: job.judgment_id },
+  });
   await sendReadyNotifications(db, job.id);
+  return true;
+}
+
+/** 검토 대기 결과를 반려한다. 문서는 재생성 대기 상태로 돌아간다. */
+export function rejectGenerationJob(
+  db: SqliteDatabase,
+  jobId: string,
+  reason: string,
+) {
+  const job = db
+    .prepare<[string], { id: string; judgment_id: string; status: string }>(
+      "SELECT id, judgment_id, status FROM judgment_generation_jobs WHERE id = ?",
+    )
+    .get(jobId);
+  if (!job || job.status !== "needs_review") {
+    return false;
+  }
+
+  const now = nowIso();
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE judgment_generation_jobs
+        SET status = 'failed', failure_reason = ?, updated_at = ?
+        WHERE id = ?`,
+    ).run(reason, now, job.id);
+    db.prepare(
+      `UPDATE judgments SET status = 'pending', updated_at = ? WHERE id = ?`,
+    ).run(now, job.judgment_id);
+    db.prepare(`DELETE FROM analysis_results WHERE job_id = ?`).run(job.id);
+  });
+  tx();
+  auditLog(db, {
+    action: "job.review_rejected",
+    targetType: "generation_job",
+    targetId: job.id,
+    metadata: { judgmentId: job.judgment_id, reason },
+  });
+  return true;
+}
+
+/** 실패했거나 반려된 작업을 다시 생성 큐에 넣는다. */
+export function requeueGenerationJob(db: SqliteDatabase, jobId: string) {
+  const now = nowIso();
+  const updated = db
+    .prepare(
+      `UPDATE judgment_generation_jobs
+        SET status = 'queued', attempts = 0, failure_reason = NULL,
+          locked_at = NULL, completed_at = NULL, updated_at = ?
+        WHERE id = ? AND status IN ('failed', 'needs_review')`,
+    )
+    .run(now, jobId);
+  if (updated.changes === 0) {
+    return false;
+  }
+  auditLog(db, {
+    action: "job.requeued",
+    targetType: "generation_job",
+    targetId: jobId,
+    metadata: {},
+  });
+  return true;
 }
 
 export function failGenerationJob(

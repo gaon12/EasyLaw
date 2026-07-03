@@ -20,7 +20,7 @@ export function AdminSettingsForm({
 }: {
   description: string;
   fields: Field[];
-  scope: "captcha" | "llm" | "mcp" | "openLaw";
+  scope: "captcha" | "easyread" | "llm" | "mcp" | "openLaw";
 }) {
   const [message, setMessage] = useState(description);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
