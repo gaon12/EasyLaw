@@ -637,4 +637,16 @@ export const migrations = [
           );
     `,
   },
+  {
+    id: 16,
+    name: "judgment_collection_resume_cursor",
+    sql: `
+      ALTER TABLE judgment_collection_runs
+        ADD COLUMN cursor_target TEXT;
+      ALTER TABLE judgment_collection_runs
+        ADD COLUMN cursor_page INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE judgment_collection_runs
+        ADD COLUMN last_progress_at TEXT;
+    `,
+  },
 ] as const;

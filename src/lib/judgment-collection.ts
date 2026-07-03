@@ -18,7 +18,9 @@ const COLLECTION_PAGE_SIZE = 100;
 const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
 const MAX_INTERVAL_MINUTES = 10_080;
-const STALE_RUNNING_RUN_MS = 30 * 60_000;
+// 진행 기록이 이 시간 넘게 멈춘 running 상태 run은 죽은 프로세스가 남긴
+// 것으로 보고 저장된 커서부터 이어서 실행한다.
+const RESUME_STALL_MS = 2 * 60_000;
 const progressStagePercent = {
   done: 100,
   finalizing: 96,
@@ -111,6 +113,16 @@ export type JudgmentCollectionRunResult =
       reason: "disabled" | "not_due" | "already_running" | "failed";
     };
 
+export type JudgmentCollectionStartResult =
+  | { ok: true; runId: string; resumed: boolean }
+  | { ok: false; reason: "already_running" };
+
+type ResumeState = {
+  counts: { createdCount: number; importedCount: number; updatedCount: number };
+  cursorPage: number;
+  cursorTarget: string | null;
+};
+
 export function getJudgmentCollectionStatus(
   db: SqliteDatabase,
 ): JudgmentCollectionStatus {
@@ -177,20 +189,105 @@ export async function runDueJudgmentCollection(
   return runJudgmentCollection(db, { trigger: "schedule" });
 }
 
-export async function runJudgmentCollection(
+/**
+ * 수집을 백그라운드로 시작하고 즉시 runId를 반환한다. 최초 전체 수집처럼
+ * 오래 걸리는 작업이 HTTP 요청 타임아웃에 묶이지 않도록 하며, 진행 상황은
+ * getJudgmentCollectionProgress 폴링으로 확인한다. 죽은 프로세스가 남긴
+ * running 상태 run이 있으면 저장된 커서부터 이어서 실행한다.
+ */
+export function startJudgmentCollection(
   db: SqliteDatabase,
   input: RunInput,
-): Promise<JudgmentCollectionRunResult> {
+): JudgmentCollectionStartResult {
   if (activeRun) {
     return { ok: false, reason: "already_running" };
   }
 
-  activeRun = runJudgmentCollectionInternal(db, input);
-  try {
-    return await activeRun;
-  } finally {
-    activeRun = null;
+  const running = findRunningRun(db);
+  if (running) {
+    const lastProgressAt = running.last_progress_at ?? running.started_at;
+    if (Date.now() - new Date(lastProgressAt).getTime() < RESUME_STALL_MS) {
+      return { ok: false, reason: "already_running" };
+    }
+    const resume: ResumeState = {
+      counts: {
+        createdCount: running.created_count,
+        importedCount: running.imported_count,
+        updatedCount: running.updated_count,
+      },
+      cursorPage: Math.max(1, running.cursor_page),
+      cursorTarget: running.cursor_target,
+    };
+    activeRun = executeRun(db, running.id, input, resume).finally(() => {
+      activeRun = null;
+    });
+    return { ok: true, resumed: true, runId: running.id };
   }
+
+  const runId = createRunRow(db, input);
+  activeRun = executeRun(db, runId, input, null).finally(() => {
+    activeRun = null;
+  });
+  return { ok: true, resumed: false, runId };
+}
+
+export async function runJudgmentCollection(
+  db: SqliteDatabase,
+  input: RunInput,
+): Promise<JudgmentCollectionRunResult> {
+  const started = startJudgmentCollection(db, input);
+  if (!started.ok) {
+    return started;
+  }
+  return (
+    (await activeRun) ?? {
+      ok: false,
+      reason: "failed",
+    }
+  );
+}
+
+/** 서버 재시작 등으로 중단된 running 상태 run이 있으면 이어서 실행한다. */
+export async function resumeInterruptedJudgmentCollection(
+  db: SqliteDatabase,
+): Promise<JudgmentCollectionRunResult | null> {
+  if (activeRun) {
+    return null;
+  }
+  const running = findRunningRun(db);
+  if (!running) {
+    return null;
+  }
+  const lastProgressAt = running.last_progress_at ?? running.started_at;
+  if (Date.now() - new Date(lastProgressAt).getTime() < RESUME_STALL_MS) {
+    return null;
+  }
+  return runJudgmentCollection(db, { trigger: "schedule" });
+}
+
+function findRunningRun(db: SqliteDatabase) {
+  return db
+    .prepare<
+      [],
+      {
+        created_count: number;
+        cursor_page: number;
+        cursor_target: string | null;
+        id: string;
+        imported_count: number;
+        last_progress_at: string | null;
+        started_at: string;
+        updated_count: number;
+      }
+    >(
+      `SELECT id, started_at, last_progress_at, cursor_target, cursor_page,
+        imported_count, created_count, updated_count
+       FROM judgment_collection_runs
+       WHERE status = 'running'
+       ORDER BY started_at DESC
+       LIMIT 1`,
+    )
+    .get();
 }
 
 export function listJudgmentCollectionRuns(
@@ -291,53 +388,21 @@ export function getJudgmentCollectionProgress(
   };
 }
 
-async function runJudgmentCollectionInternal(
-  db: SqliteDatabase,
-  input: RunInput,
-): Promise<JudgmentCollectionRunResult> {
-  const running = db
-    .prepare<[], { id: string; started_at: string }>(
-      `SELECT id
-         , started_at
-       FROM judgment_collection_runs
-       WHERE status = 'running'
-       ORDER BY started_at DESC
-       LIMIT 1`,
-    )
-    .get();
-  if (running) {
-    if (
-      Date.now() - new Date(running.started_at).getTime() <
-      STALE_RUNNING_RUN_MS
-    ) {
-      return { ok: false, reason: "already_running" };
-    }
-    db.prepare(
-      `UPDATE judgment_collection_runs
-       SET status = 'failed',
-         failure_reason = ?,
-         completed_at = ?
-       WHERE id = ?`,
-    ).run(
-      "Previous collection run expired before completion.",
-      nowIso(),
-      running.id,
-    );
-  }
-
-  const settings = getJudgmentCollectionSettings(db);
+function createRunRow(db: SqliteDatabase, input: RunInput) {
   const startedAt = nowIso();
   const runId = newId("collect");
   db.prepare(
     `INSERT INTO judgment_collection_runs
-      (id, trigger, status, query, display, actor_user_id, started_at)
-     VALUES (?, ?, 'running', ?, ?, ?, ?)`,
+      (id, trigger, status, query, display, actor_user_id, started_at,
+        last_progress_at)
+     VALUES (?, ?, 'running', ?, ?, ?, ?, ?)`,
   ).run(
     runId,
     input.trigger,
     COLLECTION_SCOPE_LABEL,
     COLLECTION_PAGE_SIZE,
     input.actorUserId ?? null,
+    startedAt,
     startedAt,
   );
   setSetting(db, settingKeys.status, "running");
@@ -348,11 +413,35 @@ async function runJudgmentCollectionInternal(
     stage: "preparing",
     total: 1,
   });
+  return runId;
+}
+
+async function executeRun(
+  db: SqliteDatabase,
+  runId: string,
+  input: RunInput,
+  resume: ResumeState | null,
+): Promise<JudgmentCollectionRunResult> {
+  const settings = getJudgmentCollectionSettings(db);
+  if (resume) {
+    setSetting(db, settingKeys.status, "running");
+    updateRunProgress(db, runId, {
+      current: 0,
+      message: "중단된 수집을 이어서 실행하고 있어요.",
+      stage: "preparing",
+      total: 1,
+    });
+  }
 
   try {
-    const counts = await collectAndStoreOpenLawRecords(db, runId, {
-      forceRefresh: input.forceRefresh,
-    });
+    const counts = await collectAndStoreOpenLawRecords(
+      db,
+      runId,
+      {
+        forceRefresh: input.forceRefresh,
+      },
+      resume,
+    );
     updateRunProgress(db, runId, {
       current: 1,
       message: "수집 결과를 정리하고 있어요.",
@@ -472,19 +561,32 @@ async function collectAndStoreOpenLawRecords(
   db: SqliteDatabase,
   runId: string,
   options: { forceRefresh?: boolean },
+  resume: ResumeState | null = null,
 ): Promise<{
   createdCount: number;
   importedCount: number;
   updatedCount: number;
 }> {
-  let createdCount = 0;
+  let createdCount = resume?.counts.createdCount ?? 0;
   let estimatedTotal = 1;
-  let importedCount = 0;
-  let updatedCount = 0;
+  let importedCount = resume?.counts.importedCount ?? 0;
+  let updatedCount = resume?.counts.updatedCount ?? 0;
   const seen = new Set<string>();
+  const resumeTargetIndex = resume?.cursorTarget
+    ? Math.max(
+        0,
+        openLawCollectionTargets.findIndex(
+          (target) => target === resume.cursorTarget,
+        ),
+      )
+    : 0;
 
   for (const [targetIndex, target] of openLawCollectionTargets.entries()) {
-    let page = 1;
+    if (targetIndex < resumeTargetIndex) {
+      continue;
+    }
+    let page =
+      resume && targetIndex === resumeTargetIndex ? resume.cursorPage : 1;
     updateRunProgress(db, runId, {
       current: targetIndex,
       message: `공개 데이터 목록 확인 중: ${target} ${page}쪽`,
@@ -493,6 +595,12 @@ async function collectAndStoreOpenLawRecords(
     });
 
     while (true) {
+      // 서버가 재시작돼도 이 지점부터 이어서 실행할 수 있게 커서를 남긴다.
+      db.prepare(
+        `UPDATE judgment_collection_runs
+         SET cursor_target = ?, cursor_page = ?, last_progress_at = ?
+         WHERE id = ?`,
+      ).run(target, page, nowIso(), runId);
       updateRunProgress(db, runId, {
         current: targetIndex,
         message: `공개 데이터 목록 확인 중: ${target} ${page}쪽`,
@@ -617,13 +725,15 @@ function updateRunProgress(
      SET progress_stage = ?,
        progress_current = ?,
        progress_total = ?,
-       progress_message = ?
+       progress_message = ?,
+       last_progress_at = ?
      WHERE id = ?`,
   ).run(
     input.stage,
     input.current,
     Math.max(1, input.total),
     input.message,
+    nowIso(),
     runId,
   );
 }
@@ -646,7 +756,8 @@ function updateSavingProgress(
        progress_message = ?,
        imported_count = ?,
        created_count = ?,
-       updated_count = ?
+       updated_count = ?,
+       last_progress_at = ?
      WHERE id = ?`,
   ).run(
     input.current,
@@ -655,6 +766,7 @@ function updateSavingProgress(
     input.current,
     input.createdCount,
     input.updatedCount,
+    nowIso(),
     runId,
   );
 }

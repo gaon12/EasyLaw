@@ -1,5 +1,8 @@
 import { getDatabase } from "./db";
-import { runDueJudgmentCollection } from "./judgment-collection";
+import {
+  resumeInterruptedJudgmentCollection,
+  runDueJudgmentCollection,
+} from "./judgment-collection";
 
 const CHECK_INTERVAL_MS = 60_000;
 
@@ -47,7 +50,11 @@ async function checkDueCollection(state: SchedulerState) {
 
   state.isChecking = true;
   try {
-    await runDueJudgmentCollection(getDatabase());
+    // 서버 재시작으로 끊긴 수집이 있으면 주기와 무관하게 먼저 이어받는다.
+    const resumed = await resumeInterruptedJudgmentCollection(getDatabase());
+    if (!resumed) {
+      await runDueJudgmentCollection(getDatabase());
+    }
   } catch (error) {
     console.error("[EasyLaw] Judgment collection scheduler failed.", error);
   } finally {

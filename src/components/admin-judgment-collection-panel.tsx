@@ -13,25 +13,22 @@ const collectionStages = [
   "수집 결과 정리",
 ] as const;
 
-type RunResponse = {
-  result: {
-    createdCount: number;
-    importedCount: number;
-    updatedCount: number;
-  };
-};
-
 type ProgressStage = "preparing" | "listing" | "saving" | "finalizing" | "done";
 
+type CollectionProgress = {
+  createdCount: number;
+  current: number;
+  importedCount: number;
+  message: string;
+  percent: number;
+  stage: ProgressStage;
+  status: string;
+  total: number;
+  updatedCount: number;
+};
+
 type ProgressResponse = {
-  progress: {
-    current: number;
-    message: string;
-    percent: number;
-    stage: ProgressStage;
-    status: string;
-    total: number;
-  } | null;
+  progress: CollectionProgress | null;
 };
 
 export function AdminJudgmentCollectionPanel({
@@ -61,6 +58,7 @@ export function AdminJudgmentCollectionPanel({
     }
 
     let isMounted = true;
+    // 수집은 백그라운드에서 진행되므로 완료 여부도 진행 폴링으로 판단한다.
     async function pollProgress() {
       try {
         const progress = await fetchCollectionProgress();
@@ -71,6 +69,23 @@ export function AdminJudgmentCollectionPanel({
         setProgressStageIndex(stageIndex(progress.stage));
         setProgressDetail(formatProgressDetail(progress));
         setRunSummary(progress.message || null);
+
+        if (progress.status === "success" || progress.status === "failed") {
+          const succeeded = progress.status === "success";
+          setProgressPercent(100);
+          setProgressStageIndex(collectionStages.length - 1);
+          setProgressDetail(succeeded ? "완료" : "실패");
+          const summary = succeeded
+            ? formatRunSummary(progress)
+            : progress.message ||
+              "수집을 마치지 못했어요. 잠시 후 다시 시도해 주세요.";
+          setRunSummary(summary);
+          setNoticeStatus(succeeded ? "success" : "error");
+          setMessage(summary);
+          setIsRunning(false);
+          isBusyRef.current = false;
+          router.refresh();
+        }
       } catch (_error) {
         if (isMounted) {
           setProgressDetail("진행 상태를 다시 확인하고 있어요.");
@@ -84,7 +99,7 @@ export function AdminJudgmentCollectionPanel({
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, [isRunning]);
+  }, [isRunning, router]);
 
   async function submitRequest(body: unknown) {
     const response = await fetch("/api/admin/judgment-collection", {
@@ -195,31 +210,35 @@ export function AdminJudgmentCollectionPanel({
               setProgressStageIndex(0);
               setRunSummary(null);
               setProgressDetail("준비 중");
-              setMessage("수집을 시작했어요.");
+              setMessage(
+                "수집을 시작했어요. 전체 수집은 오래 걸릴 수 있고, 창을 닫아도 서버에서 계속 진행됩니다.",
+              );
               try {
-                const data = await submitRequest({ action: "run" });
-                const summary = isRunResponse(data)
-                  ? formatRunSummary(data.result)
-                  : "수집 결과를 정리했어요.";
-                setProgressPercent(100);
-                setProgressStageIndex(collectionStages.length - 1);
-                setProgressDetail("완료");
-                setRunSummary(summary);
-                setNoticeStatus("success");
-                setMessage(summary);
-                router.refresh();
+                // 202로 즉시 응답한다. 이후 진행·완료는 폴링 effect가 처리한다.
+                const response = await fetch("/api/admin/judgment-collection", {
+                  body: JSON.stringify({ action: "run" }),
+                  headers: { "Content-Type": "application/json" },
+                  method: "POST",
+                });
+                if (response.status === 409) {
+                  // 이미 실행 중이면 그 진행 상황을 그대로 보여준다.
+                  setMessage("이미 수집이 진행 중이라 현재 진행을 표시해요.");
+                  return;
+                }
+                if (!response.ok) {
+                  throw new Error("request_failed");
+                }
               } catch (_error) {
                 setProgressPercent(100);
                 setProgressStageIndex(collectionStages.length - 1);
                 setProgressDetail("실패");
                 setRunSummary(
-                  "수집을 마치지 못했어요. 잠시 후 다시 시도해 주세요.",
+                  "수집을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
                 );
                 setNoticeStatus("error");
                 setMessage(
                   "수집을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.",
                 );
-              } finally {
                 isBusyRef.current = false;
                 setIsRunning(false);
               }
@@ -338,17 +357,6 @@ export function AdminJudgmentCollectionPanel({
   );
 }
 
-function isRunResponse(value: unknown): value is RunResponse {
-  if (!isRecord(value) || !isRecord(value.result)) {
-    return false;
-  }
-  return (
-    typeof value.result.importedCount === "number" &&
-    typeof value.result.createdCount === "number" &&
-    typeof value.result.updatedCount === "number"
-  );
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -373,12 +381,15 @@ function isProgressResponse(value: unknown): value is ProgressResponse {
   }
   return (
     isRecord(value.progress) &&
+    typeof value.progress.createdCount === "number" &&
     typeof value.progress.current === "number" &&
+    typeof value.progress.importedCount === "number" &&
     typeof value.progress.message === "string" &&
     typeof value.progress.percent === "number" &&
     isProgressStage(value.progress.stage) &&
     typeof value.progress.status === "string" &&
-    typeof value.progress.total === "number"
+    typeof value.progress.total === "number" &&
+    typeof value.progress.updatedCount === "number"
   );
 }
 
@@ -392,8 +403,8 @@ function isProgressStage(value: unknown): value is ProgressStage {
   );
 }
 
-function formatRunSummary(result: RunResponse["result"]) {
-  return `수집 완료: ${result.importedCount.toLocaleString("ko-KR")}건 확인, 신규 ${result.createdCount.toLocaleString("ko-KR")}건 저장, 갱신 ${result.updatedCount.toLocaleString("ko-KR")}건`;
+function formatRunSummary(progress: CollectionProgress) {
+  return `수집 완료: ${progress.importedCount.toLocaleString("ko-KR")}건 확인, 신규 ${progress.createdCount.toLocaleString("ko-KR")}건 저장, 갱신 ${progress.updatedCount.toLocaleString("ko-KR")}건`;
 }
 
 function stageIndex(stage: ProgressStage) {

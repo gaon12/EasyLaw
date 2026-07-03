@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDatabase } from "@/lib/db";
 import {
   getJudgmentCollectionProgress,
-  runJudgmentCollection,
+  startJudgmentCollection,
   updateJudgmentCollectionSettings,
 } from "@/lib/judgment-collection";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
@@ -58,16 +58,18 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, settings });
   }
 
-  const result = await runJudgmentCollection(db, {
+  // 최초 전체 수집은 수 시간이 걸릴 수 있어 요청에 묶지 않는다.
+  // 백그라운드로 시작하고 즉시 응답하며, 진행 상황은 GET 폴링으로 확인한다.
+  const started = startJudgmentCollection(db, {
     actorUserId: user.id,
     forceRefresh: true,
     trigger: "manual",
   });
-  if (!result.ok && result.reason === "already_running") {
+  if (!started.ok) {
     return Response.json({ error: "already_running" }, { status: 409 });
   }
-  if (!result.ok) {
-    return Response.json({ error: result.reason }, { status: 500 });
-  }
-  return Response.json({ ok: true, result });
+  return Response.json(
+    { ok: true, resumed: started.resumed, runId: started.runId, started: true },
+    { status: 202 },
+  );
 }
