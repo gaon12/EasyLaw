@@ -20,12 +20,15 @@ export type LlmRequestOptions = {
 type OpenAiCompatibleRequestBody = {
   messages: LlmMessage[];
   model: string;
-  reasoning?: {
-    effort: "none";
-  };
   reasoning_effort?: "none";
   stream?: true;
   temperature: number;
+};
+
+type OpenAiCompatibleOptions = {
+  skipReasoningControl?: boolean;
+  stream?: true;
+  timeoutMs: number;
 };
 
 export class LlmError extends Error {
@@ -95,9 +98,15 @@ async function requestText(
     if (error instanceof LlmError) {
       throw error;
     }
+    if (isTimeoutError(error)) {
+      throw new LlmError(
+        "llm_request_failed",
+        "LLM API 응답 시간이 초과되었습니다. 로컬 모델이 아직 추론 중이거나 서버가 응답하지 않았습니다.",
+      );
+    }
     throw new LlmError(
       "llm_request_failed",
-      "LLM API 요청 중 네트워크 오류가 발생했습니다.",
+      "LLM API에 연결하지 못했습니다. API Base URL의 서버가 실행 중인지 확인해 주세요.",
     );
   }
 }
@@ -106,25 +115,18 @@ async function requestOpenAiCompatible(
   configuration: LlmConfiguration,
   messages: LlmMessage[],
 ) {
-  const response = await fetch(
-    new URL("chat/completions", ensureTrailingSlash(configuration.baseUrl)),
-    {
-      body: JSON.stringify({
-        ...openAiCompatibleBody(configuration, messages),
-      }),
-      headers: {
-        ...(configuration.apiKey
-          ? { Authorization: `Bearer ${configuration.apiKey}` }
-          : {}),
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      signal: AbortSignal.timeout(45_000),
-    },
-  );
+  let response = await fetchOpenAiCompatible(configuration, messages, {
+    timeoutMs: 45_000,
+  });
+  if (!response.ok && shouldRetryWithoutReasoning(response.status)) {
+    response = await fetchOpenAiCompatible(configuration, messages, {
+      skipReasoningControl: true,
+      timeoutMs: 45_000,
+    });
+  }
 
   if (!response.ok) {
-    throw requestFailed(response.status);
+    throw await requestFailed(response);
   }
 
   const payload = (await response.json()) as {
@@ -138,25 +140,20 @@ async function requestOpenAiCompatibleStream(
   messages: LlmMessage[],
   onToken: (token: string) => void,
 ) {
-  const response = await fetch(
-    new URL("chat/completions", ensureTrailingSlash(configuration.baseUrl)),
-    {
-      body: JSON.stringify({
-        ...openAiCompatibleBody(configuration, messages, { stream: true }),
-      }),
-      headers: {
-        ...(configuration.apiKey
-          ? { Authorization: `Bearer ${configuration.apiKey}` }
-          : {}),
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-      signal: AbortSignal.timeout(60_000),
-    },
-  );
+  let response = await fetchOpenAiCompatible(configuration, messages, {
+    stream: true,
+    timeoutMs: 60_000,
+  });
+  if (!response.ok && shouldRetryWithoutReasoning(response.status)) {
+    response = await fetchOpenAiCompatible(configuration, messages, {
+      skipReasoningControl: true,
+      stream: true,
+      timeoutMs: 60_000,
+    });
+  }
 
   if (!response.ok) {
-    throw requestFailed(response.status);
+    throw await requestFailed(response);
   }
   if (!response.body) {
     throw new LlmError(
@@ -296,10 +293,37 @@ async function requestAnthropicStream(
   return result;
 }
 
-function requestFailed(status: number) {
+async function requestFailed(response: Response) {
+  const status = response.status;
+  const body = await response.text().catch(() => "");
+  const suffix = body.trim() ? ` 응답: ${body.trim().slice(0, 240)}` : "";
+  if (status === 401 || status === 403) {
+    return new LlmError(
+      "llm_request_failed",
+      `LLM API 인증이 거부되었습니다(${status}). API 키와 provider 설정을 확인해 주세요.${suffix}`,
+    );
+  }
+  if (status === 404) {
+    return new LlmError(
+      "llm_request_failed",
+      `LLM API 경로 또는 모델을 찾지 못했습니다(404). API Base URL과 모델명을 확인해 주세요.${suffix}`,
+    );
+  }
+  if (status === 400 || status === 422) {
+    return new LlmError(
+      "llm_request_failed",
+      `LLM API가 요청 형식을 거부했습니다(${status}). 모델이 OpenAI 호환 chat/completions 형식을 지원하는지 확인해 주세요.${suffix}`,
+    );
+  }
+  if (status === 429) {
+    return new LlmError(
+      "llm_request_failed",
+      `LLM API 사용량 제한에 걸렸습니다(429). 잠시 후 다시 시도해 주세요.${suffix}`,
+    );
+  }
   return new LlmError(
     "llm_request_failed",
-    `LLM API가 ${status} 상태를 반환했습니다.`,
+    `LLM API가 ${status} 상태를 반환했습니다.${suffix}`,
   );
 }
 
@@ -337,28 +361,51 @@ function isAnthropic(provider: string) {
   return provider.trim().toLowerCase() === "anthropic";
 }
 
+function fetchOpenAiCompatible(
+  configuration: LlmConfiguration,
+  messages: LlmMessage[],
+  options: OpenAiCompatibleOptions,
+) {
+  return fetch(
+    new URL("chat/completions", ensureTrailingSlash(configuration.baseUrl)),
+    {
+      body: JSON.stringify(
+        openAiCompatibleBody(configuration, messages, options),
+      ),
+      headers: {
+        ...(configuration.apiKey
+          ? { Authorization: `Bearer ${configuration.apiKey}` }
+          : {}),
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      signal: AbortSignal.timeout(options.timeoutMs),
+    },
+  );
+}
+
 function openAiCompatibleBody(
   configuration: LlmConfiguration,
   messages: LlmMessage[],
-  options: { stream?: true } = {},
+  options: Pick<
+    OpenAiCompatibleOptions,
+    "skipReasoningControl" | "stream"
+  > = {},
 ): OpenAiCompatibleRequestBody {
   return {
-    ...reasoningControl(configuration),
+    ...(options.skipReasoningControl ? {} : reasoningControl(configuration)),
     messages,
     model: configuration.model,
-    ...options,
+    ...(options.stream ? { stream: true as const } : {}),
     temperature: 0.1,
   };
 }
 
 function reasoningControl(
   configuration: LlmConfiguration,
-): Pick<OpenAiCompatibleRequestBody, "reasoning" | "reasoning_effort"> {
+): Pick<OpenAiCompatibleRequestBody, "reasoning_effort"> {
   if (isOllama(configuration.provider)) {
-    return {
-      reasoning: { effort: "none" },
-      reasoning_effort: "none",
-    };
+    return { reasoning_effort: "none" };
   }
   if (canDisableGeminiThinking(configuration)) {
     return { reasoning_effort: "none" };
@@ -382,6 +429,17 @@ function canDisableGeminiThinking(configuration: LlmConfiguration) {
     provider === "google" &&
     model.includes("gemini-2.5") &&
     !model.includes("pro")
+  );
+}
+
+function shouldRetryWithoutReasoning(status: number) {
+  return status === 400 || status === 422;
+}
+
+function isTimeoutError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
   );
 }
 

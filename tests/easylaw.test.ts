@@ -1410,7 +1410,43 @@ test("ollama requests disable reasoning for thinking models", async () => {
     assert.equal(response, "빠른 답변");
     assert.equal(bodies.length, 1);
     assert.equal(bodies[0]?.reasoning_effort, "none");
-    assert.deepEqual(bodies[0]?.reasoning, { effort: "none" });
+    assert.equal("reasoning" in (bodies[0] ?? {}), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("openai-compatible requests retry without reasoning control when rejected", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<Record<string, unknown>> = [];
+  try {
+    globalThis.fetch = async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      if (bodies.length === 1) {
+        return Response.json(
+          { error: "unsupported reasoning_effort" },
+          { status: 400 },
+        );
+      }
+      return Response.json({
+        choices: [{ message: { content: "재시도 답변" } }],
+      });
+    };
+
+    const response = await requestLlmText(
+      {
+        apiKey: null,
+        baseUrl: "http://localhost:11434/v1",
+        model: "gemma4",
+        provider: "Ollama",
+      },
+      [{ content: "상계가 무슨 뜻인가요?", role: "user" }],
+    );
+
+    assert.equal(response, "재시도 답변");
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0]?.reasoning_effort, "none");
+    assert.equal("reasoning_effort" in (bodies[1] ?? {}), false);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -1544,6 +1580,10 @@ test("hypothetical legal scenarios keep their premise and require MCP-grounded a
     assert.match(
       JSON.stringify(firstRequest),
       /가상·초현실적 사실도 질문자가 정한 사실로 받아들인다/,
+    );
+    assert.match(
+      JSON.stringify(firstRequest),
+      /포션.*약사법 쟁점으로 단정하지 않는다/,
     );
     const secondRequest = mock.state.llmBodies[1];
     assert.match(JSON.stringify(secondRequest), /MCP 근거가 하나도 없다/);
