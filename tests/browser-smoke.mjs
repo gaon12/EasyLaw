@@ -955,6 +955,8 @@ try {
     .waitFor({ timeout: 15_000 });
   await page.getByRole("heading", { name: "핵심 답변" }).waitFor();
   await page.getByText("손해 자료", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Markdown" }).waitFor();
+  await page.getByRole("button", { name: "PDF" }).waitFor();
   await page.getByRole("heading", { name: "출처" }).waitFor();
   const citationButton = page.locator('button[aria-label^="E1 근거:"]');
   await citationButton.hover();

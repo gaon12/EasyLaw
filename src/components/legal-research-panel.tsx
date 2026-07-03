@@ -60,6 +60,89 @@ function readableStreamError(value: unknown) {
   return message;
 }
 
+function exportFilename(query: string, extension: "md") {
+  const title =
+    query
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "")
+      .replace(/\s+/g, "-")
+      .slice(0, 32) || "easylaw-research";
+  return `${title}.${extension}`;
+}
+
+function researchMarkdown({
+  answer,
+  evidence,
+  plan,
+  query,
+}: {
+  answer: string;
+  evidence: CitationEvidence[];
+  plan: Plan | null;
+  query: string;
+}) {
+  const sources = evidence
+    .map((item) => {
+      const url = item.url ? `\n  URL: ${item.url}` : "";
+      return `- [${item.id}] ${item.title} (${item.source}, 신뢰도 ${item.confidence})\n  ${item.summary}${url}`;
+    })
+    .join("\n");
+  return [
+    "# EasyLaw AI 답변",
+    "",
+    `질문: ${query.trim()}`,
+    plan ? `범위: ${plan.coverageLabel}` : null,
+    plan ? `쟁점: ${plan.intent}` : null,
+    "",
+    "## 답변",
+    "",
+    answer.trim(),
+    evidence.length > 0 ? "## 출처" : null,
+    evidence.length > 0 ? "" : null,
+    evidence.length > 0 ? sources : null,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
+}
+
+function downloadTextFile(filename: string, text: string, type: string) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function printPdf(markdown: string) {
+  const html = `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>EasyLaw AI 답변</title>
+  <style>
+    body { margin: 32px; color: #111; font-family: Arial, sans-serif; line-height: 1.7; }
+    pre { white-space: pre-wrap; font-family: inherit; font-size: 14px; }
+    @page { margin: 18mm; }
+  </style>
+</head>
+<body>
+  <pre>${escapeHtml(markdown)}</pre>
+  <script>window.addEventListener("load", () => window.print());</script>
+</body>
+</html>`;
+  const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 export function LegalResearchPanel({
   initialQuery = "",
 }: {
@@ -242,6 +325,27 @@ export function LegalResearchPanel({
     [activeRequest?.query, query],
   );
 
+  const exportResearch = useCallback(
+    (format: "markdown" | "pdf") => {
+      const markdown = researchMarkdown({
+        answer,
+        evidence,
+        plan,
+        query: activeRequest?.query ?? query,
+      });
+      if (format === "markdown") {
+        downloadTextFile(
+          exportFilename(activeRequest?.query ?? query, "md"),
+          markdown,
+          "text/markdown;charset=utf-8",
+        );
+        return;
+      }
+      printPdf(markdown);
+    },
+    [activeRequest?.query, answer, evidence, plan, query],
+  );
+
   return (
     <div className={styles.researchShell}>
       <section className={styles.researchSearchPanel}>
@@ -321,7 +425,20 @@ export function LegalResearchPanel({
 
             {answer && (
               <section className={styles.aiAnswerBlock}>
-                <h3>AI 답변</h3>
+                <div className={styles.aiAnswerHeader}>
+                  <h3>AI 답변</h3>
+                  <div className={styles.aiExportActions}>
+                    <button
+                      onClick={() => exportResearch("markdown")}
+                      type="button"
+                    >
+                      Markdown
+                    </button>
+                    <button onClick={() => exportResearch("pdf")} type="button">
+                      PDF
+                    </button>
+                  </div>
+                </div>
                 <ResearchMarkdown answer={answer} evidence={evidence} />
                 {status === "loading" && (
                   <span
@@ -363,7 +480,20 @@ export function LegalResearchPanel({
         {!plan && answer && (
           <article className={styles.aiOverviewCard}>
             <section className={styles.aiAnswerBlock}>
-              <h3>AI 답변</h3>
+              <div className={styles.aiAnswerHeader}>
+                <h3>AI 답변</h3>
+                <div className={styles.aiExportActions}>
+                  <button
+                    onClick={() => exportResearch("markdown")}
+                    type="button"
+                  >
+                    Markdown
+                  </button>
+                  <button onClick={() => exportResearch("pdf")} type="button">
+                    PDF
+                  </button>
+                </div>
+              </div>
               <ResearchMarkdown answer={answer} evidence={evidence} />
             </section>
           </article>

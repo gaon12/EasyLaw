@@ -1058,9 +1058,9 @@
 .researchSearchPanel h1 {
   color: var(--fg-strong);
   font-family: var(--font-display);
-  font-size: clamp(30px, 4vw, 42px);
+  font-size: 42px;
   line-height: 1.16;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
 }
 
 .researchSearchPanel p {
@@ -1077,9 +1077,8 @@
   margin-top: 8px;
   padding: 10px;
   border: 1px solid var(--border-default);
-  border-radius: 28px;
+  border-radius: 0;
   background: var(--bg-surface);
-  box-shadow: var(--shadow-soft);
 }
 
 .researchSearchForm textarea {
@@ -1102,7 +1101,7 @@
 
 .researchSearchForm button {
   min-width: 96px;
-  border-radius: var(--radius-full);
+  border-radius: 0;
 }
 
 .aiOverview {
@@ -1113,7 +1112,7 @@
 .aiOverviewEmpty,
 .aiOverviewCard {
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-8);
+  border-radius: 0;
   background: var(--bg-surface);
 }
 
@@ -1135,15 +1134,7 @@
 }
 
 .aiOverviewCard {
-  overflow: hidden;
   padding: 0;
-}
-
-.aiOverviewCard::before {
-  display: block;
-  height: 4px;
-  background: var(--fg-strong);
-  content: "";
 }
 
 .aiOverviewHeader {
@@ -1164,9 +1155,10 @@
 }
 
 .aiOverviewHeader .badge {
-  border-radius: var(--radius-8);
-  background: var(--fg-strong);
-  color: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 0;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
 }
 
 .aiLevel {
@@ -1192,9 +1184,10 @@
   display: inline-flex;
   align-items: center;
   min-height: 30px;
-  border-radius: var(--radius-8);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
   padding: 0 12px;
-  background: var(--bg-muted);
+  background: var(--bg-surface);
   color: var(--fg-secondary);
   font-size: 13px;
   font-weight: 700;
@@ -1207,10 +1200,9 @@
   gap: 14px;
   padding: 15px 16px;
   border: 1px solid var(--border-subtle);
-  border-left: 4px solid var(--bg-brand);
-  border-radius: var(--radius-8);
+  border-radius: 0;
   background: var(--bg-surface);
-  color: var(--fg-brand);
+  color: var(--fg-strong);
 }
 
 .aiSearchSpinner {
@@ -1245,12 +1237,44 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.aiAnswerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
 .aiAnswerBlock h3,
 .aiSources h3 {
-  margin-bottom: 10px;
   color: var(--fg-strong);
   font-size: 18px;
   font-weight: 850;
+}
+
+.aiExportActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.aiExportActions button {
+  min-height: 34px;
+  border: 1px solid var(--border-default);
+  border-radius: 0;
+  padding: 0 12px;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.aiExportActions button + button {
+  border-left: 0;
+}
+
+.aiExportActions button:hover {
+  background: var(--bg-muted);
 }
 
 .aiStreamingCursor {
@@ -1258,7 +1282,6 @@
   height: 18px;
   display: inline-block;
   margin-left: 3px;
-  border-radius: var(--radius-full);
   background: var(--fg-brand);
   vertical-align: text-bottom;
   animation: aiCursorBlink 880ms steps(2, start) infinite;
@@ -1545,7 +1568,7 @@
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-8);
+  border-radius: 0;
   background: var(--bg-surface);
 }
 
@@ -1554,9 +1577,10 @@
   height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  background: var(--bg-brand);
-  color: white;
+  border: 1px solid var(--border-default);
+  border-radius: 0;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
   font-size: 12px;
   font-weight: 800;
 }
@@ -1603,10 +1627,11 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
   padding: 8px 12px;
-  background: var(--bg-brand-subtle);
-  color: var(--fg-brand);
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
   font-size: 13px;
   font-weight: 800;
 }
@@ -1614,7 +1639,6 @@
 .aiStreamingNotice span {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
   background: currentColor;
 }
 
@@ -4816,11 +4840,15 @@
 
   .researchSearchForm {
     grid-template-columns: 1fr;
-    border-radius: var(--radius-16);
+    border-radius: 0;
   }
 
   .researchSearchForm button {
     width: 100%;
+  }
+
+  .researchSearchPanel h1 {
+    font-size: 34px;
   }
 
   .shortcutGrid,
