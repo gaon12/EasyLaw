@@ -335,16 +335,74 @@ function answerSections(plan: Omit<ResearchPlan, "answer" | "evidence">) {
 }
 
 function parseJsonResponse<T>(response: string, schema: z.ZodType<T>): T {
-  const fenced = response.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
-  const candidate =
-    fenced ??
-    response.slice(response.indexOf("{"), response.lastIndexOf("}") + 1);
-  try {
-    return schema.parse(JSON.parse(candidate));
-  } catch {
-    throw new LlmError(
-      "llm_response_invalid",
-      "LLM이 올바른 구조의 응답을 반환하지 않았습니다.",
-    );
+  for (const candidate of jsonCandidates(response)) {
+    try {
+      return schema.parse(JSON.parse(candidate));
+    } catch {
+      // 다음 후보 시도
+    }
   }
+  throw new LlmError(
+    "llm_response_invalid",
+    "LLM이 올바른 구조의 응답을 반환하지 않았습니다.",
+  );
+}
+
+/**
+ * 로컬 모델은 JSON 앞뒤에 사고 과정이나 설명을 붙이는 경우가 많다.
+ * think 블록을 제거하고 코드펜스·중괄호 범위 등 여러 후보를 차례로
+ * 파싱해 본다.
+ */
+function jsonCandidates(response: string) {
+  const cleaned = response
+    .replaceAll(/<think>[\s\S]*?<\/think>/gi, "")
+    .replaceAll(/<\/?think>/gi, "")
+    .trim();
+  const candidates: string[] = [];
+  for (const match of cleaned.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    candidates.push(match[1].trim());
+  }
+  const first = cleaned.indexOf("{");
+  if (first !== -1) {
+    const balanced = extractBalancedObject(cleaned, first);
+    if (balanced) {
+      candidates.push(balanced);
+    }
+    const last = cleaned.lastIndexOf("}");
+    if (last > first) {
+      candidates.push(cleaned.slice(first, last + 1));
+    }
+  }
+  candidates.push(cleaned);
+  return candidates;
+}
+
+function extractBalancedObject(text: string, start: number) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(start, index + 1);
+      }
+    }
+  }
+  return null;
 }

@@ -152,22 +152,43 @@ export async function buildResearchPlan(
   }
 
   onEvent?.({ phase: "connecting", type: "phase" });
-  const toolbox = mergeToolboxes(
-    await connectMcpToolbox(db),
-    createLocalLegalToolbox(db),
-  );
   try {
-    return await runDeepToolLoop(
-      configuration,
-      toolbox,
-      plan,
-      onEvent,
-      (updated) => {
-        plan = updated;
-      },
+    const toolbox = mergeToolboxes(
+      await connectMcpToolbox(db),
+      createLocalLegalToolbox(db),
     );
-  } finally {
-    await toolbox.close();
+    try {
+      return await runDeepToolLoop(
+        configuration,
+        toolbox,
+        plan,
+        onEvent,
+        (updated) => {
+          plan = updated;
+        },
+      );
+    } finally {
+      await toolbox.close();
+    }
+  } catch (error) {
+    // 모델이 검증 하네스의 JSON 형식을 지키지 못하면 오류로 끝내지 않고
+    // answer-first 오버뷰로 전환해 어떻게든 답을 준다.
+    if (!(error instanceof LlmError) || error.code !== "llm_response_invalid") {
+      throw error;
+    }
+    onEvent?.({
+      message:
+        "모델이 심층 검증 형식을 지키지 못해 일반 오버뷰로 전환했어요. 더 정밀한 검토가 필요하면 다른 모델로 다시 시도해 주세요.",
+      type: "warning",
+    });
+    const fallbackPlan: PlanDraft = {
+      ...plan,
+      coverageLabel: researchModeLabel("overview"),
+      mode: "overview",
+      steps: stepsForResearchMode("overview"),
+    };
+    onEvent?.({ plan: fallbackPlan, type: "plan" });
+    return runAnswerFirstOverview(db, configuration, fallbackPlan, onEvent);
   }
 }
 

@@ -2046,6 +2046,46 @@ test("deep research keeps its overview when verification fails", async () => {
   }
 });
 
+test("deep research falls back to the overview path when the model breaks the JSON contract", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    seedExternalFixture(db);
+    setSetting(db, "llm_provider", "Ollama");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "gemma4");
+    const mock = createResearchFetchMock({
+      llmResponses: [
+        // 심층 검증 결정이 JSON이 아니어도 오류로 끝나면 안 된다.
+        "죄송하지만 JSON 형식으로 답변드리기 어렵습니다.",
+        "일반적으로 무면허 운전은 도로교통법 위반으로 다뤄질 수 있습니다.",
+        "관련 판례에서 처벌 기준이 확인됩니다. [E1]",
+      ],
+    });
+    globalThis.fetch = mock.fetch;
+
+    const warnings: string[] = [];
+    const result = await buildResearchPlan(
+      db,
+      "영업정지 처분을 받았는데 형사 처벌도 받나요?",
+      (event) => {
+        if (event.type === "warning") {
+          warnings.push(event.message);
+        }
+      },
+    );
+
+    assert.equal(result.mode, "overview");
+    assert.match(result.answer, /무면허 운전|도로교통법/);
+    assert.ok(warnings.some((message) => message.includes("일반 오버뷰")));
+    // 실패한 결정 1회 + 초안 + 근거 확인 = 3회.
+    assert.equal(mock.state.llmRequests, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
 test("the rule-based router classifies queries without an LLM call", () => {
   // 용어·개념 질문은 quick.
   assert.equal(routeResearchQuery("상계가 무슨 뜻인가요?").mode, "quick");
