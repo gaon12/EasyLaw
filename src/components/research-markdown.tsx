@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import styles from "@/app/page.module.css";
 
 export type CitationEvidence = {
@@ -85,7 +87,8 @@ export function ResearchMarkdown({
               );
             },
           }}
-          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeKatex]}
+          remarkPlugins={[remarkGfm, remarkMath]}
         >
           {markdown}
         </ReactMarkdown>

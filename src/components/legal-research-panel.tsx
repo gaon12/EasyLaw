@@ -73,6 +73,10 @@ function exportFilename(query: string, extension: "md") {
   return `${title}.${extension}`;
 }
 
+function documentTitle(query: string) {
+  return query.trim() || "EasyLaw AI 답변";
+}
+
 function researchMarkdown({
   answer,
   evidence,
@@ -125,20 +129,81 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
-function printPdf(markdown: string) {
+function sourceHtml(evidence: CitationEvidence[]) {
+  if (evidence.length === 0) {
+    return "";
+  }
+  const items = evidence
+    .map(
+      (item) => `<article>
+  <strong>${escapeHtml(item.id)}. ${escapeHtml(item.title)}</strong>
+  <small>${escapeHtml(item.source)} · 신뢰도 ${escapeHtml(item.confidence)}</small>
+  <p>${escapeHtml(item.summary)}</p>
+  ${
+    item.url
+      ? `<p><a href="${escapeHtml(item.url)}">${escapeHtml(item.url)}</a></p>`
+      : ""
+  }
+</article>`,
+    )
+    .join("\n");
+  return `<section class="print-sources"><h2>출처</h2>${items}</section>`;
+}
+
+function printableStyles() {
+  const stylesheets = [...document.querySelectorAll("link[rel='stylesheet']")]
+    .map((link) => {
+      const href = link.getAttribute("href");
+      return href ? `<link rel="stylesheet" href="${escapeHtml(href)}" />` : "";
+    })
+    .join("\n");
+  const inlineStyles = [...document.querySelectorAll("style")]
+    .map((style) => style.outerHTML)
+    .join("\n");
+  return `${stylesheets}\n${inlineStyles}`;
+}
+
+function printPdf({
+  renderedHtml,
+  title,
+}: {
+  renderedHtml: string;
+  title: string;
+}) {
   const html = `<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>EasyLaw AI 답변</title>
+  <title>${escapeHtml(title)}</title>
+  ${printableStyles()}
   <style>
-    body { margin: 32px; color: #111; font-family: Arial, sans-serif; line-height: 1.7; }
-    pre { white-space: pre-wrap; font-family: inherit; font-size: 14px; }
+    body { margin: 0; background: #fff; color: #111; font-family: Arial, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 0; }
+    header { margin-bottom: 24px; border-bottom: 1px solid #111; padding-bottom: 14px; }
+    header h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.35; }
+    header p { margin: 0; color: #555; font-size: 13px; line-height: 1.55; }
+    .print-answer { font-size: 14px; line-height: 1.75; }
+    .print-answer button { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; }
+    .print-answer [role="tooltip"] { display: none; }
+    .print-answer table { width: 100%; border-collapse: collapse; }
+    .print-answer th, .print-answer td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    .print-sources { margin-top: 28px; border-top: 1px solid #ddd; padding-top: 18px; }
+    .print-sources h2 { margin: 0 0 12px; font-size: 16px; }
+    .print-sources article { break-inside: avoid; margin-top: 12px; }
+    .print-sources strong, .print-sources small { display: block; }
+    .print-sources small { color: #666; }
+    .print-sources p { margin: 4px 0 0; }
     @page { margin: 18mm; }
   </style>
 </head>
 <body>
-  <pre>${escapeHtml(markdown)}</pre>
+  <main>
+    <header>
+      <h1>EasyLaw AI 답변</h1>
+      <p>${escapeHtml(title)}</p>
+    </header>
+    ${renderedHtml}
+  </main>
   <script>window.addEventListener("load", () => window.print());</script>
 </body>
 </html>`;
@@ -167,6 +232,7 @@ export function LegalResearchPanel({
   const [status, setStatus] = useState<
     "idle" | "loading" | "done" | "error" | "captcha"
   >(initialQuery ? "loading" : "idle");
+  const renderedAnswerRef = useRef<HTMLDivElement>(null);
   const submitGuardRef = useRef(false);
 
   const applyServerEvent = useCallback((eventText: string) => {
@@ -344,7 +410,14 @@ export function LegalResearchPanel({
         );
         return;
       }
-      printPdf(markdown);
+      const renderedAnswer = renderedAnswerRef.current?.innerHTML;
+      if (!renderedAnswer) {
+        return;
+      }
+      printPdf({
+        renderedHtml: `<section class="print-answer">${renderedAnswer}</section>${sourceHtml(evidence)}`,
+        title: documentTitle(activeRequest?.query ?? query),
+      });
     },
     [activeRequest?.query, answer, evidence, plan, query],
   );
@@ -353,8 +426,10 @@ export function LegalResearchPanel({
     <div className={styles.researchShell}>
       <section className={styles.researchSearchPanel}>
         <span className={styles.previewLabel}>EasyLaw AI</span>
-        <h1>AI 법률 질문</h1>
-        <p>궁금한 상황을 검색하듯 입력하면 AI 답변과 출처를 함께 보여줘요.</p>
+        <h1 data-i18n="research.title">AI 법률 질문</h1>
+        <p data-i18n="research.description">
+          궁금한 상황을 검색하듯 입력하면 AI 답변과 출처를 함께 보여줘요.
+        </p>
         <form
           className={styles.researchSearchForm}
           onSubmit={(event) => {
@@ -442,7 +517,9 @@ export function LegalResearchPanel({
                     </button>
                   </div>
                 </div>
-                <ResearchMarkdown answer={answer} evidence={evidence} />
+                <div ref={renderedAnswerRef}>
+                  <ResearchMarkdown answer={answer} evidence={evidence} />
+                </div>
                 {status === "loading" && (
                   <span
                     aria-hidden="true"
@@ -497,7 +574,9 @@ export function LegalResearchPanel({
                   </button>
                 </div>
               </div>
-              <ResearchMarkdown answer={answer} evidence={evidence} />
+              <div ref={renderedAnswerRef}>
+                <ResearchMarkdown answer={answer} evidence={evidence} />
+              </div>
             </section>
           </article>
         )}

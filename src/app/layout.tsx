@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { ReadingProgress } from "@/components/reading-progress";
 import { TermExplainer } from "@/components/term-explainer";
 import { getSiteUrl, siteDescription, siteName } from "@/lib/metadata";
+import "katex/dist/katex.min.css";
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 
 const siteUrl = getSiteUrl();
