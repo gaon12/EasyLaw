@@ -40,6 +40,8 @@ import {
   updateDictionarySource,
   updateOpenLawLegalDictionary,
 } from "../src/lib/dictionary";
+import { sampleAnalysis } from "../src/lib/easyread";
+import { processGenerationJob } from "../src/lib/easyread-generation";
 import {
   ensurePublicJudgmentOriginalText,
   mergeExternalFirst,
@@ -48,8 +50,10 @@ import {
 } from "../src/lib/external-law";
 import { listIntegrationEvents } from "../src/lib/integration-events";
 import {
+  approveGenerationJob,
   completeGenerationJob,
   createOrAttachGenerationJob,
+  rejectGenerationJob,
 } from "../src/lib/jobs";
 import {
   getJudgmentCollectionProgress,
@@ -60,6 +64,10 @@ import {
 } from "../src/lib/judgment-collection";
 import { parseJudgmentDocument } from "../src/lib/judgment-document";
 import { extractRelatedCaseReferences } from "../src/lib/judgment-relations";
+import {
+  searchJudgmentTexts,
+  setJudgmentText,
+} from "../src/lib/judgment-texts";
 import { resetLegalData } from "../src/lib/legal-data-maintenance";
 import { buildResearchPlan } from "../src/lib/legal-research";
 import { requestLlmText } from "../src/lib/llm-client";
@@ -68,7 +76,11 @@ import {
   createLoginChallenge,
 } from "../src/lib/login-challenge";
 import { sendReadyNotifications } from "../src/lib/notifications";
+import { isOrganizationMember } from "../src/lib/organizations";
 import {
+  getAccessibleUserJudgmentById,
+  getLatestAnalysis,
+  getOrganizationSharedJudgments,
   getPublicJudgmentByIdentifier,
   getPublicJudgments,
 } from "../src/lib/queries";
@@ -427,7 +439,11 @@ test("generation jobs dedupe and notification sending is idempotent", async () =
     assert.equal(firstJobId, secondJobId);
 
     let sentCount = 0;
-    await completeGenerationJob(db, firstJobId);
+    await completeGenerationJob(db, firstJobId, {
+      analysis: sampleAnalysis,
+      modelName: "test-model",
+      promptVersion: "easyread-test",
+    });
     const sentAgain = await sendReadyNotifications(db, firstJobId, {
       async send() {
         sentCount += 1;
@@ -442,6 +458,210 @@ test("generation jobs dedupe and notification sending is idempotent", async () =
       .get();
     assert.equal(notification?.status, "sent");
   } finally {
+    cleanup();
+  }
+});
+
+test("judgment full-text search finds documents by body keywords", () => {
+  const { db, cleanup } = withDb();
+  try {
+    seedExternalFixture(db);
+    const hits = searchJudgmentTexts(db, "영업정지");
+    assert.ok(hits.length >= 1, "FTS should match 원문 keywords");
+    assert.match(hits[0].snippet, /영업정지/);
+
+    const row = db
+      .prepare<[string], { case_number: string }>(
+        "SELECT case_number FROM judgments WHERE id = ?",
+      )
+      .get(hits[0].judgmentId);
+    assert.equal(row?.case_number, "2023구합54112");
+
+    // 2자 토큰은 unicode61 단어 인덱스의 접두 매칭으로 찾는다.
+    assert.ok(searchJudgmentTexts(db, "비례").length >= 1);
+    assert.ok(searchJudgmentTexts(db, "처분").length >= 1);
+
+    // 원문 수정 시 트리거로 인덱스가 갱신되어야 한다.
+    setJudgmentText(db, hits[0].judgmentId, "완전히 다른 내용의 문서입니다.");
+    assert.equal(searchJudgmentTexts(db, "영업정지").length, 0);
+    assert.ok(searchJudgmentTexts(db, "완전히").length >= 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("easy-read generation produces a grounded analysis via the LLM", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    seedExternalFixture(db);
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "test-model");
+    setSetting(db, "llm_api_key", "test-key", true);
+
+    const judgment = getPublicJudgments(db)[0];
+    const jobId = createOrAttachGenerationJob(db, judgment.id);
+    const analysisJson = JSON.stringify({
+      summary: "법원은 영업정지 처분을 취소했습니다.",
+      easyRead: ["원고가 처분 취소를 청구했습니다.", "법원이 받아들였습니다."],
+      timeline: ["처분", "소송", "판결"],
+      claims: ["원고는 처분이 위법하다고 주장했습니다."],
+      courtReasoning: ["법원은 비례 원칙 위반을 인정했습니다."],
+      finalResult: "처분은 취소됩니다.",
+      terms: [{ term: "처분", explanation: "행정기관의 결정입니다." }],
+      sourceGrounds: [
+        { label: "결론", excerpt: "원고는 영업정지 처분의 취소를 구하였고" },
+      ],
+      unknowns: ["항소 여부는 알 수 없습니다."],
+      warnings: [],
+    });
+    globalThis.fetch = async () =>
+      new Response(
+        `data: ${JSON.stringify({ choices: [{ delta: { content: analysisJson } }] })}\n\ndata: [DONE]\n\n`,
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+
+    const result = await processGenerationJob(db, jobId);
+    assert.equal(result.ok, true);
+
+    const analysis = getLatestAnalysis(db, judgment.id);
+    assert.ok(analysis);
+    assert.match(analysis.summary, /영업정지/);
+    assert.ok(
+      analysis.warnings.some((warning) => warning.includes("법률자문")),
+      "generated analysis must keep the legal-advice disclaimer",
+    );
+    const storedJob = db
+      .prepare<[string], { status: string }>(
+        "SELECT status FROM judgment_generation_jobs WHERE id = ?",
+      )
+      .get(jobId);
+    assert.equal(storedJob?.status, "ready");
+    const storedResult = db
+      .prepare<[], { model_name: string | null; confidence_label: string }>(
+        "SELECT model_name, confidence_label FROM analysis_results LIMIT 1",
+      )
+      .get();
+    assert.equal(storedResult?.model_name, "test-model");
+    assert.equal(storedResult?.confidence_label, "ai_generated");
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("organization sharing scopes user documents to members", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const owner = ensureUser(db, "org-owner@example.com");
+    const member = ensureUser(db, "org-member@example.com");
+    const outsider = ensureUser(db, "org-outsider@example.com");
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO organizations (id, name, slug, owner_user_id, created_at, updated_at)
+        VALUES ('org_share_test', '테스트 조직', 'share-test', ?, ?, ?)`,
+    ).run(owner.id, now, now);
+    db.prepare(
+      `INSERT INTO organization_members (id, organization_id, user_id, role, created_at)
+        VALUES ('org_share_member', 'org_share_test', ?, 'member', ?)`,
+    ).run(member.id, now);
+    db.prepare(
+      `INSERT INTO judgments
+        (id, case_number, court_name, decided_on, title, case_type, status,
+         visibility, source_provider, source_external_id, source_trust,
+         created_by_user_id, created_at, updated_at)
+       VALUES ('org-share-doc', '사용자 입력', '직접 입력', '2026-01-01',
+         '조직 공유 문서', 'custom', 'pending', 'private', 'user-paste',
+         'org-share-doc', 'user_uploaded', ?, ?, ?)`,
+    ).run(owner.id, now, now);
+    setJudgmentText(db, "org-share-doc", "조직 공유 테스트 본문입니다.");
+
+    assert.equal(isOrganizationMember(db, "org_share_test", owner.id), true);
+    assert.equal(isOrganizationMember(db, "org_share_test", member.id), true);
+    assert.equal(
+      isOrganizationMember(db, "org_share_test", outsider.id),
+      false,
+    );
+
+    // 공유 전에는 만든 사람만 접근할 수 있다.
+    assert.ok(getAccessibleUserJudgmentById(db, "org-share-doc", owner.id));
+    assert.equal(
+      getAccessibleUserJudgmentById(db, "org-share-doc", member.id),
+      null,
+    );
+
+    db.prepare(
+      `UPDATE judgments
+        SET visibility = 'organization', organization_id = 'org_share_test'
+        WHERE id = 'org-share-doc'`,
+    ).run();
+
+    assert.ok(getAccessibleUserJudgmentById(db, "org-share-doc", owner.id));
+    assert.ok(getAccessibleUserJudgmentById(db, "org-share-doc", member.id));
+    assert.equal(
+      getAccessibleUserJudgmentById(db, "org-share-doc", outsider.id),
+      null,
+    );
+
+    const shared = getOrganizationSharedJudgments(db, member.id);
+    assert.equal(shared.length, 1);
+    assert.equal(shared[0].id, "org-share-doc");
+    assert.equal(shared[0].organizationName, "테스트 조직");
+    assert.equal(getOrganizationSharedJudgments(db, outsider.id).length, 0);
+  } finally {
+    cleanup();
+  }
+});
+
+test("review-required generations stay hidden until approved", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    seedExternalFixture(db);
+    setSetting(db, "llm_provider", "OpenAI");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "test-model");
+    setSetting(db, "llm_api_key", "test-key", true);
+    setSetting(db, "easyread_review_required", "1");
+
+    const judgment = getPublicJudgments(db)[0];
+    const jobId = createOrAttachGenerationJob(db, judgment.id);
+    const analysisJson = JSON.stringify({
+      summary: "검토 대기 요약입니다.",
+      easyRead: ["첫 번째 설명입니다."],
+      finalResult: "결론입니다.",
+    });
+    globalThis.fetch = async () =>
+      new Response(
+        `data: ${JSON.stringify({ choices: [{ delta: { content: analysisJson } }] })}\n\ndata: [DONE]\n\n`,
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+
+    const result = await processGenerationJob(db, jobId);
+    assert.equal(result.ok, true);
+
+    const jobStatus = () =>
+      db
+        .prepare<[string], { status: string }>(
+          "SELECT status FROM judgment_generation_jobs WHERE id = ?",
+        )
+        .get(jobId)?.status;
+    assert.equal(jobStatus(), "needs_review");
+    assert.equal(
+      getLatestAnalysis(db, judgment.id),
+      null,
+      "unreviewed analysis must stay hidden",
+    );
+
+    assert.equal(await approveGenerationJob(db, jobId), true);
+    assert.equal(jobStatus(), "ready");
+    assert.ok(getLatestAnalysis(db, judgment.id));
+
+    // 반려는 needs_review 상태에서만 가능하다.
+    assert.equal(rejectGenerationJob(db, jobId, "이미 승인됨"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
     cleanup();
   }
 });
@@ -488,11 +708,12 @@ test("judgment bookmarks are scoped to accessible user documents", () => {
       `INSERT INTO judgments
         (id, case_number, court_name, decided_on, title, case_type, status,
          visibility, source_provider, source_external_id, source_trust,
-         original_text, created_by_user_id, created_at, updated_at)
+         created_by_user_id, created_at, updated_at)
        VALUES ('private-bookmark-test', '사용자 입력', '직접 입력', '2026-01-01',
          '내 비공개 문서', 'custom', 'pending', 'private', 'user-paste',
-         'private-bookmark-test', 'user_uploaded', '본문', ?, ?, ?)`,
+         'private-bookmark-test', 'user_uploaded', ?, ?, ?)`,
     ).run(user.id, now, now);
+    setJudgmentText(db, "private-bookmark-test", "본문");
 
     assert.deepEqual(
       addJudgmentBookmark(db, {
@@ -1386,15 +1607,20 @@ test("legal research harness assigns coverage and evidence", async () => {
   }
 });
 
+function sseChatResponse(content: string) {
+  return new Response(
+    `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\ndata: [DONE]\n\n`,
+    { headers: { "Content-Type": "text/event-stream" } },
+  );
+}
+
 test("ollama requests disable reasoning for thinking models", async () => {
   const originalFetch = globalThis.fetch;
   const bodies: Array<Record<string, unknown>> = [];
   try {
     globalThis.fetch = async (_input, init) => {
       bodies.push(JSON.parse(String(init?.body)));
-      return Response.json({
-        choices: [{ message: { content: "빠른 답변" } }],
-      });
+      return sseChatResponse("빠른 답변");
     };
 
     const response = await requestLlmText(
@@ -1403,6 +1629,7 @@ test("ollama requests disable reasoning for thinking models", async () => {
         baseUrl: "http://localhost:11434/v1",
         model: "gemma4",
         provider: "Ollama",
+        totalTimeoutMs: 10_000,
       },
       [{ content: "상계가 무슨 뜻인가요?", role: "user" }],
     );
@@ -1410,6 +1637,7 @@ test("ollama requests disable reasoning for thinking models", async () => {
     assert.equal(response, "빠른 답변");
     assert.equal(bodies.length, 1);
     assert.equal(bodies[0]?.reasoning_effort, "none");
+    assert.equal(bodies[0]?.stream, true);
     assert.equal("reasoning" in (bodies[0] ?? {}), false);
   } finally {
     globalThis.fetch = originalFetch;
@@ -1428,9 +1656,7 @@ test("openai-compatible requests retry without reasoning control when rejected",
           { status: 400 },
         );
       }
-      return Response.json({
-        choices: [{ message: { content: "재시도 답변" } }],
-      });
+      return sseChatResponse("재시도 답변");
     };
 
     const response = await requestLlmText(
@@ -1439,6 +1665,7 @@ test("openai-compatible requests retry without reasoning control when rejected",
         baseUrl: "http://localhost:11434/v1",
         model: "gemma4",
         provider: "Ollama",
+        totalTimeoutMs: 10_000,
       },
       [{ content: "상계가 무슨 뜻인가요?", role: "user" }],
     );
@@ -1570,7 +1797,11 @@ test("hypothetical legal scenarios keep their premise and require MCP-grounded a
     assert.deepEqual(result.assumptions, assumptions);
     assert.deepEqual(result.legalIssues, legalIssues);
     assert.equal(mock.state.toolCalls, 4);
-    assert.equal(new Set(mock.state.toolArguments.map(JSON.stringify)).size, 4);
+    assert.equal(
+      new Set(mock.state.toolArguments.map((value) => JSON.stringify(value)))
+        .size,
+      4,
+    );
     assert.equal(mock.state.llmRequests, 7);
     assert.doesNotMatch(result.answer, /자연인이 아니므로.*처벌할 수 없습니다/);
     assert.match(result.answer, /처벌 가능성이 높습니다/);
@@ -1812,11 +2043,9 @@ test("local legal research returns the grounded draft without extra composition"
 
     assert.equal(result.mode, "overview");
     assert.match(result.answer, /교환계약/);
+    // 로컬 모델은 결정 1회 + 답변 1회로 끝나야 한다(문단별 재생성·검증 패스 없음).
+    // 전송 계층은 항상 스트리밍이므로 요청 횟수로 확인한다.
     assert.equal(mock.state.llmRequests, 2);
-    assert.ok(
-      mock.state.llmBodies.every((body) => body.stream !== true),
-      "local research should avoid the extra streaming composition pass",
-    );
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();

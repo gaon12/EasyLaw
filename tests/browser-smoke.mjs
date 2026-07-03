@@ -3,7 +3,7 @@ import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import Database from "better-sqlite3";
 import { generate } from "otplib";
 import { chromium } from "playwright";
@@ -246,21 +246,30 @@ function cleanupTempDir() {
 function seedBrowserJudgment(databasePath) {
   const db = new Database(databasePath);
   try {
+    db.prepare("ATTACH DATABASE ? AS corpus").run(
+      join(dirname(databasePath), "legal-corpus.sqlite"),
+    );
     const now = new Date().toISOString();
     db.prepare(
       `INSERT OR IGNORE INTO judgments
         (id, case_number, court_name, decided_on, title, case_type, status,
          visibility, source_provider, source_external_id, source_url,
-         source_trust, source_summary, original_text, created_at, updated_at)
+         source_trust, source_summary, created_at, updated_at)
        VALUES
         ('browser_judgment_1', '2024가단100', '서울중앙지방법원',
          '2024-02-20', '손해배상 청구 사건', 'civil', 'pending',
          'public', 'browser-fixture', 'browser-fixture-1',
          'https://example.test/judgment/browser-fixture',
          'external_verified', '손해배상 청구의 요건과 입증 자료를 다룬 판결입니다.',
-         '원고는 손해배상을 청구하였고 법원은 손해 발생과 인과관계를 중심으로 판단하였습니다.',
          ?, ?)`,
     ).run(now, now);
+    db.prepare(
+      `INSERT OR IGNORE INTO corpus.judgment_texts
+        (judgment_id, original_text, updated_at)
+       VALUES ('browser_judgment_1',
+         '원고는 손해배상을 청구하였고 법원은 손해 발생과 인과관계를 중심으로 판단하였습니다.',
+         ?)`,
+    ).run(now);
   } finally {
     db.close();
   }
@@ -550,12 +559,15 @@ try {
   ) {
     throw new Error("LLM API preset did not update the base URL.");
   }
-  if ((await page.getByLabel("모델").inputValue()) !== "gemini-3.5-flash") {
+  if (
+    (await page.getByLabel("모델", { exact: true }).inputValue()) !==
+    "gemini-3.5-flash"
+  ) {
     throw new Error("LLM API preset did not update the model.");
   }
   await page.getByLabel("공급자").fill("Test LLM");
   await page.getByLabel("API Base URL").fill(llmBaseUrl);
-  await page.getByLabel("모델").fill("test-model");
+  await page.getByLabel("모델", { exact: true }).fill("test-model");
   await page.getByLabel("API Key").fill("browser-test-key");
   await page.getByRole("button", { name: "설정 저장" }).click();
   await page.getByText("설정을 저장했어요", { exact: false }).waitFor();
@@ -929,15 +941,33 @@ try {
   }
   const navItems = anonymousPage.locator("nav a");
   for (let index = 0; index < (await navItems.count()); index += 1) {
-    const lineHeight = await navItems.nth(index).evaluate((item) => {
-      const style = getComputedStyle(item);
+    const rendered = await navItems.nth(index).evaluate((item) => {
+      const range = document.createRange();
+      range.selectNodeContents(item);
+      const tops = [];
+      for (const rect of range.getClientRects()) {
+        if (rect.width > 1 && rect.height > 1) {
+          tops.push(rect.top);
+        }
+      }
+      tops.sort((left, right) => left - right);
+      // 같은 줄의 인라인 박스는 top이 서브픽셀 수준으로만 다르므로
+      // 반 줄(8px) 이상 벌어진 경우만 새 줄로 센다.
+      let lines = tops.length > 0 ? 1 : 0;
+      for (let i = 1; i < tops.length; i += 1) {
+        if (tops[i] - tops[i - 1] > 8) {
+          lines += 1;
+        }
+      }
       return {
-        height: item.getBoundingClientRect().height,
-        lineHeight: Number.parseFloat(style.lineHeight),
+        label: (item.textContent ?? "").trim().slice(0, 40),
+        lines,
       };
     });
-    if (lineHeight.height > lineHeight.lineHeight * 1.5) {
-      throw new Error("A mobile navigation item wrapped onto multiple lines.");
+    if (rendered.lines > 1) {
+      throw new Error(
+        `A mobile navigation item wrapped onto multiple lines: "${rendered.label}" (${rendered.lines} lines)`,
+      );
     }
   }
   await anonymousContext.close();
