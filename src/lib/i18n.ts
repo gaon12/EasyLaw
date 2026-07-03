@@ -18,7 +18,7 @@ export const translations = {
     "footer.disclaimer":
       "EasyLaw는 판결문 이해를 돕는 서비스예요. 법률 자문을 대체하지 않으며, 중요한 판단은 변호사 등 전문가와 확인해 주세요.",
     "home.hero.lede":
-      "어려운 판결문을 결론, 판단 이유, 법률 용어, 주의할 점으로 나눠 읽습니다. 한 화면에 모든 설명을 쌓기보다 목적별 섹션과 하위 페이지로 이어지도록 구성했습니다.",
+      "어려운 판결문을 결론, 판단 이유, 법률 용어, 주의할 점으로 나눠 쉽게 읽을 수 있어요. 궁금한 법률 상황은 AI에게 바로 물어보세요.",
     "home.rail.label": "지금 바로 시작",
     "home.rail.primary": "AI 질문 시작",
     "home.rail.secondary": "쉬운 판결문 예시 열기",
@@ -30,16 +30,15 @@ export const translations = {
     "home.tabs.privacy": "보안",
     "home.preview.title": "핵심은 먼저, 근거는 바로 옆에",
     "home.preview.description":
-      "판결문 원문과 쉬운 설명을 같은 문서 안에서도 문단별로 분리해 보여줍니다.",
+      "판결문 원문 옆에서 결론과 쉬운 설명을 나란히 확인할 수 있어요.",
     "home.preview.action": "전체 예시 보기",
     "home.preview.original": "판결문 원문",
     "home.preview.easy": "쉬운 설명",
     "home.workflow.title": "판결문을 이해하는 세 단계",
     "home.workflow.description":
-      "각 단계는 독립적인 문단과 화면으로 나뉘어 다음 작업을 선택하기 쉽습니다.",
+      "찾고, 읽고, 궁금증을 이어가는 세 단계로 도와드려요.",
     "home.paths.title": "지금 하려는 일로 이동하세요",
-    "home.paths.description":
-      "검색, 예시, 내 문서, 조직 문서를 서로 다른 책임의 페이지로 분리했습니다.",
+    "home.paths.description": "지금 필요한 기능을 바로 시작해 보세요.",
     "home.privacy.title": "민감한 내용은 필요한 화면에서만 다룹니다.",
     "home.privacy.description":
       "공개 판결문은 출처를 남기고, 사용자가 붙여넣은 문서는 로그인한 본인만 접근할 수 있는 비공개 주소로 관리합니다.",
@@ -62,6 +61,13 @@ export const translations = {
       "판결문 검색, AI 질문, 생성 알림, 조직 문서함 이용을 도와요.",
     "notice.title": "공지사항",
     "notice.description": "EasyLaw의 새로운 소식과 운영 안내를 확인하세요.",
+    "home.meta.read": "판결문 쉽게 읽기",
+    "home.meta.ask": "AI 법률 질문",
+    "home.meta.free": "무료",
+    "home.eyebrow.preview": "화면 미리보기",
+    "home.eyebrow.workflow": "이용 방법",
+    "home.eyebrow.paths": "바로가기",
+    "home.eyebrow.privacy": "개인정보 보호",
     "meta.home.title": "판결문을 이해하기 쉽게 | EasyLaw",
     "nav.admin": "관리센터",
     "nav.catalog": "판결문 검색",
@@ -93,7 +99,7 @@ export const translations = {
     "footer.disclaimer":
       "EasyLaw helps you understand court decisions. It does not replace legal advice; please confirm important decisions with a qualified professional.",
     "home.hero.lede":
-      "Read difficult court decisions as conclusions, reasoning, legal terms, and cautions. Instead of stacking everything on one screen, each purpose has its own section and page.",
+      "Read difficult court decisions as conclusions, reasoning, legal terms, and cautions — and ask the AI about your own situation.",
     "home.rail.label": "Start now",
     "home.rail.primary": "Ask the AI",
     "home.rail.secondary": "Open an easy-read example",
@@ -105,16 +111,15 @@ export const translations = {
     "home.tabs.privacy": "Privacy",
     "home.preview.title": "The conclusion first, sources right beside it",
     "home.preview.description":
-      "The original decision and the easy explanation are shown side by side, paragraph by paragraph.",
+      "See the conclusion and an easy explanation right next to the original decision.",
     "home.preview.action": "See the full example",
     "home.preview.original": "Original decision",
     "home.preview.easy": "Easy explanation",
     "home.workflow.title": "Three steps to understand a decision",
     "home.workflow.description":
-      "Each step is a separate paragraph and screen, so the next action is easy to choose.",
+      "Find it, read it, and keep asking — three simple steps.",
     "home.paths.title": "Jump to what you want to do",
-    "home.paths.description":
-      "Search, examples, personal documents, and organization documents each have their own page.",
+    "home.paths.description": "Jump straight to what you need right now.",
     "home.privacy.title":
       "Sensitive content stays on the screens that need it.",
     "home.privacy.description":
@@ -138,6 +143,13 @@ export const translations = {
       "Help with judgment search, AI questions, generation alerts, and organization documents.",
     "notice.title": "Notices",
     "notice.description": "News and service announcements from EasyLaw.",
+    "home.meta.read": "Easy-read judgments",
+    "home.meta.ask": "AI legal Q&A",
+    "home.meta.free": "Free",
+    "home.eyebrow.preview": "Preview",
+    "home.eyebrow.workflow": "How it works",
+    "home.eyebrow.paths": "Shortcuts",
+    "home.eyebrow.privacy": "Privacy",
     "meta.home.title": "Understand Judgments Clearly | EasyLaw",
     "nav.admin": "Admin",
     "nav.catalog": "Judgment Search",
@@ -169,7 +181,7 @@ export const translations = {
     "footer.disclaimer":
       "EasyLawは判決文の理解を助けるサービスです。法律相談の代わりにはならないため、重要な判断は弁護士など専門家にご確認ください。",
     "home.hero.lede":
-      "難しい判決文を、結論・判断理由・法律用語・注意点に分けて読みます。1画面に詰め込まず、目的ごとのセクションと下位ページに分かれています。",
+      "難しい判決文を、結論・判断理由・法律用語・注意点に分けてやさしく読めます。気になる状況はAIにそのまま質問できます。",
     "home.rail.label": "今すぐはじめる",
     "home.rail.primary": "AIに質問する",
     "home.rail.secondary": "やさしい判決文の例を開く",
@@ -181,16 +193,15 @@ export const translations = {
     "home.tabs.privacy": "プライバシー",
     "home.preview.title": "結論が先、根拠はすぐ隣に",
     "home.preview.description":
-      "判決文の原文とやさしい説明を、同じ文書の中でも段落ごとに分けて表示します。",
+      "判決文の原文のすぐ隣で、結論とやさしい説明を確認できます。",
     "home.preview.action": "例の全体を見る",
     "home.preview.original": "判決文の原文",
     "home.preview.easy": "やさしい説明",
     "home.workflow.title": "判決文を理解する3つのステップ",
     "home.workflow.description":
-      "各ステップは独立した段落と画面に分かれ、次の操作を選びやすくなっています。",
+      "探して、読んで、続けて質問する3ステップです。",
     "home.paths.title": "やりたいことへ移動",
-    "home.paths.description":
-      "検索、例、マイドキュメント、組織ドキュメントをそれぞれ別のページに分けています。",
+    "home.paths.description": "いま必要な機能からすぐに始められます。",
     "home.privacy.title": "機微な内容は必要な画面だけで扱います。",
     "home.privacy.description":
       "公開判決文は出典を残し、貼り付けた文書はログインした本人だけが開ける非公開アドレスで管理します。",
@@ -213,6 +224,13 @@ export const translations = {
       "判決文検索、AI質問、生成通知、組織ドキュメントの利用をサポートします。",
     "notice.title": "お知らせ",
     "notice.description": "EasyLawの新しいニュースと運営のお知らせです。",
+    "home.meta.read": "判決文をやさしく",
+    "home.meta.ask": "AI法律質問",
+    "home.meta.free": "無料",
+    "home.eyebrow.preview": "プレビュー",
+    "home.eyebrow.workflow": "利用の流れ",
+    "home.eyebrow.paths": "ショートカット",
+    "home.eyebrow.privacy": "プライバシー",
     "meta.home.title": "判決文をわかりやすく | EasyLaw",
     "nav.admin": "管理センター",
     "nav.catalog": "判決文検索",

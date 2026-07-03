@@ -20,21 +20,21 @@ import type { DashboardSnapshot, JudgmentListItem } from "@/lib/types";
 const workflowSteps = [
   {
     number: "01",
-    title: "자료를 찾거나 올리기",
+    title: "판결문 찾기",
     description:
-      "사건번호, 법원명, 문서 제목으로 시작하고 필요한 경우 비공개 문서를 별도로 보관합니다.",
+      "사건번호나 키워드로 공개 판결문을 찾고, 내 문서는 붙여넣거나 PDF로 올릴 수 있어요.",
   },
   {
     number: "02",
-    title: "결론과 근거 나누기",
+    title: "쉽게 읽기",
     description:
-      "판단 결과, 이유, 법률 용어, 주의할 점을 서로 다른 문단으로 분리해 읽습니다.",
+      "판단 결과, 이유, 법률 용어, 주의할 점을 쉬운 말로 차례로 확인해요.",
   },
   {
     number: "03",
-    title: "다음 행동으로 이동",
+    title: "궁금증 이어가기",
     description:
-      "검색, 예시, 내 문서함, 조직 문서함처럼 목적이 분명한 하위 화면으로 이어집니다.",
+      "관련 판결문을 더 찾아보거나, 내 상황을 AI에게 이어서 질문할 수 있어요.",
   },
 ] as const;
 
@@ -43,25 +43,25 @@ const servicePaths = [
     href: "/catalog",
     icon: SearchIcon,
     title: "판결문 검색",
-    description: "공개 판결문을 사건번호와 법원명 기준으로 찾습니다.",
+    description: "사건번호나 법원명으로 공개 판결문을 찾아요.",
   },
   {
     href: "/guide",
     icon: FileTextIcon,
     title: "쉬운 판결문 예시",
-    description: "결과 화면이 어떻게 문단별로 정리되는지 먼저 확인합니다.",
+    description: "쉬운 판결문이 어떤 모습인지 예시로 먼저 확인해요.",
   },
   {
     href: "/me",
     icon: BellIcon,
     title: "내 문서함",
-    description: "로그인 후 개인 문서, 처리 상태, 알림을 관리합니다.",
+    description: "내 문서와 처리 상태, 알림을 한곳에서 관리해요.",
   },
   {
     href: "/org",
     icon: BuildingIcon,
     title: "조직 문서함",
-    description: "팀 단위로 공유되는 문서와 접근 권한을 분리합니다.",
+    description: "팀과 공유한 문서를 함께 볼 수 있어요.",
   },
 ] as const;
 
@@ -83,17 +83,11 @@ export function SignedInHome({
         aria-labelledby="dashboard-title"
       >
         <div className={styles.referenceCopy}>
-          <div className={styles.referenceMeta}>
-            <span>WORKSPACE</span>
-            <span>EasyLaw</span>
-            <span>실시간 작업대</span>
-          </div>
-          <p className={styles.previewLabel}>오늘의 작업대</p>
+          <p className={styles.previewLabel}>오늘의 작업</p>
           <h1 id="dashboard-title">{displayName}님, 무엇을 이해해볼까요?</h1>
           <p>
-            검색, 질문, 문서 보관을 한 화면에 몰아두지 않고 작업 단위별로
-            나눴습니다. 필요한 섹션에서 시작한 뒤 전용 페이지로 이동할 수
-            있습니다.
+            궁금한 상황을 AI에게 물어보거나, 판결문을 찾아보거나, 보관해 둔
+            문서를 이어서 볼 수 있어요.
           </p>
           <form action="/research" className={styles.referenceSearch}>
             <input
@@ -114,7 +108,7 @@ export function SignedInHome({
         </div>
 
         <aside className={styles.referenceRail} aria-label="서비스 현황">
-          <span className={styles.railLabel}>PRIMARY ACTION</span>
+          <span className={styles.railLabel}>바로가기</span>
           <Link className={styles.railPrimary} href="/catalog">
             판결문 검색으로 이동
             <ChevronRightIcon size={18} />
@@ -146,9 +140,9 @@ export function SignedInHome({
         aria-labelledby="quick-start-title"
       >
         <SectionHeading
-          eyebrow="LIVE PREVIEW"
+          eyebrow="자주 쓰는 기능"
           title="빠른 시작"
-          description="자주 쓰는 작업은 카드로 분리하고, 각 카드는 하위 페이지로 바로 이어집니다."
+          description="자주 쓰는 기능을 한곳에 모았어요."
           actionHref="/guide"
           actionLabel="화면 예시 보기"
         />
@@ -181,9 +175,9 @@ export function SignedInHome({
         aria-labelledby="recent-judgments-title"
       >
         <SectionHeading
-          eyebrow="DOCUMENTS"
+          eyebrow="판결문"
           title="최근 공개 판결문"
-          description="목록과 상세 읽기를 분리해 판결문 본문은 전용 화면에서 집중해서 봅니다."
+          description="최근 공개된 판결문이에요. 제목을 누르면 원문과 쉬운 설명을 볼 수 있어요."
           actionHref="/catalog?view=recent"
           actionLabel="전체 보기"
         />
@@ -216,13 +210,13 @@ export function SignedInHome({
       >
         <ShieldIcon size={26} />
         <div>
-          <span>SECURITY</span>
+          <span>보안</span>
           <h2 id="account-safety-title">
-            개인 문서와 조직 문서는 접근 범위를 나눠 관리합니다.
+            내 문서는 나와 내가 초대한 사람만 볼 수 있어요.
           </h2>
           <p>
-            민감한 자료는 로그인, 2차 인증, 조직 권한을 통과한 화면에서만
-            이어집니다.
+            비공개 문서는 본인만, 조직에 공유한 문서는 초대된 구성원만 열 수
+            있어요.
           </p>
         </div>
         <Link className={styles.secondaryButton} href="/security">
@@ -240,9 +234,9 @@ export function PublicHome({ locale = "ko" }: { locale?: SupportedLocale }) {
       <section className={styles.referenceHero} aria-labelledby="home-title">
         <div className={styles.referenceCopy}>
           <div className={styles.referenceMeta}>
-            <span>CATALOG</span>
-            <span>법률 이해</span>
-            <span>EasyLaw</span>
+            <span data-i18n="home.meta.read">{t("home.meta.read")}</span>
+            <span data-i18n="home.meta.ask">{t("home.meta.ask")}</span>
+            <span data-i18n="home.meta.free">{t("home.meta.free")}</span>
           </div>
           <div className={styles.brandLockup}>
             <Image
@@ -296,7 +290,8 @@ export function PublicHome({ locale = "ko" }: { locale?: SupportedLocale }) {
         aria-label="EasyLaw 결과 예시"
       >
         <SectionHeading
-          eyebrow="LIVE PREVIEW"
+          eyebrow={t("home.eyebrow.preview")}
+          eyebrowKey="home.eyebrow.preview"
           title={t("home.preview.title")}
           titleKey="home.preview.title"
           description={t("home.preview.description")}
@@ -341,7 +336,8 @@ export function PublicHome({ locale = "ko" }: { locale?: SupportedLocale }) {
         aria-labelledby="workflow-title"
       >
         <SectionHeading
-          eyebrow="PROCESS"
+          eyebrow={t("home.eyebrow.workflow")}
+          eyebrowKey="home.eyebrow.workflow"
           title={t("home.workflow.title")}
           titleKey="home.workflow.title"
           description={t("home.workflow.description")}
@@ -364,7 +360,8 @@ export function PublicHome({ locale = "ko" }: { locale?: SupportedLocale }) {
         aria-labelledby="paths-title"
       >
         <SectionHeading
-          eyebrow="ROUTES"
+          eyebrow={t("home.eyebrow.paths")}
+          eyebrowKey="home.eyebrow.paths"
           title={t("home.paths.title")}
           titleKey="home.paths.title"
           description={t("home.paths.description")}
@@ -413,7 +410,9 @@ export function PublicHome({ locale = "ko" }: { locale?: SupportedLocale }) {
       >
         <ShieldIcon size={26} />
         <div>
-          <span>PRIVACY</span>
+          <span data-i18n="home.eyebrow.privacy">
+            {t("home.eyebrow.privacy")}
+          </span>
           <h2 data-i18n="home.privacy.title" id="privacy-title">
             {t("home.privacy.title")}
           </h2>
@@ -438,6 +437,7 @@ function SectionHeading({
   description,
   descriptionKey,
   eyebrow,
+  eyebrowKey,
   title,
   titleKey,
 }: {
@@ -447,13 +447,14 @@ function SectionHeading({
   description: string;
   descriptionKey?: string;
   eyebrow: string;
+  eyebrowKey?: string;
   title: string;
   titleKey?: string;
 }) {
   return (
     <div className={styles.referenceSectionHeader}>
       <div>
-        <span>{eyebrow}</span>
+        <span data-i18n={eyebrowKey}>{eyebrow}</span>
         <h2 data-i18n={titleKey}>{title}</h2>
         <p data-i18n={descriptionKey}>{description}</p>
       </div>
