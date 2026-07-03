@@ -1,5 +1,12 @@
+import OpenAI, { APIError } from "openai";
 import type { SqliteDatabase } from "./db";
 import { getSetting } from "./settings";
+
+/**
+ * LLM 전송 계층. 모든 공급자를 OpenAI SDK + provider별 base URL로 통일한다
+ * (Anthropic도 OpenAI 호환 엔드포인트 사용). 요청은 항상 스트리밍이며,
+ * 토큰이 계속 오는 동안에는 끊지 않는 유휴 기반 타임아웃을 쓴다.
+ */
 
 export type LlmMessage = {
   role: "system" | "user" | "assistant";
@@ -18,20 +25,12 @@ export type LlmRequestOptions = {
   onToken?: (token: string) => void;
 };
 
-type OpenAiCompatibleRequestBody = {
-  messages: LlmMessage[];
-  model: string;
-  reasoning_effort?: "none";
-  stream: true;
-  temperature: number;
-};
-
 type LlmTimeouts = {
-  /** 헤더(연결) 수신까지 허용 시간 */
-  connectMs: number;
-  /** 헤더 수신 후 첫 데이터 청크까지 허용 시간 (로컬 모델의 프롬프트 처리·모델 로딩 구간) */
+  /** 요청 수락(헤더)까지 허용 시간 — 로컬 모델의 로딩·긴 프롬프트 처리 구간 */
+  firstResponseMs: number;
+  /** 응답 시작 후 첫 토큰까지 허용 시간 */
   firstChunkMs: number;
-  /** 데이터 청크 사이 무응답 허용 시간 */
+  /** 토큰 사이 무응답 허용 시간 */
   idleMs: number;
   /** 요청 전체 상한 */
   totalMs: number;
@@ -109,8 +108,8 @@ function timeoutsFor(configuration: LlmConfiguration): LlmTimeouts {
   const local = isLocalLlmConfiguration(configuration);
   const totalMs = configuration.totalTimeoutMs;
   return {
-    connectMs: Math.min(local ? 60_000 : 20_000, totalMs),
     firstChunkMs: Math.min(local ? 300_000 : 90_000, totalMs),
+    firstResponseMs: Math.min(local ? 300_000 : 60_000, totalMs),
     idleMs: Math.min(local ? 180_000 : 60_000, totalMs),
     totalMs,
   };
@@ -134,210 +133,11 @@ async function requestText(
   messages: LlmMessage[],
   options: LlmRequestOptions,
 ) {
-  try {
-    return await (isAnthropic(configuration.provider)
-      ? requestAnthropicStream(configuration, messages, options.onToken)
-      : requestOpenAiCompatibleStream(
-          configuration,
-          messages,
-          options.onToken,
-        ));
-  } catch (error) {
-    if (error instanceof LlmError) {
-      throw error;
-    }
-    if (error instanceof LlmTimeoutError || isAbortError(error)) {
-      throw new LlmError(
-        "llm_request_failed",
-        timeoutMessage(configuration, error),
-      );
-    }
-    throw new LlmError(
-      "llm_request_failed",
-      "LLM API에 연결하지 못했습니다. API Base URL의 서버가 실행 중인지 확인해 주세요.",
-    );
-  }
-}
-
-function timeoutMessage(configuration: LlmConfiguration, error: unknown) {
-  const local = isLocalLlmConfiguration(configuration);
-  const totalSeconds = Math.round(configuration.totalTimeoutMs / 1_000);
-  const phase = error instanceof LlmTimeoutError ? error.phase : "total";
-  const elapsed =
-    error instanceof LlmTimeoutError
-      ? `${Math.round(error.elapsedMs / 1_000)}초`
-      : `${totalSeconds}초`;
-  const detail: Record<TimeoutPhase, string> = {
-    connect: `LLM 서버가 ${elapsed} 동안 연결에 응답하지 않았습니다. API Base URL(${configuration.baseUrl})의 서버가 실행 중인지 확인해 주세요.`,
-    first_chunk: `LLM 서버에 연결됐지만 ${elapsed} 동안 첫 응답 토큰이 오지 않았습니다.${
-      local
-        ? " 모델 로딩 또는 긴 프롬프트 처리 중일 수 있어요. 더 작은 모델을 쓰거나 관리자 설정에서 응답 제한 시간을 늘려 주세요."
-        : " 모델명이 올바른지, 서비스 상태 페이지에 장애가 없는지 확인해 주세요."
-    }`,
-    stalled: `LLM 응답이 도중에 ${elapsed} 동안 멈췄습니다. 서버 자원이 부족하거나 연결이 끊겼을 수 있어요. 다시 시도해 주세요.`,
-    total: `LLM 응답이 제한 시간 ${totalSeconds}초를 넘었습니다.${
-      local
-        ? " 로컬 모델은 답변 생성이 오래 걸릴 수 있어요. 관리자 설정의 '응답 제한 시간'을 늘리거나 더 작은 모델로 바꿔 주세요."
-        : " 잠시 후 다시 시도해 주세요."
-    }`,
-  };
-  return detail[phase];
-}
-
-async function requestOpenAiCompatibleStream(
-  configuration: LlmConfiguration,
-  messages: LlmMessage[],
-  onToken?: (token: string) => void,
-) {
   const timeouts = timeoutsFor(configuration);
-  let attempt = await streamOpenAiCompatible(
-    configuration,
-    messages,
-    timeouts,
-    {
-      skipReasoningControl: false,
-    },
-  );
-  if (
-    attempt.type === "http_error" &&
-    shouldRetryWithoutReasoning(attempt.status)
-  ) {
-    attempt = await streamOpenAiCompatible(configuration, messages, timeouts, {
-      skipReasoningControl: true,
-    });
-  }
-  if (attempt.type === "http_error") {
-    throw await requestFailed(attempt.response);
-  }
-
-  let result = "";
-  await readSse(attempt.stream, (data) => {
-    if (data === "[DONE]") {
-      return;
-    }
-    const parsed = JSON.parse(data) as {
-      choices?: Array<{ delta?: { content?: string } }>;
-    };
-    const token = parsed.choices?.[0]?.delta?.content ?? "";
-    if (token) {
-      result += token;
-      onToken?.(token);
-    }
-  });
-  return result;
-}
-
-type StreamAttempt =
-  | { type: "stream"; stream: TimedSseStream }
-  | { type: "http_error"; status: number; response: Response };
-
-async function streamOpenAiCompatible(
-  configuration: LlmConfiguration,
-  messages: LlmMessage[],
-  timeouts: LlmTimeouts,
-  options: { skipReasoningControl: boolean },
-): Promise<StreamAttempt> {
-  const body: OpenAiCompatibleRequestBody = {
-    ...(options.skipReasoningControl ? {} : reasoningControl(configuration)),
-    messages,
-    model: configuration.model,
-    stream: true,
-    temperature: 0.1,
-  };
-  return openTimedStream(
-    new URL("chat/completions", ensureTrailingSlash(configuration.baseUrl)),
-    {
-      body: JSON.stringify(body),
-      headers: {
-        ...(configuration.apiKey
-          ? { Authorization: `Bearer ${configuration.apiKey}` }
-          : {}),
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    },
-    timeouts,
-  );
-}
-
-async function requestAnthropicStream(
-  configuration: LlmConfiguration,
-  messages: LlmMessage[],
-  onToken?: (token: string) => void,
-) {
-  const timeouts = timeoutsFor(configuration);
-  const system = messages
-    .filter((message) => message.role === "system")
-    .map((message) => message.content)
-    .join("\n\n");
-  const conversation = messages
-    .filter((message) => message.role !== "system")
-    .map((message) => ({
-      content: message.content,
-      role: message.role,
-    }));
-  const attempt = await openTimedStream(
-    new URL("messages", ensureTrailingSlash(configuration.baseUrl)),
-    {
-      body: JSON.stringify({
-        max_tokens: 4_096,
-        messages: conversation,
-        model: configuration.model,
-        stream: true,
-        system,
-        temperature: 0.1,
-      }),
-      headers: {
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-        "x-api-key": configuration.apiKey ?? "",
-      },
-      method: "POST",
-    },
-    timeouts,
-  );
-  if (attempt.type === "http_error") {
-    throw await requestFailed(attempt.response);
-  }
-
-  let result = "";
-  await readSse(attempt.stream, (data) => {
-    const parsed = JSON.parse(data) as {
-      delta?: { text?: string; type?: string };
-      type?: string;
-    };
-    const token =
-      parsed.type === "content_block_delta" &&
-      parsed.delta?.type === "text_delta"
-        ? (parsed.delta.text ?? "")
-        : "";
-    if (token) {
-      result += token;
-      onToken?.(token);
-    }
-  });
-  return result;
-}
-
-/**
- * 청크가 도착하는 동안에는 계속 기다리는 유휴 기반 타임아웃 스트림.
- * 로컬 LLM처럼 총 생성 시간이 긴 경우에도, 서버가 살아 있는 한 끊지 않는다.
- */
-type TimedSseStream = {
-  read(): Promise<ReadableStreamReadResult<Uint8Array>>;
-  cancel(): void;
-};
-
-async function openTimedStream(
-  url: URL,
-  init: RequestInit,
-  timeouts: LlmTimeouts,
-): Promise<StreamAttempt> {
   const startedAt = Date.now();
   const controller = new AbortController();
   let phase: TimeoutPhase = "connect";
   let phaseTimer: ReturnType<typeof setTimeout> | null = null;
-
   const armPhaseTimer = (nextPhase: TimeoutPhase, delayMs: number) => {
     phase = nextPhase;
     if (phaseTimer) {
@@ -356,65 +156,121 @@ async function openTimedStream(
     }
     clearTimeout(totalTimer);
   };
-  const timeoutError = () => new LlmTimeoutError(phase, Date.now() - startedAt);
 
-  armPhaseTimer("connect", timeouts.connectMs);
-  let response: Response;
   try {
-    response = await fetch(url, { ...init, signal: controller.signal });
-  } catch (error) {
-    cleanup();
-    throw controller.signal.aborted ? timeoutError() : error;
-  }
-
-  if (!response.ok) {
-    cleanup();
-    return { response, status: response.status, type: "http_error" };
-  }
-  if (!response.body) {
-    cleanup();
-    throw new LlmError(
-      "llm_response_invalid",
-      "LLM 스트리밍 응답 본문이 비어 있습니다.",
+    armPhaseTimer("connect", timeouts.firstResponseMs);
+    const stream = await openChatStream(
+      configuration,
+      messages,
+      controller.signal,
     );
+
+    armPhaseTimer("first_chunk", timeouts.firstChunkMs);
+    let result = "";
+    for await (const chunk of stream) {
+      armPhaseTimer("stalled", timeouts.idleMs);
+      const token = chunk.choices?.[0]?.delta?.content ?? "";
+      if (token) {
+        result += token;
+        options.onToken?.(token);
+      }
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof LlmError) {
+      throw error;
+    }
+    if (controller.signal.aborted || isAbortError(error)) {
+      throw new LlmError(
+        "llm_request_failed",
+        timeoutMessage(
+          configuration,
+          new LlmTimeoutError(phase, Date.now() - startedAt),
+        ),
+      );
+    }
+    if (error instanceof APIError) {
+      throw requestFailed(error);
+    }
+    throw new LlmError(
+      "llm_request_failed",
+      "LLM API에 연결하지 못했습니다. API Base URL의 서버가 실행 중인지 확인해 주세요.",
+    );
+  } finally {
+    cleanup();
   }
-
-  const reader = response.body.getReader();
-  armPhaseTimer("first_chunk", timeouts.firstChunkMs);
-  let receivedFirstChunk = false;
-
-  return {
-    type: "stream",
-    stream: {
-      async read() {
-        try {
-          const result = await reader.read();
-          if (result.done) {
-            cleanup();
-          } else {
-            if (!receivedFirstChunk) {
-              receivedFirstChunk = true;
-            }
-            armPhaseTimer("stalled", timeouts.idleMs);
-          }
-          return result;
-        } catch (error) {
-          cleanup();
-          throw controller.signal.aborted ? timeoutError() : error;
-        }
-      },
-      cancel() {
-        cleanup();
-        void reader.cancel().catch(() => {});
-      },
-    },
-  };
 }
 
-async function requestFailed(response: Response) {
-  const status = response.status;
-  const body = await response.text().catch(() => "");
-  const suffix = body.trim() ? ` 응답: ${body.trim().slice(0, 240)}` : "";
+async function openChatStream(
+  configuration: LlmConfiguration,
+  messages: LlmMessage[],
+  signal: AbortSignal,
+) {
+  const client = new OpenAI({
+    apiKey: configuration.apiKey ?? "not-required",
+    baseURL: configuration.baseUrl.replace(/\/+$/, ""),
+    maxRetries: 0,
+    // 타임아웃은 위의 단계별 타이머가 전담한다.
+    timeout: configuration.totalTimeoutMs + 5_000,
+  });
+  const body = {
+    messages,
+    model: configuration.model,
+    stream: true as const,
+    temperature: 0.1,
+    ...(isAnthropic(configuration.provider) ? { max_tokens: 8_192 } : {}),
+  };
+
+  try {
+    return await client.chat.completions.create(
+      { ...reasoningControl(configuration), ...body },
+      { signal },
+    );
+  } catch (error) {
+    // 일부 서버는 reasoning_effort를 거부한다 — 한 번은 빼고 재시도한다.
+    if (
+      error instanceof APIError &&
+      (error.status === 400 || error.status === 422) &&
+      Object.keys(reasoningControl(configuration)).length > 0
+    ) {
+      return client.chat.completions.create(body, { signal });
+    }
+    throw error;
+  }
+}
+
+function timeoutMessage(
+  configuration: LlmConfiguration,
+  error: LlmTimeoutError,
+) {
+  const local = isLocalLlmConfiguration(configuration);
+  const totalSeconds = Math.round(configuration.totalTimeoutMs / 1_000);
+  const elapsed = `${Math.round(error.elapsedMs / 1_000)}초`;
+  const detail: Record<TimeoutPhase, string> = {
+    connect: `LLM 서버가 ${elapsed} 동안 응답을 시작하지 않았습니다.${
+      local
+        ? " 모델 로딩 또는 긴 프롬프트 처리 중일 수 있어요. 더 작은 모델을 쓰거나 관리자 설정에서 응답 제한 시간을 늘려 주세요."
+        : ` API Base URL(${configuration.baseUrl})의 서버가 실행 중인지 확인해 주세요.`
+    }`,
+    first_chunk: `LLM 서버에 연결됐지만 ${elapsed} 동안 첫 응답 토큰이 오지 않았습니다.${
+      local
+        ? " 모델 로딩 또는 긴 프롬프트 처리 중일 수 있어요."
+        : " 모델명이 올바른지, 서비스 상태 페이지에 장애가 없는지 확인해 주세요."
+    }`,
+    stalled: `LLM 응답이 도중에 ${elapsed} 동안 멈췄습니다. 서버 자원이 부족하거나 연결이 끊겼을 수 있어요. 다시 시도해 주세요.`,
+    total: `LLM 응답이 제한 시간 ${totalSeconds}초를 넘었습니다.${
+      local
+        ? " 로컬 모델은 답변 생성이 오래 걸릴 수 있어요. 관리자 설정의 '응답 제한 시간'을 늘리거나 더 작은 모델로 바꿔 주세요."
+        : " 잠시 후 다시 시도해 주세요."
+    }`,
+  };
+  return detail[error.phase];
+}
+
+function requestFailed(error: APIError) {
+  const status = error.status ?? 0;
+  const body = safeErrorBody(error);
+  const suffix = body ? ` 응답: ${body.slice(0, 240)}` : "";
   if (status === 401 || status === 403) {
     return new LlmError(
       "llm_request_failed",
@@ -445,43 +301,23 @@ async function requestFailed(response: Response) {
   );
 }
 
-async function readSse(stream: TimedSseStream, onData: (data: string) => void) {
-  const decoder = new TextDecoder();
-  let buffer = "";
-
+function safeErrorBody(error: APIError) {
   try {
-    for (;;) {
-      const { done, value } = await stream.read();
-      if (done) {
-        break;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      const events = buffer.split("\n\n");
-      buffer = events.pop() ?? "";
-      for (const event of events) {
-        const data = event
-          .split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice("data:".length).trimStart())
-          .join("\n")
-          .trim();
-        if (data) {
-          onData(data);
-        }
-      }
+    if (typeof error.error === "string") {
+      return error.error;
     }
-  } finally {
-    stream.cancel();
+    if (error.error) {
+      return JSON.stringify(error.error);
+    }
+    return error.message ?? "";
+  } catch {
+    return "";
   }
 }
 
-function isAnthropic(provider: string) {
-  return provider.trim().toLowerCase() === "anthropic";
-}
-
-function reasoningControl(
-  configuration: LlmConfiguration,
-): Pick<OpenAiCompatibleRequestBody, "reasoning_effort"> {
+function reasoningControl(configuration: LlmConfiguration): {
+  reasoning_effort?: "none";
+} {
   if (isOllama(configuration.provider)) {
     return { reasoning_effort: "none" };
   }
@@ -489,6 +325,10 @@ function reasoningControl(
     return { reasoning_effort: "none" };
   }
   return {};
+}
+
+function isAnthropic(provider: string) {
+  return provider.trim().toLowerCase() === "anthropic";
 }
 
 function isOllama(provider: string) {
@@ -514,17 +354,11 @@ function canDisableGeminiThinking(configuration: LlmConfiguration) {
   );
 }
 
-function shouldRetryWithoutReasoning(status: number) {
-  return status === 400 || status === 422;
-}
-
 function isAbortError(error: unknown) {
   return (
     error instanceof Error &&
-    (error.name === "TimeoutError" || error.name === "AbortError")
+    (error.name === "AbortError" ||
+      error.name === "APIUserAbortError" ||
+      error.name === "TimeoutError")
   );
-}
-
-function ensureTrailingSlash(value: string) {
-  return value.endsWith("/") ? value : `${value}/`;
 }
