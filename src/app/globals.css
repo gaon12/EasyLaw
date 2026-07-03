@@ -1,89 +1,141 @@
+/*
+ * EasyLaw 디자인 토큰 — Wanted × KRDS 조합.
+ * Wanted: 단일 블루 CTA 앵커, 알파 기반 텍스트 계층, flat 카드(1px 헤어라인),
+ *   17px 이상 제목의 음수 자간, 절제된 모션.
+ * KRDS: 그레이 스케일 서피스 계층(canvas < muted < surface), 본문 17px/1.55,
+ *   보수적 radius(≤16), 4단 그림자, 상시 포커스 링, 고대비 다크 모드.
+ */
 :root {
-  --bg-canvas: oklch(0.972 0.002 286);
+  /* 서피스: canvas(회색 바탕) 위에 surface(흰 카드)가 뜨는 2단 구조 */
+  --bg-canvas: oklch(0.965 0.003 250);
   --bg-surface: oklch(1 0 0);
-  --bg-muted: oklch(0.961 0.002 286);
+  --bg-muted: oklch(0.951 0.008 252);
+  --bg-subtle: oklch(0.975 0.004 250);
+  --bg-inverse: oklch(0.205 0.006 264);
   --bg-brand: oklch(0.563 0.232 257);
-  --bg-brand-hover: oklch(0.607 0.225 257);
-  --bg-brand-subtle: oklch(0.954 0.022 250);
+  --bg-brand-hover: oklch(0.505 0.223 258);
+  --bg-brand-subtle: oklch(0.955 0.022 250);
   --bg-warning-subtle: oklch(0.967 0.03 81);
   --bg-success-subtle: oklch(0.968 0.052 154);
-  --fg-strong: oklch(0.148 0.004 277);
-  --fg-default: oklch(0.259 0.01 273 / 0.88);
-  --fg-secondary: oklch(0.298 0.01 273 / 0.76);
-  --fg-tertiary: oklch(0.298 0.01 273 / 0.58);
-  --fg-brand: oklch(0.563 0.232 257);
-  --fg-warning: oklch(0.625 0.148 56);
-  --fg-success: oklch(0.673 0.211 144);
-  --fg-danger: oklch(0.546 0.22 27);
+  --bg-danger-subtle: oklch(0.955 0.021 20);
+
+  /* 텍스트: 단일 잉크(gray-100)에 알파 계층 (Wanted 방식) */
+  --fg-strong: oklch(0.205 0.006 264);
+  --fg-default: oklch(0.205 0.006 264 / 0.88);
+  --fg-secondary: oklch(0.205 0.006 264 / 0.66);
+  --fg-tertiary: oklch(0.205 0.006 264 / 0.48);
+  --fg-on-brand: oklch(1 0 0);
+  --fg-brand: oklch(0.53 0.225 258);
+  --fg-warning: oklch(0.58 0.13 65);
+  --fg-success: oklch(0.52 0.12 155);
+  --fg-danger: oklch(0.55 0.2 25);
+
   --selection-bg: oklch(0.78 0.12 246 / 0.52);
   --selection-fg: oklch(0.148 0.004 277);
-  --border-subtle: oklch(0.521 0.018 273 / 0.08);
-  --border-default: oklch(0.521 0.018 273 / 0.22);
-  --border-strong: oklch(0.521 0.018 273 / 0.35);
-  --shadow-soft: 0 18px 50px oklch(0.2 0.02 270 / 0.08);
+
+  --border-subtle: oklch(0.205 0.006 264 / 0.08);
+  --border-default: oklch(0.205 0.006 264 / 0.16);
+  --border-strong: oklch(0.205 0.006 264 / 0.34);
+
+  /* KRDS 4단 그림자 (카드는 헤어라인만, 그림자는 떠 있는 UI 전용) */
+  --shadow-1:
+    0 1px 2px oklch(0.2 0.006 264 / 0.06), 0 1px 1px oklch(0.2 0.006 264 / 0.04);
+  --shadow-2:
+    0 2px 6px oklch(0.2 0.006 264 / 0.08), 0 1px 2px oklch(0.2 0.006 264 / 0.04);
+  --shadow-3:
+    0 6px 16px oklch(0.2 0.006 264 / 0.1), 0 2px 4px oklch(0.2 0.006 264 / 0.05);
+  --shadow-4:
+    0 12px 28px oklch(0.2 0.006 264 / 0.14), 0 4px 8px
+    oklch(0.2 0.006 264 / 0.06);
+  --shadow-soft: var(--shadow-3);
+
+  --focus-ring: 0 0 0 3px oklch(0.563 0.232 257 / 0.24);
+
   --text-scale: 1;
+
+  /* radius 사다리: 임의 값 금지 */
+  --radius-4: 4px;
+  --radius-6: 6px;
   --radius-8: 8px;
   --radius-12: 12px;
   --radius-16: 16px;
   --radius-full: 999px;
+
   --font-sans:
-    -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
-    "Noto Sans KR", "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
-  --font-display:
-    -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
-    "Noto Sans KR", "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sans);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --bg-canvas: oklch(0.17 0.008 274);
-    --bg-surface: oklch(0.215 0.01 274);
-    --bg-muted: oklch(0.255 0.012 274);
-    --bg-brand: oklch(0.66 0.2 255);
-    --bg-brand-hover: oklch(0.71 0.18 255);
-    --bg-brand-subtle: oklch(0.31 0.065 255);
-    --bg-warning-subtle: oklch(0.31 0.04 72);
-    --bg-success-subtle: oklch(0.3 0.05 152);
-    --fg-strong: oklch(0.96 0.004 277);
-    --fg-default: oklch(0.9 0.006 277 / 0.9);
-    --fg-secondary: oklch(0.82 0.008 277 / 0.7);
-    --fg-tertiary: oklch(0.78 0.008 277 / 0.52);
-    --fg-brand: oklch(0.74 0.15 252);
-    --fg-warning: oklch(0.78 0.13 72);
-    --fg-success: oklch(0.78 0.16 145);
-    --fg-danger: oklch(0.74 0.16 24);
+    --bg-canvas: oklch(0.185 0.006 268);
+    --bg-surface: oklch(0.235 0.008 268);
+    --bg-muted: oklch(0.28 0.01 268);
+    --bg-subtle: oklch(0.255 0.009 268);
+    --bg-inverse: oklch(0.96 0.004 264);
+    --bg-brand: oklch(0.62 0.2 256);
+    --bg-brand-hover: oklch(0.68 0.18 255);
+    --bg-brand-subtle: oklch(0.3 0.06 256);
+    --bg-warning-subtle: oklch(0.3 0.045 72);
+    --bg-success-subtle: oklch(0.29 0.05 152);
+    --bg-danger-subtle: oklch(0.29 0.05 22);
+    --fg-strong: oklch(0.97 0.003 264);
+    --fg-default: oklch(1 0 0 / 0.88);
+    --fg-secondary: oklch(1 0 0 / 0.64);
+    --fg-tertiary: oklch(1 0 0 / 0.45);
+    --fg-on-brand: oklch(1 0 0);
+    --fg-brand: oklch(0.75 0.14 252);
+    --fg-warning: oklch(0.8 0.12 75);
+    --fg-success: oklch(0.79 0.13 150);
+    --fg-danger: oklch(0.75 0.15 24);
     --selection-bg: oklch(0.68 0.14 246 / 0.62);
     --selection-fg: oklch(0.98 0.004 277);
-    --border-subtle: oklch(0.84 0.01 273 / 0.1);
-    --border-default: oklch(0.84 0.01 273 / 0.2);
-    --border-strong: oklch(0.84 0.01 273 / 0.34);
-    --shadow-soft: 0 18px 50px oklch(0.05 0.01 270 / 0.35);
+    --border-subtle: oklch(1 0 0 / 0.09);
+    --border-default: oklch(1 0 0 / 0.16);
+    --border-strong: oklch(1 0 0 / 0.32);
+    --shadow-1: 0 1px 2px oklch(0 0 0 / 0.3);
+    --shadow-2: 0 2px 6px oklch(0 0 0 / 0.34);
+    --shadow-3: 0 6px 16px oklch(0 0 0 / 0.38);
+    --shadow-4: 0 12px 28px oklch(0 0 0 / 0.45);
+    --shadow-soft: var(--shadow-3);
+    --focus-ring: 0 0 0 3px oklch(0.62 0.2 256 / 0.38);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg-canvas: oklch(0.17 0.008 274);
-  --bg-surface: oklch(0.215 0.01 274);
-  --bg-muted: oklch(0.255 0.012 274);
-  --bg-brand: oklch(0.66 0.2 255);
-  --bg-brand-hover: oklch(0.71 0.18 255);
-  --bg-brand-subtle: oklch(0.31 0.065 255);
-  --bg-warning-subtle: oklch(0.31 0.04 72);
-  --bg-success-subtle: oklch(0.3 0.05 152);
-  --fg-strong: oklch(0.96 0.004 277);
-  --fg-default: oklch(0.9 0.006 277 / 0.9);
-  --fg-secondary: oklch(0.82 0.008 277 / 0.7);
-  --fg-tertiary: oklch(0.78 0.008 277 / 0.52);
-  --fg-brand: oklch(0.74 0.15 252);
-  --fg-warning: oklch(0.78 0.13 72);
-  --fg-success: oklch(0.78 0.16 145);
-  --fg-danger: oklch(0.74 0.16 24);
+  --bg-canvas: oklch(0.185 0.006 268);
+  --bg-surface: oklch(0.235 0.008 268);
+  --bg-muted: oklch(0.28 0.01 268);
+  --bg-subtle: oklch(0.255 0.009 268);
+  --bg-inverse: oklch(0.96 0.004 264);
+  --bg-brand: oklch(0.62 0.2 256);
+  --bg-brand-hover: oklch(0.68 0.18 255);
+  --bg-brand-subtle: oklch(0.3 0.06 256);
+  --bg-warning-subtle: oklch(0.3 0.045 72);
+  --bg-success-subtle: oklch(0.29 0.05 152);
+  --bg-danger-subtle: oklch(0.29 0.05 22);
+  --fg-strong: oklch(0.97 0.003 264);
+  --fg-default: oklch(1 0 0 / 0.88);
+  --fg-secondary: oklch(1 0 0 / 0.64);
+  --fg-tertiary: oklch(1 0 0 / 0.45);
+  --fg-on-brand: oklch(1 0 0);
+  --fg-brand: oklch(0.75 0.14 252);
+  --fg-warning: oklch(0.8 0.12 75);
+  --fg-success: oklch(0.79 0.13 150);
+  --fg-danger: oklch(0.75 0.15 24);
   --selection-bg: oklch(0.68 0.14 246 / 0.62);
   --selection-fg: oklch(0.98 0.004 277);
-  --border-subtle: oklch(0.84 0.01 273 / 0.1);
-  --border-default: oklch(0.84 0.01 273 / 0.2);
-  --border-strong: oklch(0.84 0.01 273 / 0.34);
-  --shadow-soft: 0 18px 50px oklch(0.05 0.01 270 / 0.35);
+  --border-subtle: oklch(1 0 0 / 0.09);
+  --border-default: oklch(1 0 0 / 0.16);
+  --border-strong: oklch(1 0 0 / 0.32);
+  --shadow-1: 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-2: 0 2px 6px oklch(0 0 0 / 0.34);
+  --shadow-3: 0 6px 16px oklch(0 0 0 / 0.38);
+  --shadow-4: 0 12px 28px oklch(0 0 0 / 0.45);
+  --shadow-soft: var(--shadow-3);
+  --focus-ring: 0 0 0 3px oklch(0.62 0.2 256 / 0.38);
 }
 
 :root[data-theme="light"] {
@@ -121,6 +173,7 @@ body {
   background: var(--bg-canvas);
   font-family: var(--font-sans);
   font-size: 1.0625rem;
+  line-height: 1.55;
   font-feature-settings: "ss20", "calt", "kern";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -167,4 +220,15 @@ button:disabled {
 ::selection {
   color: var(--selection-fg);
   background: var(--selection-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    scroll-behavior: auto;
+  }
 }
