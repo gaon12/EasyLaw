@@ -319,24 +319,15 @@ export function LegalResearchPanel({
               <span>{plan.intent}</span>
             </div>
 
-            {(answer || status === "loading") && (
+            {answer && (
               <section className={styles.aiAnswerBlock}>
                 <h3>AI 답변</h3>
-                {answer ? (
-                  <>
-                    <ResearchMarkdown answer={answer} evidence={evidence} />
-                    {status === "loading" && (
-                      <span
-                        aria-hidden="true"
-                        className={styles.aiStreamingCursor}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <p className={styles.aiAnswerPlaceholder}>
-                    먼저 MCP 도구와 쟁점을 확인하고 있어요. 답변은 준비되는
-                    문단부터 바로 표시됩니다.
-                  </p>
+                <ResearchMarkdown answer={answer} evidence={evidence} />
+                {status === "loading" && (
+                  <span
+                    aria-hidden="true"
+                    className={styles.aiStreamingCursor}
+                  />
                 )}
               </section>
             )}

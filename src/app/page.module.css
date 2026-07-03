@@ -1113,7 +1113,7 @@
 .aiOverviewEmpty,
 .aiOverviewCard {
   border: 1px solid var(--border-subtle);
-  border-radius: 24px;
+  border-radius: var(--radius-8);
   background: var(--bg-surface);
 }
 
@@ -1140,15 +1140,10 @@
 }
 
 .aiOverviewCard::before {
-  content: "";
   display: block;
-  height: 5px;
-  background: linear-gradient(
-    90deg,
-    var(--bg-brand),
-    oklch(0.72 0.18 186),
-    oklch(0.78 0.14 320)
-  );
+  height: 4px;
+  background: var(--fg-strong);
+  content: "";
 }
 
 .aiOverviewHeader {
@@ -1163,9 +1158,15 @@
   margin-top: 8px;
   color: var(--fg-strong);
   font-family: var(--font-display);
-  font-size: 28px;
-  line-height: 1.24;
-  letter-spacing: -0.018em;
+  font-size: 24px;
+  line-height: 1.32;
+  letter-spacing: 0;
+}
+
+.aiOverviewHeader .badge {
+  border-radius: var(--radius-8);
+  background: var(--fg-strong);
+  color: var(--bg-surface);
 }
 
 .aiLevel {
@@ -1191,7 +1192,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 30px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-8);
   padding: 0 12px;
   background: var(--bg-muted);
   color: var(--fg-secondary);
@@ -1206,8 +1207,9 @@
   gap: 14px;
   padding: 15px 16px;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-16);
-  background: color-mix(in oklch, var(--bg-brand-subtle) 52%, var(--bg-surface));
+  border-left: 4px solid var(--bg-brand);
+  border-radius: var(--radius-8);
+  background: var(--bg-surface);
   color: var(--fg-brand);
 }
 
@@ -1249,12 +1251,6 @@
   color: var(--fg-strong);
   font-size: 18px;
   font-weight: 850;
-}
-
-.aiAnswerPlaceholder {
-  color: var(--fg-secondary);
-  font-size: 14px;
-  line-height: 1.7;
 }
 
 .aiStreamingCursor {
@@ -1549,8 +1545,8 @@
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-16);
-  background: var(--bg-muted);
+  border-radius: var(--radius-8);
+  background: var(--bg-surface);
 }
 
 .aiSources article > span {
