@@ -5,6 +5,7 @@ import {
   CUSTOM_JUDGMENT_TEXT_MAX_LENGTH,
   CUSTOM_JUDGMENT_TITLE_MAX_LENGTH,
 } from "@/lib/input-limits";
+import { setJudgmentText } from "@/lib/judgment-texts";
 import { newId } from "@/lib/security/crypto";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { nowIso } from "@/lib/time";
@@ -34,25 +35,28 @@ export async function POST(request: Request) {
 
   const id = newId("cp");
   const now = nowIso();
-  db.prepare(
-    `INSERT INTO judgments
-      (id, case_number, court_name, decided_on, title, case_type, status,
-       visibility, source_provider, source_external_id, source_trust,
-       original_text, created_by_user_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'custom', 'pending', 'private', 'user-paste',
-       ?, 'user_uploaded', ?, ?, ?, ?)`,
-  ).run(
-    id,
-    "사용자 입력",
-    "직접 입력",
-    now.slice(0, 10),
-    input.data.title,
-    id,
-    input.data.text,
-    user.id,
-    now,
-    now,
-  );
+  const insert = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO judgments
+        (id, case_number, court_name, decided_on, title, case_type, status,
+         visibility, source_provider, source_external_id, source_trust,
+         created_by_user_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'custom', 'pending', 'private', 'user-paste',
+         ?, 'user_uploaded', ?, ?, ?)`,
+    ).run(
+      id,
+      "사용자 입력",
+      "직접 입력",
+      now.slice(0, 10),
+      input.data.title,
+      id,
+      user.id,
+      now,
+      now,
+    );
+    setJudgmentText(db, id, input.data.text);
+  });
+  insert();
 
   return Response.json({ id, href: `/cp/${encodeURIComponent(id)}` });
 }

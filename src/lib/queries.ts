@@ -79,12 +79,16 @@ export function getLatestAnalysis(
   db: SqliteDatabase,
   judgmentId: string,
 ): EasyReadAnalysis | null {
+  // 검토 대기(needs_review) 중인 결과는 승인 전까지 노출하지 않는다.
   const row = db
     .prepare<[string], { content_json: string }>(
-      `SELECT content_json
+      `SELECT analysis_results.content_json
         FROM analysis_results
-        WHERE judgment_id = ?
-        ORDER BY created_at DESC
+        JOIN judgment_generation_jobs
+          ON judgment_generation_jobs.id = analysis_results.job_id
+        WHERE analysis_results.judgment_id = ?
+          AND judgment_generation_jobs.status = 'ready'
+        ORDER BY analysis_results.created_at DESC
         LIMIT 1`,
     )
     .get(judgmentId);
@@ -109,8 +113,9 @@ const judgmentDetailSql = `SELECT judgments.id,
   judgments.source_url,
   judgments.source_trust,
   judgments.source_summary,
-  judgments.original_text,
+  judgment_texts.original_text,
   judgments.created_by_user_id,
+  judgments.organization_id,
   (
     SELECT status FROM judgment_generation_jobs
     WHERE judgment_generation_jobs.judgment_id = judgments.id
@@ -121,7 +126,8 @@ const judgmentDetailSql = `SELECT judgments.id,
     SELECT COUNT(*) FROM notifications
     WHERE notifications.judgment_id = judgments.id
   ) AS notification_count
-FROM judgments`;
+FROM judgments
+LEFT JOIN judgment_texts ON judgment_texts.judgment_id = judgments.id`;
 
 type JudgmentDetailRow = {
   id: string;
@@ -139,6 +145,7 @@ type JudgmentDetailRow = {
   source_summary: string | null;
   original_text: string | null;
   created_by_user_id: string | null;
+  organization_id: string | null;
   latest_job_status: string | null;
   notification_count: number;
 };
@@ -160,6 +167,7 @@ function mapJudgmentDetail(row: JudgmentDetailRow): JudgmentDetail {
     sourceSummary: row.source_summary,
     originalText: row.original_text,
     createdByUserId: row.created_by_user_id,
+    organizationId: row.organization_id,
     latestJobStatus: row.latest_job_status as JudgmentDetail["latestJobStatus"],
     notificationCount: row.notification_count,
   };
@@ -229,6 +237,100 @@ export function getCustomJudgmentById(
     )
     .get(id, userId);
   return row ? mapJudgmentDetail(row) : null;
+}
+
+/** 본인 소유이거나 소속 조직에 공유된 사용자 문서를 반환한다. */
+export function getAccessibleUserJudgmentById(
+  db: SqliteDatabase,
+  id: string,
+  userId: string,
+) {
+  const row = db
+    .prepare<[string, string, string, string], JudgmentDetailRow>(
+      `${judgmentDetailSql}
+       WHERE judgments.id = ?
+         AND (
+           (judgments.visibility IN ('private', 'organization')
+             AND judgments.created_by_user_id = ?)
+           OR (judgments.visibility = 'organization'
+             AND judgments.organization_id IN (
+               SELECT organizations.id
+               FROM organizations
+               LEFT JOIN organization_members
+                 ON organization_members.organization_id = organizations.id
+               WHERE organizations.owner_user_id = ?
+                 OR organization_members.user_id = ?
+             ))
+         )
+       LIMIT 1`,
+    )
+    .get(id, userId, userId, userId);
+  return row ? mapJudgmentDetail(row) : null;
+}
+
+export type OrganizationSharedJudgment = {
+  id: string;
+  title: string;
+  caseNumber: string;
+  status: JudgmentDetail["status"];
+  organizationId: string;
+  organizationName: string;
+  sharedByEmail: string | null;
+  updatedAt: string;
+};
+
+/** 사용자가 속한 조직들에 공유된 문서 목록. */
+export function getOrganizationSharedJudgments(
+  db: SqliteDatabase,
+  userId: string,
+): OrganizationSharedJudgment[] {
+  return db
+    .prepare<
+      [string, string],
+      {
+        id: string;
+        title: string;
+        case_number: string;
+        status: JudgmentDetail["status"];
+        organization_id: string;
+        organization_name: string;
+        shared_by_email: string | null;
+        updated_at: string;
+      }
+    >(
+      `SELECT judgments.id,
+        judgments.title,
+        judgments.case_number,
+        judgments.status,
+        organizations.id AS organization_id,
+        organizations.name AS organization_name,
+        users.email AS shared_by_email,
+        judgments.updated_at
+      FROM judgments
+      JOIN organizations ON organizations.id = judgments.organization_id
+      LEFT JOIN users ON users.id = judgments.created_by_user_id
+      WHERE judgments.visibility = 'organization'
+        AND judgments.organization_id IN (
+          SELECT organizations.id
+          FROM organizations
+          LEFT JOIN organization_members
+            ON organization_members.organization_id = organizations.id
+          WHERE organizations.owner_user_id = ?
+            OR organization_members.user_id = ?
+        )
+      ORDER BY judgments.updated_at DESC`,
+    )
+    .all(userId, userId)
+    .map((row) => ({
+      caseNumber: row.case_number,
+      id: row.id,
+      organizationId: row.organization_id,
+      organizationName: row.organization_name,
+      sharedByEmail: row.shared_by_email,
+      status: row.status,
+      title: row.title,
+      updatedAt: row.updated_at,
+    }));
 }
 
 export function getDashboardSnapshot(db: SqliteDatabase): DashboardSnapshot {

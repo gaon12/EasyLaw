@@ -580,9 +580,10 @@ function getJudgmentSource(
 ) {
   return db
     .prepare<[string, string], { id: string; originalText: string | null }>(
-      `SELECT id,
-        original_text AS originalText
+      `SELECT judgments.id,
+        judgment_texts.original_text AS originalText
        FROM judgments
+       LEFT JOIN judgment_texts ON judgment_texts.judgment_id = judgments.id
        WHERE source_provider = ? AND source_external_id = ?
        LIMIT 1`,
     )

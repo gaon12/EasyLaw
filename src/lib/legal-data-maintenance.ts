@@ -26,6 +26,7 @@ export function resetLegalData(db: SqliteDatabase): LegalDataResetResult {
     remove("analysis_results", "DELETE FROM analysis_results");
     remove("judgment_generation_jobs", "DELETE FROM judgment_generation_jobs");
     remove("judgment_sources", "DELETE FROM judgment_sources");
+    remove("judgment_texts", "DELETE FROM judgment_texts");
     remove("judgments", "DELETE FROM judgments");
     remove("external_api_cache", "DELETE FROM external_api_cache");
     remove("dictionary_terms", "DELETE FROM dictionary_terms");

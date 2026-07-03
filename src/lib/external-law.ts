@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SqliteDatabase } from "./db";
 import { logIntegrationEvent } from "./integration-events";
+import { setJudgmentText } from "./judgment-texts";
 import { newId } from "./security/crypto";
 import { getSetting } from "./settings";
 import { addMinutesIso, nowIso } from "./time";
@@ -147,7 +148,6 @@ export function upsertJudgmentFromExternal(
           source_url = ?,
           source_trust = 'external_verified',
           source_summary = COALESCE(?, source_summary),
-          original_text = COALESCE(?, original_text),
           updated_at = ?
         WHERE id = ?`,
     ).run(
@@ -158,10 +158,12 @@ export function upsertJudgmentFromExternal(
       record.caseType,
       record.sourceUrl ?? null,
       record.summary ?? null,
-      record.originalText ?? null,
       now,
       existing.id,
     );
+    if (record.originalText) {
+      setJudgmentText(db, existing.id, record.originalText);
+    }
     upsertJudgmentSource(db, existing.id, record, now);
     return existing.id;
   }
@@ -171,8 +173,8 @@ export function upsertJudgmentFromExternal(
     `INSERT INTO judgments
       (id, case_number, court_name, decided_on, title, case_type, status,
         visibility, source_provider, source_external_id, source_url,
-        source_trust, source_summary, original_text, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        source_trust, source_summary, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     record.caseNumber,
@@ -187,11 +189,13 @@ export function upsertJudgmentFromExternal(
     record.sourceUrl ?? null,
     "external_verified",
     record.summary ?? null,
-    record.originalText ?? null,
     now,
     now,
   );
 
+  if (record.originalText) {
+    setJudgmentText(db, id, record.originalText);
+  }
   upsertJudgmentSource(db, id, record, now);
   return id;
 }
@@ -359,11 +363,7 @@ export async function ensurePublicJudgmentOriginalText(
     return null;
   }
 
-  db.prepare(
-    `UPDATE judgments
-      SET original_text = ?, updated_at = ?
-      WHERE id = ?`,
-  ).run(originalText, nowIso(), input.id);
+  setJudgmentText(db, input.id, originalText);
   return originalText;
 }
 

@@ -1,3 +1,139 @@
+/**
+ * 대용량 참조 데이터 전용 corpus DB(legal-corpus.sqlite) 마이그레이션.
+ * 서비스 DB(easylaw.sqlite)의 migrations보다 먼저 적용된다.
+ */
+export const corpusMigrations = [
+  {
+    id: 1,
+    name: "corpus_initial",
+    sql: `
+      CREATE TABLE IF NOT EXISTS corpus.judgment_texts (
+        judgment_id TEXT PRIMARY KEY,
+        original_text TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS corpus.dictionary_terms (
+        id TEXT PRIMARY KEY,
+        word TEXT NOT NULL,
+        sense_no TEXT NOT NULL DEFAULT '',
+        part_of_speech TEXT,
+        definition TEXT NOT NULL,
+        origin TEXT,
+        raw_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'standard',
+        priority INTEGER NOT NULL DEFAULT 3
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS corpus.dictionary_terms_unique_idx
+        ON dictionary_terms(source, word, sense_no, definition);
+
+      CREATE INDEX IF NOT EXISTS corpus.dictionary_terms_word_idx
+        ON dictionary_terms(word);
+
+      CREATE INDEX IF NOT EXISTS corpus.dictionary_terms_source_priority_idx
+        ON dictionary_terms(word, priority);
+
+      CREATE TABLE IF NOT EXISTS corpus.dictionary_imports (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        imported_count INTEGER NOT NULL DEFAULT 0,
+        failure_reason TEXT,
+        created_at TEXT NOT NULL,
+        completed_at TEXT,
+        source TEXT NOT NULL DEFAULT 'standard'
+      );
+
+      CREATE TABLE IF NOT EXISTS corpus.external_api_cache (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        cache_key TEXT NOT NULL,
+        response_json TEXT NOT NULL,
+        raw_hash TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        UNIQUE(provider, cache_key)
+      );
+    `,
+  },
+  {
+    id: 2,
+    name: "judgment_texts_full_text_search",
+    // trigram 토크나이저는 형태소 분석 없이도 한국어 부분 문자열 검색을
+    // 지원한다(질의 토큰 3자 이상). 3자 미만 토큰은 LIKE로 폴백한다.
+    sql: `
+      CREATE VIRTUAL TABLE IF NOT EXISTS corpus.judgment_texts_fts USING fts5(
+        original_text,
+        content='judgment_texts',
+        content_rowid='rowid',
+        tokenize='trigram'
+      );
+
+      INSERT INTO corpus.judgment_texts_fts(rowid, original_text)
+        SELECT rowid, original_text FROM corpus.judgment_texts;
+
+      CREATE TRIGGER IF NOT EXISTS corpus.judgment_texts_fts_ai
+        AFTER INSERT ON judgment_texts BEGIN
+          INSERT INTO judgment_texts_fts(rowid, original_text)
+            VALUES (new.rowid, new.original_text);
+        END;
+
+      CREATE TRIGGER IF NOT EXISTS corpus.judgment_texts_fts_ad
+        AFTER DELETE ON judgment_texts BEGIN
+          INSERT INTO judgment_texts_fts(judgment_texts_fts, rowid, original_text)
+            VALUES ('delete', old.rowid, old.original_text);
+        END;
+
+      CREATE TRIGGER IF NOT EXISTS corpus.judgment_texts_fts_au
+        AFTER UPDATE ON judgment_texts BEGIN
+          INSERT INTO judgment_texts_fts(judgment_texts_fts, rowid, original_text)
+            VALUES ('delete', old.rowid, old.original_text);
+          INSERT INTO judgment_texts_fts(rowid, original_text)
+            VALUES (new.rowid, new.original_text);
+        END;
+    `,
+  },
+  {
+    id: 3,
+    name: "judgment_texts_word_search",
+    // trigram은 3자 미만 질의를 다루지 못하므로 unicode61 단어 인덱스를
+    // 병행한다. 한국어 조사는 단어 뒤에 붙어 접두("단어*") 매칭이 잘 맞는다.
+    sql: `
+      CREATE VIRTUAL TABLE IF NOT EXISTS corpus.judgment_words_fts USING fts5(
+        original_text,
+        content='judgment_texts',
+        content_rowid='rowid',
+        tokenize='unicode61'
+      );
+
+      INSERT INTO corpus.judgment_words_fts(rowid, original_text)
+        SELECT rowid, original_text FROM corpus.judgment_texts;
+
+      CREATE TRIGGER IF NOT EXISTS corpus.judgment_words_fts_ai
+        AFTER INSERT ON judgment_texts BEGIN
+          INSERT INTO judgment_words_fts(rowid, original_text)
+            VALUES (new.rowid, new.original_text);
+        END;
+
+      CREATE TRIGGER IF NOT EXISTS corpus.judgment_words_fts_ad
+        AFTER DELETE ON judgment_texts BEGIN
+          INSERT INTO judgment_words_fts(judgment_words_fts, rowid, original_text)
+            VALUES ('delete', old.rowid, old.original_text);
+        END;
+
+      CREATE TRIGGER IF NOT EXISTS corpus.judgment_words_fts_au
+        AFTER UPDATE ON judgment_texts BEGIN
+          INSERT INTO judgment_words_fts(judgment_words_fts, rowid, original_text)
+            VALUES ('delete', old.rowid, old.original_text);
+          INSERT INTO judgment_words_fts(rowid, original_text)
+            VALUES (new.rowid, new.original_text);
+        END;
+    `,
+  },
+] as const;
+
 export const migrations = [
   {
     id: 1,
@@ -448,6 +584,57 @@ export const migrations = [
 
       CREATE INDEX IF NOT EXISTS user_bookmarks_judgment_idx
         ON user_bookmarks(judgment_id);
+    `,
+  },
+  {
+    id: 14,
+    name: "split_legal_corpus_database",
+    sql: `
+      INSERT INTO corpus.judgment_texts (judgment_id, original_text, updated_at)
+        SELECT id, original_text, updated_at
+        FROM main.judgments
+        WHERE original_text IS NOT NULL AND TRIM(original_text) != ''
+        ON CONFLICT(judgment_id) DO UPDATE SET
+          original_text = excluded.original_text,
+          updated_at = excluded.updated_at;
+
+      INSERT OR IGNORE INTO corpus.dictionary_terms
+        (id, word, sense_no, part_of_speech, definition, origin,
+          raw_json, updated_at, source, priority)
+        SELECT id, word, sense_no, part_of_speech, definition, origin,
+          raw_json, updated_at, source, priority
+        FROM main.dictionary_terms;
+
+      INSERT OR IGNORE INTO corpus.dictionary_imports
+        (id, status, source_url, imported_count, failure_reason,
+          created_at, completed_at, source)
+        SELECT id, status, source_url, imported_count, failure_reason,
+          created_at, completed_at, source
+        FROM main.dictionary_imports;
+
+      DROP TABLE main.dictionary_terms;
+      DROP TABLE main.dictionary_imports;
+      DROP TABLE main.external_api_cache;
+      ALTER TABLE judgments DROP COLUMN original_text;
+    `,
+  },
+  {
+    id: 15,
+    name: "seed_easyread_prompt_version",
+    sql: `
+      INSERT INTO prompt_versions (id, version, description, is_active, created_at)
+        SELECT 'prompt_easyread_v1', 'easyread-v1',
+          'LLM 기반 Easy-Read 생성 기본 프롬프트', 0, datetime('now')
+        WHERE NOT EXISTS (
+          SELECT 1 FROM prompt_versions WHERE version = 'easyread-v1'
+        );
+
+      UPDATE prompt_versions
+        SET is_active = 1
+        WHERE version = 'easyread-v1'
+          AND NOT EXISTS (
+            SELECT 1 FROM prompt_versions WHERE is_active = 1
+          );
     `,
   },
 ] as const;

@@ -60,6 +60,7 @@ export type JudgmentDetail = JudgmentListItem & {
   sourceSummary: string | null;
   originalText: string | null;
   createdByUserId: string | null;
+  organizationId: string | null;
 };
 
 export type EasyReadAnalysis = {
