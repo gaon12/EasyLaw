@@ -136,6 +136,8 @@ export function JudgmentExplorer({
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [customText, setCustomText] = useState("");
+  const [customTextNotice, setCustomTextNotice] = useState("");
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [captchaPrompt, setCaptchaPrompt] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
@@ -218,6 +220,47 @@ export function JudgmentExplorer({
         data.count > 0
           ? `${data.count}개의 판결문을 찾았어요.`
           : "검색 조건에 맞는 판결문이 없어요.",
+      );
+    });
+  }
+
+  async function extractPdfText(file: File) {
+    await withLoading(async () => {
+      setCustomTextNotice("PDF에서 텍스트를 추출하고 있어요.");
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/custom-judgments/extract", {
+        body: formData,
+        method: "POST",
+      });
+      const data: unknown = await response.json();
+
+      if (response.status === 401) {
+        authRedirectRef.current = true;
+        setLoginModalOpen(true);
+        return;
+      }
+      if (!response.ok) {
+        setCustomTextNotice(
+          apiMessage(data, "PDF에서 텍스트를 추출하지 못했어요."),
+        );
+        return;
+      }
+      const text = stringField(data, "text");
+      if (!text) {
+        setCustomTextNotice("PDF 응답 형식을 확인하지 못했어요.");
+        return;
+      }
+      setCustomText(text);
+      if (!customTitle.trim()) {
+        setCustomTitle(file.name.replace(/\.pdf$/i, "").slice(0, 80));
+      }
+      const truncated =
+        isRecord(data) && data.truncated === true
+          ? " 내용이 길어 뒷부분은 잘렸어요."
+          : "";
+      setCustomTextNotice(
+        `PDF에서 텍스트를 불러왔어요. 내용을 확인한 뒤 저장해 주세요.${truncated}`,
       );
     });
   }
@@ -372,6 +415,32 @@ export function JudgmentExplorer({
                   저장해요. 저장한 문서는 로그인한 계정만 볼 수 있습니다.
                 </p>
               </div>
+              <div className={styles.buttonRow}>
+                <input
+                  accept="application/pdf,.pdf"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (file) {
+                      void extractPdfText(file);
+                    }
+                  }}
+                  ref={pdfInputRef}
+                  type="file"
+                />
+                <button
+                  className={styles.secondaryButton}
+                  disabled={isLoading}
+                  onClick={() => pdfInputRef.current?.click()}
+                  type="button"
+                >
+                  PDF에서 불러오기
+                </button>
+              </div>
+              {customTextNotice && (
+                <p className={styles.notice}>{customTextNotice}</p>
+              )}
               <label className={styles.label} htmlFor="custom-title">
                 문서 제목
               </label>

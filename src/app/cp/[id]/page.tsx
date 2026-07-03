@@ -1,17 +1,20 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { JudgmentDetailView } from "@/components/judgment-detail";
+import { OrgShareControl } from "@/components/org-share-control";
 import { AppShell } from "@/components/site-chrome";
 import { isJudgmentBookmarked } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
 import { extractRelatedCaseReferences } from "@/lib/judgment-relations";
 import { pageMetadata } from "@/lib/metadata";
+import { getUserOrganizations } from "@/lib/organizations";
 import {
-  getCustomJudgmentById,
+  getAccessibleUserJudgmentById,
   getLatestAnalysis,
   getPublicJudgmentsByCaseNumbers,
 } from "@/lib/queries";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
+import styles from "../../page.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +33,12 @@ export default async function CustomJudgmentPage({
   if (!user) {
     notFound();
   }
-  const judgment = getCustomJudgmentById(db, id, user.id);
+  const judgment = getAccessibleUserJudgmentById(db, id, user.id);
   if (!judgment) {
     notFound();
   }
+  const isOwner = judgment.createdByUserId === user.id;
+  const organizations = isOwner ? getUserOrganizations(db, user.id) : [];
   const relatedReferences = extractRelatedCaseReferences(
     judgment.originalText,
     judgment.caseNumber,
@@ -47,6 +52,18 @@ export default async function CustomJudgmentPage({
 
   return (
     <AppShell>
+      {isOwner && organizations.length > 0 && (
+        <div className={styles.orgShareWrap}>
+          <OrgShareControl
+            judgmentId={judgment.id}
+            organizations={organizations.map((organization) => ({
+              id: organization.id,
+              name: organization.name,
+            }))}
+            sharedOrganizationId={judgment.organizationId}
+          />
+        </div>
+      )}
       <JudgmentDetailView
         analysis={getLatestAnalysis(db, judgment.id)}
         bookmarkInitialActive={isJudgmentBookmarked(db, {
