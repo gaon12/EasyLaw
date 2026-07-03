@@ -127,6 +127,9 @@ function applyLocale(
 ) {
   document.documentElement.lang = locale === "ko" ? "ko" : locale;
   document.documentElement.dataset.locale = locale;
+  // 서버 컴포넌트가 첫 페인트부터 번역을 렌더링할 수 있도록 쿠키에도 저장한다.
+  // biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API는 Firefox/Safari에서 아직 쓸 수 없다.
+  document.cookie = `easylaw_locale=${locale}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
   const dictionary: Readonly<Record<string, string>> = translations[locale];
   for (const element of document.querySelectorAll<HTMLElement>("[data-i18n]")) {
     const key = element.dataset.i18n;

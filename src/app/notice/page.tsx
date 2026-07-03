@@ -1,7 +1,9 @@
 import { SearchableBoardList } from "@/components/list-explorer";
 import { AppShell } from "@/components/site-chrome";
 import { notices } from "@/lib/content";
+import { translate } from "@/lib/i18n";
 import { pageMetadata } from "@/lib/metadata";
+import { getRequestLocale } from "@/lib/server-locale";
 import styles from "../page.module.css";
 
 export const metadata = pageMetadata({
@@ -10,15 +12,20 @@ export const metadata = pageMetadata({
   path: "/notice",
 });
 
-export default function NoticeListPage() {
+export default async function NoticeListPage() {
+  const locale = await getRequestLocale();
   return (
     <AppShell>
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>공지사항</h1>
-              <p>EasyLaw의 새로운 소식과 운영 안내를 확인하세요.</p>
+              <h1 data-i18n="notice.title">
+                {translate(locale, "notice.title")}
+              </h1>
+              <p data-i18n="notice.description">
+                {translate(locale, "notice.description")}
+              </p>
             </div>
           </div>
           <SearchableBoardList

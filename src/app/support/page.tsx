@@ -1,5 +1,7 @@
 import { AppShell } from "@/components/site-chrome";
+import { translate } from "@/lib/i18n";
 import { pageMetadata } from "@/lib/metadata";
+import { getRequestLocale } from "@/lib/server-locale";
 import styles from "../page.module.css";
 
 export const metadata = pageMetadata({
@@ -9,15 +11,20 @@ export const metadata = pageMetadata({
   path: "/support",
 });
 
-export default function SupportPage() {
+export default async function SupportPage() {
+  const locale = await getRequestLocale();
   return (
     <AppShell>
       <main className={styles.main}>
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>고객센터</h1>
-              <p>판결문 검색, AI 질문, 생성 알림, 조직 문서함 이용을 도와요.</p>
+              <h1 data-i18n="support.title">
+                {translate(locale, "support.title")}
+              </h1>
+              <p data-i18n="support.description">
+                {translate(locale, "support.description")}
+              </p>
             </div>
           </div>
           <div className={styles.contentGrid}>

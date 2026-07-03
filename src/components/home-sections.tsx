@@ -13,6 +13,7 @@ import {
 import { LandingSearch } from "@/components/landing-search";
 import { LocalTime } from "@/components/local-time";
 import { serviceShortcuts } from "@/components/site-chrome";
+import { type SupportedLocale, translate } from "@/lib/i18n";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import type { DashboardSnapshot, JudgmentListItem } from "@/lib/types";
 
@@ -232,7 +233,8 @@ export function SignedInHome({
   );
 }
 
-export function PublicHome() {
+export function PublicHome({ locale = "ko" }: { locale?: SupportedLocale }) {
+  const t = (key: string) => translate(locale, key);
   return (
     <main className={styles.referenceMain}>
       <section className={styles.referenceHero} aria-labelledby="home-title">
@@ -252,34 +254,39 @@ export function PublicHome() {
             />
             <h1 id="home-title">EasyLaw</h1>
           </div>
-          <p>
-            어려운 판결문을 결론, 판단 이유, 법률 용어, 주의할 점으로 나눠
-            읽습니다. 한 화면에 모든 설명을 쌓기보다 목적별 섹션과 하위 페이지로
-            이어지도록 구성했습니다.
-          </p>
+          <p data-i18n="home.hero.lede">{t("home.hero.lede")}</p>
           <LandingSearch />
           <nav className={styles.sectionTabs} aria-label="서비스 섹션">
-            <a href="#preview">미리보기</a>
-            <a href="#workflow">이용 흐름</a>
-            <a href="#paths">시작 경로</a>
-            <a href="#privacy">보안</a>
+            <a data-i18n="home.tabs.preview" href="#preview">
+              {t("home.tabs.preview")}
+            </a>
+            <a data-i18n="home.tabs.workflow" href="#workflow">
+              {t("home.tabs.workflow")}
+            </a>
+            <a data-i18n="home.tabs.paths" href="#paths">
+              {t("home.tabs.paths")}
+            </a>
+            <a data-i18n="home.tabs.privacy" href="#privacy">
+              {t("home.tabs.privacy")}
+            </a>
           </nav>
         </div>
 
         <aside className={styles.referenceRail} aria-label="주요 이동">
-          <span className={styles.railLabel}>PRIMARY ACTION</span>
+          <span className={styles.railLabel} data-i18n="home.rail.label">
+            {t("home.rail.label")}
+          </span>
           <Link className={styles.railPrimary} href="/research">
-            AI 질문 시작
+            <span data-i18n="home.rail.primary">{t("home.rail.primary")}</span>
             <ChevronRightIcon size={18} />
           </Link>
           <Link className={styles.railSecondary} href="/guide">
-            쉬운 판결문 예시 열기
+            <span data-i18n="home.rail.secondary">
+              {t("home.rail.secondary")}
+            </span>
             <ChevronRightIcon size={18} />
           </Link>
-          <p>
-            로그인 전에는 공개 예시와 검색 흐름을 먼저 확인하고, 개인/조직
-            문서는 인증 후 별도 화면에서 다룹니다.
-          </p>
+          <p data-i18n="home.rail.note">{t("home.rail.note")}</p>
         </aside>
       </section>
 
@@ -290,14 +297,22 @@ export function PublicHome() {
       >
         <SectionHeading
           eyebrow="LIVE PREVIEW"
-          title="핵심은 먼저, 근거는 바로 옆에"
-          description="판결문 원문과 쉬운 설명을 같은 문서 안에서도 문단별로 분리해 보여줍니다."
+          title={t("home.preview.title")}
+          titleKey="home.preview.title"
+          description={t("home.preview.description")}
+          descriptionKey="home.preview.description"
           actionHref="/guide"
-          actionLabel="전체 예시 보기"
+          actionLabel={t("home.preview.action")}
+          actionKey="home.preview.action"
         />
         <div className={styles.splitPreview}>
           <article>
-            <span className={styles.paneLabel}>판결문 원문</span>
+            <span
+              className={styles.paneLabel}
+              data-i18n="home.preview.original"
+            >
+              {t("home.preview.original")}
+            </span>
             <p>
               피고는 원고에게 손해배상금과 이에 대하여 정해진 날부터 다 갚는
               날까지 계산한 지연손해금을 지급한다.
@@ -305,7 +320,9 @@ export function PublicHome() {
             <p>소송비용 중 일부는 원고가, 나머지는 피고가 부담한다.</p>
           </article>
           <article>
-            <span className={styles.paneLabel}>쉬운 설명</span>
+            <span className={styles.paneLabel} data-i18n="home.preview.easy">
+              {t("home.preview.easy")}
+            </span>
             <div className={styles.resultCallout}>
               <span>한눈에 보는 결론</span>
               <strong>피고가 원고에게 배상금을 지급해야 해요.</strong>
@@ -325,8 +342,10 @@ export function PublicHome() {
       >
         <SectionHeading
           eyebrow="PROCESS"
-          title="판결문을 이해하는 세 단계"
-          description="각 단계는 독립적인 문단과 화면으로 나뉘어 다음 작업을 선택하기 쉽습니다."
+          title={t("home.workflow.title")}
+          titleKey="home.workflow.title"
+          description={t("home.workflow.description")}
+          descriptionKey="home.workflow.description"
         />
         <div className={styles.stepGrid}>
           {workflowSteps.map((step) => (
@@ -346,8 +365,10 @@ export function PublicHome() {
       >
         <SectionHeading
           eyebrow="ROUTES"
-          title="지금 하려는 일로 이동하세요"
-          description="검색, 예시, 내 문서, 조직 문서를 서로 다른 책임의 페이지로 분리했습니다."
+          title={t("home.paths.title")}
+          titleKey="home.paths.title"
+          description={t("home.paths.description")}
+          descriptionKey="home.paths.description"
         />
         <div className={styles.actionGrid}>
           {servicePaths.map((path) => {
@@ -393,14 +414,17 @@ export function PublicHome() {
         <ShieldIcon size={26} />
         <div>
           <span>PRIVACY</span>
-          <h2 id="privacy-title">민감한 내용은 필요한 화면에서만 다룹니다.</h2>
-          <p>
-            공개 판결문은 출처를 남기고, 사용자가 붙여넣은 문서는 로그인한
-            본인만 접근할 수 있는 비공개 주소로 관리합니다.
+          <h2 data-i18n="home.privacy.title" id="privacy-title">
+            {t("home.privacy.title")}
+          </h2>
+          <p data-i18n="home.privacy.description">
+            {t("home.privacy.description")}
           </p>
         </div>
         <Link className={styles.secondaryButton} href="/privacy">
-          개인정보처리방침
+          <span data-i18n="home.privacy.action">
+            {t("home.privacy.action")}
+          </span>
         </Link>
       </section>
     </main>
@@ -409,27 +433,33 @@ export function PublicHome() {
 
 function SectionHeading({
   actionHref,
+  actionKey,
   actionLabel,
   description,
+  descriptionKey,
   eyebrow,
   title,
+  titleKey,
 }: {
   actionHref?: string;
+  actionKey?: string;
   actionLabel?: string;
   description: string;
+  descriptionKey?: string;
   eyebrow: string;
   title: string;
+  titleKey?: string;
 }) {
   return (
     <div className={styles.referenceSectionHeader}>
       <div>
         <span>{eyebrow}</span>
-        <h2>{title}</h2>
-        <p>{description}</p>
+        <h2 data-i18n={titleKey}>{title}</h2>
+        <p data-i18n={descriptionKey}>{description}</p>
       </div>
       {actionHref && actionLabel && (
         <Link href={actionHref}>
-          {actionLabel}
+          <span data-i18n={actionKey}>{actionLabel}</span>
           <ChevronRightIcon size={18} />
         </Link>
       )}

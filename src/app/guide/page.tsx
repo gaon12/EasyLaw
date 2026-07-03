@@ -1,6 +1,8 @@
 import { AppShell } from "@/components/site-chrome";
 import { guideDocuments } from "@/lib/content";
+import { translate } from "@/lib/i18n";
 import { pageMetadata } from "@/lib/metadata";
+import { getRequestLocale } from "@/lib/server-locale";
 import styles from "../page.module.css";
 
 export const metadata = pageMetadata({
@@ -10,17 +12,17 @@ export const metadata = pageMetadata({
   path: "/guide",
 });
 
-export default function GuidePage() {
+export default async function GuidePage() {
+  const locale = await getRequestLocale();
   return (
     <AppShell>
       <main className={styles.main}>
         <section className={styles.wikiHome}>
           <div className={styles.wikiHero}>
             <span className={styles.badge}>EasyLaw Wiki</span>
-            <h1>쉬운 판결문 위키</h1>
-            <p>
-              판결문을 읽고, 설명하고, 안전하게 다루기 위한 기준을 문서처럼
-              이어서 정리합니다. 게시판이 아니라 계속 고쳐 쓰는 지식 대문이에요.
+            <h1 data-i18n="guide.title">{translate(locale, "guide.title")}</h1>
+            <p data-i18n="guide.description">
+              {translate(locale, "guide.description")}
             </p>
           </div>
 

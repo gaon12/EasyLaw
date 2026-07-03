@@ -4,6 +4,7 @@ import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
 import { getDashboardSnapshot, getPublicJudgments } from "@/lib/queries";
+import { getRequestLocale } from "@/lib/server-locale";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export default async function Home() {
   if (!sessionUser) {
     return (
       <AppShell>
-        <PublicHome />
+        <PublicHome locale={await getRequestLocale()} />
       </AppShell>
     );
   }

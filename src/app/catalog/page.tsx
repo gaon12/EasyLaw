@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { AppShell } from "@/components/site-chrome";
 import { listBookmarkedJudgmentIds } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
+import { translate } from "@/lib/i18n";
 import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import {
   matchesJudgmentSearch,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/judgment-search";
 import { pageMetadata } from "@/lib/metadata";
 import { getPublicJudgments } from "@/lib/queries";
+import { getRequestLocale } from "@/lib/server-locale";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { JudgmentExplorer } from "../easylaw-client";
 import styles from "../page.module.css";
@@ -52,6 +54,15 @@ export default async function CatalogPage({
     (safePage - 1) * CATALOG_PAGE_SIZE,
     safePage * CATALOG_PAGE_SIZE,
   );
+  const locale = await getRequestLocale();
+  const titleKey = initialQuery
+    ? "catalog.titleResults"
+    : isRecentView
+      ? "catalog.titleRecent"
+      : "catalog.title";
+  const descriptionKey = isRecentView
+    ? "catalog.descriptionRecent"
+    : "catalog.description";
 
   return (
     <AppShell>
@@ -59,17 +70,9 @@ export default async function CatalogPage({
         <section className={styles.section}>
           <div className={styles.sectionTitle}>
             <div>
-              <h1>
-                {initialQuery
-                  ? "판결문 검색 결과"
-                  : isRecentView
-                    ? "공개 판결문 전체 보기"
-                    : "판결문 검색"}
-              </h1>
-              <p>
-                {isRecentView
-                  ? "최근 공개된 판결문을 최신순으로 모아 볼 수 있어요."
-                  : "사건번호, 법원명, 판결문 제목으로 공개 판결문을 바로 찾아요. 직접 붙여넣은 내 문서는 로그인 후 비공개로 저장할 수 있어요."}
+              <h1 data-i18n={titleKey}>{translate(locale, titleKey)}</h1>
+              <p data-i18n={descriptionKey}>
+                {translate(locale, descriptionKey)}
               </p>
             </div>
             <span className={styles.badge}>확인된 정보 우선</span>
