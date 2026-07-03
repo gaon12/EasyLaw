@@ -1,5 +1,6 @@
 import { AdminAiSubnav } from "@/components/admin-ai-subnav";
 import { AdminSettingsForm } from "@/components/admin-settings-form";
+import { ConnectionTestButton } from "@/components/connection-test-button";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { pageMetadata } from "@/lib/metadata";
@@ -60,6 +61,16 @@ export default function AdminAiMcpPage() {
               ]}
               scope="mcp"
             />
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.contentCard}>
+            <h2 className={styles.contentCardTitle}>연결 진단</h2>
+            <p className={styles.contentCardDescription}>
+              설정된 각 MCP 서버에 연결해 도구 목록과 실패 사유를 확인해요.
+            </p>
+            <ConnectionTestButton kind="mcp" />
           </div>
         </section>
       </main>

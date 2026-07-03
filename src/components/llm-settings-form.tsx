@@ -11,12 +11,14 @@ export function LlmSettingsForm({
   initialModel,
   initialPreset,
   initialProvider,
+  initialTimeoutSeconds = "",
 }: {
   description: string;
   initialBaseUrl: string;
   initialModel: string;
   initialPreset: LlmPresetKey;
   initialProvider: string;
+  initialTimeoutSeconds?: string;
 }) {
   const [presetKey, setPresetKey] = useState<LlmPresetKey>(initialPreset);
   const [provider, setProvider] = useState(initialProvider);
@@ -163,6 +165,25 @@ export function LlmSettingsForm({
           placeholder="새 키를 입력할 때만 저장"
           type="password"
         />
+      </label>
+      <label
+        className={styles.settingsField}
+        htmlFor="setting-llm_timeout_seconds"
+      >
+        <span className={styles.label}>응답 제한 시간(초)</span>
+        <input
+          className={styles.input}
+          defaultValue={initialTimeoutSeconds}
+          id="setting-llm_timeout_seconds"
+          inputMode="numeric"
+          name="llm_timeout_seconds"
+          placeholder="비우면 자동: 클라우드 180초, 로컬 600초"
+          type="text"
+        />
+        <span className={styles.fieldHint}>
+          모델이 토큰을 계속 보내는 동안에는 끊지 않아요. 이 값은 요청 전체의
+          상한입니다(30~3600초).
+        </span>
       </label>
       <div className={styles.settingsActions}>
         <button

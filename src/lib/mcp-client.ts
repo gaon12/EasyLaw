@@ -109,6 +109,51 @@ export async function connectMcpToolbox(
   };
 }
 
+export type McpServerProbe = {
+  id: string;
+  label: string;
+  endpoint: string;
+  ok: boolean;
+  tools: string[];
+  error: string | null;
+};
+
+/** 관리자 진단용: 설정된 각 MCP 서버에 개별 연결해 결과와 실패 사유를 보고한다. */
+export async function probeMcpServers(
+  db: SqliteDatabase,
+): Promise<McpServerProbe[]> {
+  const timeout = readTimeout(db);
+  const servers = configuredServers.flatMap((server) => {
+    const endpoint = getSetting(db, server.settingKey)?.trim();
+    return endpoint ? [{ ...server, endpoint }] : [];
+  });
+  return Promise.all(
+    servers.map(async (server) => {
+      try {
+        const connection = await connectServer(server, timeout);
+        await connection.server.transport.close().catch(() => {});
+        return {
+          endpoint: server.endpoint,
+          error: null,
+          id: server.id,
+          label: server.label,
+          ok: true,
+          tools: connection.tools.map((tool) => tool.name),
+        };
+      } catch (error) {
+        return {
+          endpoint: server.endpoint,
+          error: error instanceof Error ? error.message : String(error),
+          id: server.id,
+          label: server.label,
+          ok: false,
+          tools: [],
+        };
+      }
+    }),
+  );
+}
+
 async function connectServer(
   server: {
     endpoint: string;

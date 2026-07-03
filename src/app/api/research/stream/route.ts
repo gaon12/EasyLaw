@@ -72,15 +72,35 @@ export async function POST(request: NextRequest) {
 
   const stream = new ReadableStream({
     start(controller) {
+      let closed = false;
+      const send = (event: string, data: unknown) => {
+        if (closed) {
+          return;
+        }
+        try {
+          controller.enqueue(
+            encoder.encode(
+              `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+            ),
+          );
+        } catch {
+          closed = true;
+        }
+      };
+      // 로컬 LLM은 첫 토큰까지 수 분 걸릴 수 있어 프록시의 유휴 연결 종료를
+      // 막기 위해 주기적으로 SSE 주석을 보낸다.
+      const heartbeat = setInterval(() => {
+        if (closed) {
+          return;
+        }
+        try {
+          controller.enqueue(encoder.encode(": heartbeat\n\n"));
+        } catch {
+          closed = true;
+        }
+      }, 15_000);
       void (async () => {
         try {
-          const send = (event: string, data: unknown) => {
-            controller.enqueue(
-              encoder.encode(
-                `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
-              ),
-            );
-          };
           await buildResearchPlan(db, parsed.data.query, (event) => {
             switch (event.type) {
               case "plan":
@@ -124,14 +144,16 @@ export async function POST(request: NextRequest) {
             error instanceof LlmError
               ? error.message
               : "법률 질문을 처리하지 못했습니다.";
-          controller.enqueue(
-            encoder.encode(
-              `event: error\ndata: ${JSON.stringify({ code, message })}\n\n`,
-            ),
-          );
+          send("error", { code, message });
         } finally {
+          clearInterval(heartbeat);
           access.release();
-          controller.close();
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // 클라이언트가 먼저 연결을 끊은 경우
+          }
         }
       })();
     },

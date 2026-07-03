@@ -1,4 +1,5 @@
 import { AdminAiSubnav } from "@/components/admin-ai-subnav";
+import { ConnectionTestButton } from "@/components/connection-test-button";
 import { LlmSettingsForm } from "@/components/llm-settings-form";
 import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
@@ -52,7 +53,21 @@ export default function AdminAiLlmPage() {
               initialModel={model}
               initialPreset={detectLlmPreset({ baseUrl, model, provider })}
               initialProvider={provider}
+              initialTimeoutSeconds={
+                getSetting(db, "llm_timeout_seconds") ?? ""
+              }
             />
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.contentCard}>
+            <h2 className={styles.contentCardTitle}>연결 진단</h2>
+            <p className={styles.contentCardDescription}>
+              저장된 설정으로 실제 모델에 짧은 요청을 보내 인증, 모델명, 응답
+              속도를 확인해요.
+            </p>
+            <ConnectionTestButton kind="llm" />
           </div>
         </section>
       </main>

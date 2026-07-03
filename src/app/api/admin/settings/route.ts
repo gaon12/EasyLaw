@@ -2,15 +2,20 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { CAPTCHA_LEVELS, isCaptchaAlgorithm } from "@/lib/captcha";
 import { getDatabase } from "@/lib/db";
+import {
+  LLM_TIMEOUT_MAX_SECONDS,
+  LLM_TIMEOUT_MIN_SECONDS,
+} from "@/lib/llm-client";
 import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 import { setSetting } from "@/lib/settings";
 
 const requestSchema = z.object({
-  scope: z.enum(["captcha", "llm", "mcp", "openLaw"]),
+  scope: z.enum(["captcha", "easyread", "llm", "mcp", "openLaw"]),
   settings: z.record(z.string(), z.string().max(2000)),
 });
 
 const allowedKeys = {
+  easyread: new Set(["easyread_review_required"]),
   captcha: new Set([
     "captcha_algorithm",
     "captcha_cost",
@@ -23,6 +28,7 @@ const allowedKeys = {
     "llm_api_base_url",
     "llm_model",
     "llm_api_key",
+    "llm_timeout_seconds",
   ]),
   mcp: new Set([
     "mcp_korean_law_endpoint",
@@ -39,6 +45,10 @@ const validators = {
   captcha_cost: (value: string) => integerInRange(value, 1, 200_000),
   captcha_expires_minutes: (value: string) => integerInRange(value, 1, 60),
   captcha_min_duration_ms: (value: string) => integerInRange(value, 0, 3000),
+  llm_timeout_seconds: (value: string) =>
+    integerInRange(value, LLM_TIMEOUT_MIN_SECONDS, LLM_TIMEOUT_MAX_SECONDS),
+  mcp_timeout_ms: (value: string) => integerInRange(value, 1_000, 120_000),
+  easyread_review_required: (value: string) => value === "0" || value === "1",
 };
 
 function integerInRange(value: string, min: number, max: number) {
