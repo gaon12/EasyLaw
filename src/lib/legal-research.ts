@@ -12,6 +12,7 @@ import {
   stepsForResearchMode,
 } from "./legal-research-policy";
 import {
+  isLocalLlmConfiguration,
   type LlmConfiguration,
   LlmError,
   readLlmConfiguration,
@@ -255,21 +256,22 @@ async function finishAnswer(
   query: string,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ): Promise<ResearchPlan> {
-  const answer =
-    plan.mode === "quick"
-      ? draft
-      : await composeVisibleAnswer(
-          configuration,
-          plan,
-          evidence,
-          draft,
-          query,
-          onEvent,
-        );
-  if (plan.mode === "quick") {
+  const shouldUseDraftAnswer =
+    plan.mode === "quick" || isLocalLlmConfiguration(configuration);
+  const answer = shouldUseDraftAnswer
+    ? draft
+    : await composeVisibleAnswer(
+        configuration,
+        plan,
+        evidence,
+        draft,
+        query,
+        onEvent,
+      );
+  if (shouldUseDraftAnswer) {
     onEvent?.({ answer, type: "answer", verified: false });
   }
-  if (plan.mode !== "deep") {
+  if (plan.mode !== "deep" || isLocalLlmConfiguration(configuration)) {
     return { ...plan, answer, evidence };
   }
 

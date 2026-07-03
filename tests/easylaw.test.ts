@@ -1763,6 +1763,66 @@ test("research questions fall back to local legal data when MCP is unavailable",
   }
 });
 
+test("local legal research returns the grounded draft without extra composition", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "llm_provider", "Ollama");
+    setSetting(db, "llm_api_base_url", "https://llm.example/v1");
+    setSetting(db, "llm_model", "gemma4");
+    setSetting(db, "mcp_korean_law_endpoint", "https://mcp.example/mcp");
+    const mock = createResearchFetchMock({
+      llmResponses: [
+        JSON.stringify({
+          calls: [
+            {
+              arguments: { query: "물물교환 결제수단" },
+              toolKey: "korean-law/search_law",
+            },
+          ],
+          coverageLevel: 2,
+          intent: "물물교환 방식의 거래 가능성 확인",
+          mode: "overview",
+          type: "tool_calls",
+        }),
+        JSON.stringify({
+          answer:
+            "당사자가 합의하면 교환계약으로 볼 여지가 있지만 매장 정책과 세무 처리가 문제될 수 있습니다. [E1]",
+          coverageLevel: 2,
+          intent: "물물교환 방식의 거래 가능성 확인",
+          mode: "overview",
+          type: "answer",
+        }),
+      ],
+      toolResults: [
+        {
+          source: "국가법령정보센터",
+          summary: "민법상 교환계약과 매매 규정 준용",
+          title: "민법 교환",
+          url: "https://example.test/law/exchange",
+        },
+      ],
+    });
+    globalThis.fetch = mock.fetch;
+
+    const result = await buildResearchPlan(
+      db,
+      "고블린이 편의점에서 현금 대신 포션으로 거래하자는데 가능한가요?",
+    );
+
+    assert.equal(result.mode, "overview");
+    assert.match(result.answer, /교환계약/);
+    assert.equal(mock.state.llmRequests, 2);
+    assert.ok(
+      mock.state.llmBodies.every((body) => body.stream !== true),
+      "local research should avoid the extra streaming composition pass",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
 test("legal research harness requires configured LLM settings", async () => {
   const { db, cleanup } = withDb();
   try {

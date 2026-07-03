@@ -49,6 +49,9 @@ function readableStreamError(value: unknown) {
   }
   const message = typeof value.message === "string" ? value.message : fallback;
   if (value.code === "llm_request_failed") {
+    if (message.includes("초과")) {
+      return `${message} 로컬 모델은 답변 생성에 시간이 오래 걸릴 수 있어요. 계속 반복되면 더 작은 모델로 바꾸거나 다시 시도해 주세요.`;
+    }
     return `${message} 로컬 모델을 쓰는 경우 LLM 서버가 켜져 있는지, API Base URL과 모델명이 현재 서버와 맞는지 확인해 주세요.`;
   }
   if (value.code === "llm_response_invalid") {

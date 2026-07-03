@@ -116,12 +116,12 @@ async function requestOpenAiCompatible(
   messages: LlmMessage[],
 ) {
   let response = await fetchOpenAiCompatible(configuration, messages, {
-    timeoutMs: 45_000,
+    timeoutMs: requestTimeoutMs(configuration, false),
   });
   if (!response.ok && shouldRetryWithoutReasoning(response.status)) {
     response = await fetchOpenAiCompatible(configuration, messages, {
       skipReasoningControl: true,
-      timeoutMs: 45_000,
+      timeoutMs: requestTimeoutMs(configuration, false),
     });
   }
 
@@ -142,13 +142,13 @@ async function requestOpenAiCompatibleStream(
 ) {
   let response = await fetchOpenAiCompatible(configuration, messages, {
     stream: true,
-    timeoutMs: 60_000,
+    timeoutMs: requestTimeoutMs(configuration, true),
   });
   if (!response.ok && shouldRetryWithoutReasoning(response.status)) {
     response = await fetchOpenAiCompatible(configuration, messages, {
       skipReasoningControl: true,
       stream: true,
-      timeoutMs: 60_000,
+      timeoutMs: requestTimeoutMs(configuration, true),
     });
   }
 
@@ -214,7 +214,7 @@ async function requestAnthropic(
   );
 
   if (!response.ok) {
-    throw requestFailed(response.status);
+    throw await requestFailed(response);
   }
 
   const payload = (await response.json()) as {
@@ -265,7 +265,7 @@ async function requestAnthropicStream(
   );
 
   if (!response.ok) {
-    throw requestFailed(response.status);
+    throw await requestFailed(response);
   }
   if (!response.body) {
     throw new LlmError(
@@ -422,6 +422,10 @@ function isLocalProvider(provider: string) {
   return normalized === "ollama" || normalized === "lm studio";
 }
 
+export function isLocalLlmConfiguration(configuration: LlmConfiguration) {
+  return isLocalProvider(configuration.provider);
+}
+
 function canDisableGeminiThinking(configuration: LlmConfiguration) {
   const provider = configuration.provider.trim().toLowerCase();
   const model = configuration.model.trim().toLowerCase();
@@ -441,6 +445,13 @@ function isTimeoutError(error: unknown) {
     error instanceof Error &&
     (error.name === "TimeoutError" || error.name === "AbortError")
   );
+}
+
+function requestTimeoutMs(configuration: LlmConfiguration, stream: boolean) {
+  if (isLocalLlmConfiguration(configuration)) {
+    return stream ? 240_000 : 180_000;
+  }
+  return stream ? 60_000 : 45_000;
 }
 
 function ensureTrailingSlash(value: string) {
