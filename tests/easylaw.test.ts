@@ -2074,6 +2074,7 @@ test("hypothetical legal scenarios keep their premise and require MCP-grounded a
     const groundedAnswer = `엘프를 인간과 같은 생명·신체를 가진 응급환자로 대응시키면, 단순히 종족을 보고 치료를 포기한 의사는 정당한 사유 없는 응급의료 거부에 따른 처벌 가능성이 높습니다. [E1] 관련 벌칙과 행정처분도 검토해야 합니다. [E2] 사망이나 중상해가 발생했다면 보호의무와 인과관계에 따라 부작위 형사책임도 별도로 문제 됩니다. [E3] 다만 응급증상과 치료 가능성은 의료 자료로 확인해야 합니다. [E4]`;
     const mock = createResearchFetchMock({
       llmResponses: [
+        "응급상황에서는 환자 지위와 진료 거부 사유를 먼저 확인해야 합니다.",
         JSON.stringify({
           answer:
             "엘프는 자연인이 아니므로 현실의 법으로 의사를 처벌할 수 없습니다.",
@@ -2175,22 +2176,30 @@ test("hypothetical legal scenarios keep their premise and require MCP-grounded a
         .size,
       4,
     );
-    assert.equal(mock.state.llmRequests, 7);
+    assert.equal(mock.state.llmRequests, 8);
     assert.doesNotMatch(result.answer, /자연인이 아니므로.*처벌할 수 없습니다/);
     assert.match(result.answer, /처벌 가능성이 높습니다/);
     assert.match(result.answer, /\[E1\]/);
 
-    const firstRequest = mock.state.llmBodies[0];
+    const agentPrompt = mock.state.llmBodies.find((body) =>
+      JSON.stringify(body).includes(
+        "가상·초현실적 사실도 질문자가 정한 사실로 받아들인다",
+      ),
+    );
+    assert.ok(agentPrompt);
     assert.match(
-      JSON.stringify(firstRequest),
+      JSON.stringify(agentPrompt),
       /가상·초현실적 사실도 질문자가 정한 사실로 받아들인다/,
     );
     assert.match(
-      JSON.stringify(firstRequest),
+      JSON.stringify(agentPrompt),
       /포션.*약사법 쟁점으로 단정하지 않는다/,
     );
-    const secondRequest = mock.state.llmBodies[1];
-    assert.match(JSON.stringify(secondRequest), /MCP 근거가 하나도 없다/);
+    const rejectedPrompt = mock.state.llmBodies.find((body) =>
+      JSON.stringify(body).includes("MCP 근거가 하나도 없다"),
+    );
+    assert.ok(rejectedPrompt);
+    assert.match(JSON.stringify(rejectedPrompt), /MCP 근거가 하나도 없다/);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();
@@ -2208,6 +2217,7 @@ test("deep research keeps its overview when verification fails", async () => {
     setSetting(db, "mcp_korean_law_endpoint", "https://mcp.example/mcp");
     const mock = createResearchFetchMock({
       llmResponses: [
+        "형사 절차 질문이므로 자료 보존과 신고 경로를 먼저 정리해야 합니다.",
         JSON.stringify({
           calls: [
             {
@@ -2280,6 +2290,7 @@ test("deep research falls back to the overview path when the model breaks the JS
     setSetting(db, "llm_model", "gemma4");
     const mock = createResearchFetchMock({
       llmResponses: [
+        "고위험 쟁점이지만 먼저 일반적인 법적 방향을 요약합니다.",
         // 심층 검증 결정이 JSON이 아니어도 오류로 끝나면 안 된다.
         "죄송하지만 JSON 형식으로 답변드리기 어렵습니다.",
         "일반적으로 무면허 운전은 도로교통법 위반으로 다뤄질 수 있습니다.",
@@ -2302,8 +2313,8 @@ test("deep research falls back to the overview path when the model breaks the JS
     assert.equal(result.mode, "overview");
     assert.match(result.answer, /무면허 운전|도로교통법/);
     assert.ok(warnings.some((message) => message.includes("일반 오버뷰")));
-    // 실패한 결정 1회 + 초안 + 근거 확인 = 3회.
-    assert.equal(mock.state.llmRequests, 3);
+    // 빠른 예비 초안 + 실패한 결정 1회 + fallback 초안 + 근거 확인 = 4회.
+    assert.equal(mock.state.llmRequests, 4);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();

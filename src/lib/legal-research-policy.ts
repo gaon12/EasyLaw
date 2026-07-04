@@ -57,7 +57,13 @@ export function stepsForResearchMode(mode: ResearchMode) {
     return [routeStep, draftStep];
   }
   if (mode === "deep") {
-    return [routeStep, agentToolStep, overviewStep, verificationStep];
+    return [
+      routeStep,
+      draftStep,
+      agentToolStep,
+      overviewStep,
+      verificationStep,
+    ];
   }
   return [routeStep, draftStep, parallelSearchStep, groundingStep];
 }
@@ -67,7 +73,8 @@ export function researchHarnessFlowchart() {
     A[User Query] --> B[Rule Router]
     B -->|term/usage| C[Quick Streamed Answer]
     B -->|default| D[Draft Streaming Starts]
-    B -->|high risk| H[Agent Tool Loop]
+    B -->|high risk| L[Fast Preliminary Draft]
+    L --> H[Agent Tool Loop]
     D --> E[Parallel Search]
     E --> F[Grounding Section]
     F --> G[Final Answer + Sources]

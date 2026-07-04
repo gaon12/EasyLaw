@@ -151,6 +151,46 @@ export async function buildResearchPlan(
     return runAnswerFirstOverview(db, configuration, plan, onEvent);
   }
 
+  return runFastFirstDeepResearch(
+    db,
+    configuration,
+    plan,
+    onEvent,
+    (updated) => {
+      plan = updated;
+    },
+  );
+}
+
+async function runFastFirstDeepResearch(
+  db: SqliteDatabase,
+  configuration: LlmConfiguration,
+  plan: PlanDraft,
+  onEvent?: (event: ResearchHarnessEvent) => void,
+  onPlanUpdate?: (plan: PlanDraft) => void,
+): Promise<ResearchPlan> {
+  let finalAnswerStarted = false;
+  let previewText = "";
+  onEvent?.({ phase: "composing", type: "phase" });
+  const previewPromise = streamDraftAnswer(
+    configuration,
+    plan.query,
+    plan.intent,
+    (token) => {
+      if (finalAnswerStarted) {
+        return;
+      }
+      previewText += token;
+      onEvent?.({ answer: previewText, type: "answer", verified: false });
+    },
+  ).catch(() => {
+    onEvent?.({
+      message: "빠른 예비 답변 생성에 실패해 심층 검토 결과를 기다립니다.",
+      type: "warning",
+    });
+    return "";
+  });
+
   onEvent?.({ phase: "connecting", type: "phase" });
   try {
     const toolbox = mergeToolboxes(
@@ -162,13 +202,20 @@ export async function buildResearchPlan(
         configuration,
         toolbox,
         plan,
-        onEvent,
+        (event) => {
+          if (event.type === "answer") {
+            finalAnswerStarted = true;
+          }
+          onEvent?.(event);
+        },
         (updated) => {
           plan = updated;
+          onPlanUpdate?.(updated);
         },
       );
     } finally {
       await toolbox.close();
+      await Promise.allSettled([previewPromise]);
     }
   } catch (error) {
     // 모델이 검증 하네스의 JSON 형식을 지키지 못하면 오류로 끝내지 않고
@@ -188,6 +235,8 @@ export async function buildResearchPlan(
       steps: stepsForResearchMode("overview"),
     };
     onEvent?.({ plan: fallbackPlan, type: "plan" });
+    finalAnswerStarted = true;
+    await Promise.allSettled([previewPromise]);
     return runAnswerFirstOverview(db, configuration, fallbackPlan, onEvent);
   }
 }
