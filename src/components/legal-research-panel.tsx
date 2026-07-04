@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
+import { CitationEvidenceModal } from "@/components/citation-evidence-modal";
 import {
   type CitationEvidence,
   ResearchMarkdown,
 } from "@/components/research-markdown";
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import { LEGAL_RESEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
+import type { AnswerDetailLevel } from "@/lib/research-options";
 
 type Plan = {
   coverageLabel: string;
@@ -16,7 +18,9 @@ type Plan = {
 };
 
 type ResearchRequest = {
+  answerDetail: AnswerDetailLevel;
   captchaPayload?: string;
+  easyExplanation: boolean;
   nonce: number;
   query: string;
 };
@@ -83,6 +87,31 @@ function exportFilename(query: string, extension: "md") {
 
 function documentTitle(query: string) {
   return query.trim() || "EasyLaw AI 답변";
+}
+
+function citedEvidence(answer: string, evidence: CitationEvidence[]) {
+  const citedIds = new Set(
+    [...answer.matchAll(/\[(E\d+)\]/g)].map((match) => match[1]),
+  );
+  const seen = new Set<string>();
+  return evidence.filter((item) => {
+    if (!citedIds.has(item.id)) {
+      return false;
+    }
+    const key = item.url
+      ? `url:${item.url
+          .replace(/[?#].*$/, "")
+          .replace(/\/+$/, "")
+          .toLowerCase()}`
+      : item.documentType === "dictionary"
+        ? `dictionary:${item.source}:${item.title}`
+        : `title:${item.title.replaceAll(/\s+/g, " ").trim().toLowerCase()}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function researchMarkdown({
@@ -225,8 +254,17 @@ export function LegalResearchPanel({
   initialQuery?: string;
 }) {
   const [query, setQuery] = useState(initialQuery);
+  const [answerDetail, setAnswerDetail] = useState<AnswerDetailLevel>("simple");
+  const [easyExplanation, setEasyExplanation] = useState(false);
   const [activeRequest, setActiveRequest] = useState<ResearchRequest | null>(
-    initialQuery ? { nonce: 0, query: initialQuery } : null,
+    initialQuery
+      ? {
+          answerDetail: "simple",
+          easyExplanation: false,
+          nonce: 0,
+          query: initialQuery,
+        }
+      : null,
   );
   const [plan, setPlan] = useState<Plan | null>(null);
   const [evidence, setEvidence] = useState<CitationEvidence[]>([]);
@@ -235,6 +273,9 @@ export function LegalResearchPanel({
   const [toolStatus, setToolStatus] = useState("");
   const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [warning, setWarning] = useState("");
+  const [sourceEvidence, setSourceEvidence] = useState<CitationEvidence | null>(
+    null,
+  );
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
   );
@@ -244,11 +285,24 @@ export function LegalResearchPanel({
   const renderedAnswerRef = useRef<HTMLDivElement>(null);
   const submitGuardRef = useRef(false);
   const activityIdRef = useRef(0);
+  const visibleEvidence = useMemo(
+    () => citedEvidence(answer, evidence),
+    [answer, evidence],
+  );
 
   const appendActivity = useCallback((activity: Omit<AgentActivity, "id">) => {
-    activityIdRef.current += 1;
-    const next = { ...activity, id: activityIdRef.current };
-    setActivities((current) => [...current.slice(-7), next]);
+    setActivities((current) => {
+      const existing = current.findIndex(
+        (item) => item.title === activity.title && item.type === activity.type,
+      );
+      if (existing >= 0) {
+        return current.map((item, index) =>
+          index === existing ? { ...item, ...activity } : item,
+        );
+      }
+      activityIdRef.current += 1;
+      return [...current.slice(-7), { ...activity, id: activityIdRef.current }];
+    });
   }, []);
 
   const applyServerEvent = useCallback(
@@ -333,7 +387,7 @@ export function LegalResearchPanel({
   );
 
   const runResearch = useCallback(
-    async (nextQuery: string, signal: AbortSignal, captchaPayload?: string) => {
+    async (researchRequest: ResearchRequest, signal: AbortSignal) => {
       setStatus("loading");
       setPlan(null);
       setEvidence([]);
@@ -342,10 +396,16 @@ export function LegalResearchPanel({
       setToolStatus("");
       setActivities([]);
       setWarning("");
+      setSourceEvidence(null);
 
       try {
         const response = await fetch("/api/research/stream", {
-          body: JSON.stringify({ captchaPayload, query: nextQuery }),
+          body: JSON.stringify({
+            answerDetail: researchRequest.answerDetail,
+            captchaPayload: researchRequest.captchaPayload,
+            easyExplanation: researchRequest.easyExplanation,
+            query: researchRequest.query,
+          }),
           headers: {
             "Content-Type": "application/json",
             ...clientFingerprintHeaders(),
@@ -429,11 +489,7 @@ export function LegalResearchPanel({
     }
 
     const abortController = new AbortController();
-    void runResearch(
-      activeRequest.query,
-      abortController.signal,
-      activeRequest.captchaPayload,
-    );
+    void runResearch(activeRequest, abortController.signal);
     return () => abortController.abort();
   }, [activeRequest, runResearch]);
 
@@ -444,19 +500,21 @@ export function LegalResearchPanel({
         return;
       }
       setActiveRequest({
+        answerDetail: activeRequest?.answerDetail ?? answerDetail,
         captchaPayload: payload,
+        easyExplanation: activeRequest?.easyExplanation ?? easyExplanation,
         nonce: Date.now(),
         query: nextQuery,
       });
     },
-    [activeRequest?.query, query],
+    [activeRequest, answerDetail, easyExplanation, query],
   );
 
   const exportResearch = useCallback(
     (format: "markdown" | "pdf") => {
       const markdown = researchMarkdown({
         answer,
-        evidence,
+        evidence: visibleEvidence,
         plan,
         query: activeRequest?.query ?? query,
       });
@@ -473,11 +531,11 @@ export function LegalResearchPanel({
         return;
       }
       printPdf({
-        renderedHtml: `<section class="print-answer">${renderedAnswer}</section>${sourceHtml(evidence)}`,
+        renderedHtml: `<section class="print-answer">${renderedAnswer}</section>${sourceHtml(visibleEvidence)}`,
         title: documentTitle(activeRequest?.query ?? query),
       });
     },
-    [activeRequest?.query, answer, evidence, plan, query],
+    [activeRequest?.query, answer, plan, query, visibleEvidence],
   );
 
   return (
@@ -498,6 +556,8 @@ export function LegalResearchPanel({
             if (query.trim()) {
               submitGuardRef.current = true;
               setActiveRequest({
+                answerDetail,
+                easyExplanation,
                 nonce: Date.now(),
                 query: query.trim(),
               });
@@ -515,6 +575,51 @@ export function LegalResearchPanel({
             placeholder="예: 중고거래 사기를 당했는데 신고와 배상 절차가 궁금합니다."
             value={query}
           />
+          <div className={styles.researchOptions}>
+            <fieldset>
+              <legend>답변 형식</legend>
+              <div className={styles.researchSegmentedControl}>
+                <label>
+                  <input
+                    checked={answerDetail === "simple"}
+                    disabled={status === "loading"}
+                    name="answer-detail"
+                    onChange={() => setAnswerDetail("simple")}
+                    type="radio"
+                  />
+                  <span>
+                    <strong>간단</strong>
+                    <small>핵심만 줄글로</small>
+                  </span>
+                </label>
+                <label>
+                  <input
+                    checked={answerDetail === "detailed"}
+                    disabled={status === "loading"}
+                    name="answer-detail"
+                    onChange={() => setAnswerDetail("detailed")}
+                    type="radio"
+                  />
+                  <span>
+                    <strong>상세</strong>
+                    <small>육하원칙·근거·추가 설명</small>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+            <label className={styles.researchEasyToggle}>
+              <input
+                checked={easyExplanation}
+                disabled={status === "loading"}
+                onChange={(event) => setEasyExplanation(event.target.checked)}
+                type="checkbox"
+              />
+              <span>
+                <strong>쉬운 설명</strong>
+                <small>법령용어와 국어사전으로 어려운 말을 풀어요.</small>
+              </span>
+            </label>
+          </div>
           <button
             className={styles.primaryButton}
             disabled={status === "loading" || query.trim().length < 2}
@@ -548,23 +653,41 @@ export function LegalResearchPanel({
         )}
 
         {activities.length > 0 && (
-          <section className={styles.aiAgentTimeline}>
-            <h2>Agent run</h2>
+          <details
+            className={styles.aiAgentTimeline}
+            open={status === "loading"}
+          >
+            <summary>
+              <span className={styles.aiAgentTimelineTitle}>
+                <strong>답변 준비 과정</strong>
+                <small>
+                  {status === "loading"
+                    ? "근거를 찾고 답변을 구성하고 있어요."
+                    : `${activities.length}단계 작업을 마쳤어요.`}
+                </small>
+              </span>
+              <span className={styles.aiAgentTimelineState}>
+                {status === "loading" ? "진행 중" : "상세 보기"}
+              </span>
+            </summary>
             <ol>
               {activities.map((activity) => (
                 <li
                   className={activityClassName(activity.status)}
                   key={activity.id}
                 >
-                  <span>{activityTypeLabel(activity.type)}</span>
+                  <span aria-hidden="true">
+                    {activityStatusSymbol(activity.status)}
+                  </span>
                   <div>
+                    <small>{activityTypeLabel(activity.type)}</small>
                     <strong>{activity.title}</strong>
-                    <small>{activity.detail}</small>
+                    <p>{activity.detail}</p>
                   </div>
                 </li>
               ))}
             </ol>
-          </section>
+          </details>
         )}
 
         {plan && (
@@ -582,7 +705,15 @@ export function LegalResearchPanel({
             {answer && (
               <section className={styles.aiAnswerBlock}>
                 <div className={styles.aiAnswerHeader}>
-                  <h3>AI 답변</h3>
+                  <div>
+                    <h3>AI 답변</h3>
+                    <span className={styles.aiAnswerMode}>
+                      {activeRequest?.answerDetail === "detailed"
+                        ? "상세 답변"
+                        : "간단 답변"}
+                      {activeRequest?.easyExplanation ? " · 쉬운 설명" : ""}
+                    </span>
+                  </div>
                   <div className={styles.aiExportActions}>
                     <button
                       onClick={() => exportResearch("markdown")}
@@ -607,25 +738,25 @@ export function LegalResearchPanel({
               </section>
             )}
 
-            {answer && evidence.length > 0 && (
+            {answer && visibleEvidence.length > 0 && (
               <section className={styles.aiSources}>
-                <h3>출처 {evidence.length}개</h3>
+                <h3>답변에 인용된 출처 {visibleEvidence.length}개</h3>
                 <div>
-                  {evidence.map((item, index) => (
-                    <article key={`${item.source}-${item.title}`}>
+                  {visibleEvidence.map((item, index) => (
+                    <article key={item.id}>
                       <span>{index + 1}</span>
                       <div>
-                        {item.url ? (
-                          <a href={item.url} rel="noreferrer" target="_blank">
-                            <strong>{item.title}</strong>
-                          </a>
-                        ) : (
-                          <strong>{item.title}</strong>
-                        )}
+                        <strong>{item.title}</strong>
                         <small>
                           {item.source} · 신뢰도 {item.confidence}
                         </small>
                         <p>{item.summary}</p>
+                        <button
+                          onClick={() => setSourceEvidence(item)}
+                          type="button"
+                        >
+                          인용 상세 보기
+                        </button>
                       </div>
                     </article>
                   ))}
@@ -678,6 +809,12 @@ export function LegalResearchPanel({
               resetKey={activeRequest?.nonce}
             />
           </>
+        )}
+        {sourceEvidence && (
+          <CitationEvidenceModal
+            evidence={sourceEvidence}
+            onClose={() => setSourceEvidence(null)}
+          />
         )}
       </section>
     </div>
@@ -737,6 +874,16 @@ function activityTypeLabel(type: AgentActivity["type"]) {
     return "Tool";
   }
   return "Run";
+}
+
+function activityStatusSymbol(status: AgentActivity["status"]) {
+  if (status === "completed") {
+    return "✓";
+  }
+  if (status === "failed") {
+    return "!";
+  }
+  return "·";
 }
 
 function activityClassName(status: AgentActivity["status"]) {

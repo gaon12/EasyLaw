@@ -1098,6 +1098,7 @@
 }
 
 .researchSearchForm textarea {
+  grid-column: 1 / -1;
   min-height: 58px;
   max-height: 160px;
   min-width: 0;
@@ -1116,8 +1117,122 @@
 }
 
 .researchSearchForm button {
+  grid-column: 2;
   min-width: 96px;
   border-radius: var(--radius-12);
+}
+
+.researchOptions {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: end;
+  padding: 0 12px 2px;
+}
+
+.researchOptions fieldset {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.researchOptions legend {
+  margin-bottom: 6px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.researchSegmentedControl {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  padding: 3px;
+  background: var(--bg-muted);
+}
+
+.researchSegmentedControl label {
+  cursor: pointer;
+}
+
+.researchSegmentedControl input,
+.researchEasyToggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.researchSegmentedControl label > span {
+  min-width: 126px;
+  display: grid;
+  gap: 1px;
+  border-radius: 9px;
+  padding: 7px 10px;
+  color: var(--fg-secondary);
+}
+
+.researchSegmentedControl input:checked + span {
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+  color: var(--fg-strong);
+}
+
+.researchSegmentedControl input:focus-visible + span,
+.researchEasyToggle input:focus-visible + span {
+  outline: 2px solid var(--fg-brand);
+  outline-offset: 2px;
+}
+
+.researchSegmentedControl strong,
+.researchSegmentedControl small,
+.researchEasyToggle strong,
+.researchEasyToggle small {
+  display: block;
+}
+
+.researchSegmentedControl strong,
+.researchEasyToggle strong {
+  font-size: 12px;
+}
+
+.researchSegmentedControl small,
+.researchEasyToggle small {
+  color: var(--fg-tertiary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.researchEasyToggle {
+  cursor: pointer;
+}
+
+.researchEasyToggle > span {
+  min-height: 49px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  padding: 6px 12px 6px 42px;
+  background:
+    radial-gradient(
+      circle at 22px 50%,
+      var(--bg-surface) 0 7px,
+      transparent 8px
+    ), var(--bg-muted);
+  color: var(--fg-secondary);
+}
+
+.researchEasyToggle input:checked + span {
+  border-color: color-mix(in oklch, var(--fg-brand) 35%, var(--border-subtle));
+  background:
+    radial-gradient(circle at 22px 50%, white 0 4px, transparent 5px),
+    radial-gradient(circle at 22px 50%, var(--bg-brand) 0 9px, transparent 10px),
+    var(--bg-brand-subtle);
+  color: var(--fg-strong);
 }
 
 .aiOverview {
@@ -1249,62 +1364,113 @@
 }
 
 .aiAgentTimeline {
-  display: grid;
-  gap: 10px;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-8);
+  border-radius: var(--radius-12);
+  background: var(--bg-surface);
+}
+
+.aiAgentTimeline summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding: 14px 16px;
-  background: var(--bg-subtle);
-}
-
-.aiAgentTimeline h2 {
-  margin: 0;
-  color: var(--fg-strong);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.aiAgentTimeline ol {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
+  cursor: pointer;
   list-style: none;
 }
 
-.aiAgentTimelineItem {
-  display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
+.aiAgentTimeline summary::-webkit-details-marker {
+  display: none;
 }
 
-.aiAgentTimelineItem > span {
-  min-height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-default);
+.aiAgentTimelineTitle {
+  display: grid;
+  gap: 2px;
+}
+
+.aiAgentTimelineState {
   border-radius: var(--radius-full);
-  background: var(--bg-surface);
+  padding: 5px 9px;
+  background: var(--bg-muted);
   color: var(--fg-secondary);
   font-size: 11px;
   font-weight: 800;
 }
 
-.aiAgentTimelineItem strong,
-.aiAgentTimelineItem small {
+.aiAgentTimeline summary strong {
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.aiAgentTimeline summary small {
+  color: var(--fg-secondary);
+  font-size: 12px;
+}
+
+.aiAgentTimeline ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 2px 16px 16px;
+  list-style: none;
+}
+
+.aiAgentTimelineItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 8px 0;
+}
+
+.aiAgentTimelineItem:not(:last-child)::before {
+  position: absolute;
+  top: 30px;
+  bottom: -10px;
+  left: 11px;
+  width: 1px;
+  background: var(--border-subtle);
+  content: "";
+}
+
+.aiAgentTimelineItem > span {
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.aiAgentTimelineItem div > * {
   display: block;
 }
 
+.aiAgentTimelineItem div > small {
+  color: var(--fg-tertiary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .aiAgentTimelineItem strong {
+  margin-top: 2px;
   color: var(--fg-strong);
   font-size: 13px;
   font-weight: 800;
 }
 
-.aiAgentTimelineItem small {
-  margin-top: 2px;
+.aiAgentTimelineItem p {
+  margin-top: 3px;
   color: var(--fg-secondary);
   font-size: 12px;
   line-height: 1.45;
@@ -1339,6 +1505,14 @@
   color: var(--fg-strong);
   font-size: 18px;
   font-weight: 700;
+}
+
+.aiAnswerMode {
+  display: block;
+  margin-top: 3px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .aiExportActions {
@@ -1590,6 +1764,12 @@
   font-weight: 800;
 }
 
+.researchCitationBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .researchCitationModal header button {
   width: 36px;
   height: 36px;
@@ -1622,16 +1802,46 @@
   line-height: 1.7;
 }
 
-.researchCitationModal > a {
+.researchCitationSummary {
+  margin-top: 18px;
+  border-radius: var(--radius-12);
+  padding: 14px;
+  background: var(--bg-muted);
+}
+
+.researchCitationSummary h4 {
+  color: var(--fg-strong);
+  font-size: 13px;
+}
+
+.researchCitationSummary p {
+  margin: 6px 0 0;
+}
+
+.researchCitationActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.researchCitationActions a {
   display: inline-flex;
   min-height: 42px;
   align-items: center;
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-full);
   padding: 0 16px;
-  background: var(--bg-brand);
-  color: white;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
   font-size: 14px;
   font-weight: 700;
+}
+
+.researchCitationActions a:first-child {
+  border-color: transparent;
+  background: var(--bg-brand);
+  color: white;
 }
 
 .researchCitationUnavailable {
@@ -1696,6 +1906,17 @@
   color: var(--fg-secondary);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.aiSources article button {
+  margin-top: 10px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--fg-brand);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .aiHarnessDetails {
@@ -5238,7 +5459,22 @@
   }
 
   .researchSearchForm button {
+    grid-column: 1;
     width: 100%;
+  }
+
+  .researchOptions {
+    display: grid;
+    padding: 0 4px;
+  }
+
+  .researchSegmentedControl,
+  .researchEasyToggle {
+    width: 100%;
+  }
+
+  .researchSegmentedControl label > span {
+    min-width: 0;
   }
 
   .researchSearchPanel h1 {

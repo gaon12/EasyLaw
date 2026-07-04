@@ -948,21 +948,24 @@ try {
   await anonymousContext.close();
 
   await page.setViewportSize({ width: 1440, height: 1100 });
-  await page.goto(
-    `${baseUrl}/research?q=${encodeURIComponent(exampleQuestion)}`,
-    {
-      waitUntil: "networkidle",
-    },
-  );
+  await page.goto(`${baseUrl}/research`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
+  await page.getByLabel("AI 법률 질문").fill(exampleQuestion);
+  await page.locator("label").filter({ hasText: "상세육하원칙" }).click();
+  await page.locator("label").filter({ hasText: "쉬운 설명법령용어" }).click();
+  await page.getByRole("button", { name: "질문하기" }).click();
   await page
     .getByRole("heading", { name: "AI 답변" })
     .waitFor({ timeout: 15_000 });
+  await page.getByRole("radio", { name: /간단/ }).waitFor();
+  await page.getByRole("radio", { name: /상세/ }).waitFor();
+  await page.getByRole("checkbox", { name: /쉬운 설명/ }).waitFor();
+  await page.getByText("상세 답변 · 쉬운 설명", { exact: true }).waitFor();
   await page.getByRole("heading", { name: "근거 확인" }).waitFor();
   await page.getByText("손해 자료", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Markdown" }).waitFor();
   await page.getByRole("button", { name: "PDF" }).waitFor();
-  await page.getByRole("heading", { name: "출처" }).waitFor();
+  await page.getByRole("heading", { name: /답변에 인용된 출처/ }).waitFor();
   const citationButton = page.locator('button[aria-label^="E1 근거:"]');
   await citationButton.hover();
   await page.getByRole("tooltip").waitFor();
@@ -976,6 +979,9 @@ try {
     throw new Error("Research citation did not link to its original source.");
   }
   await citationDialog.getByRole("button", { name: "근거 상세 닫기" }).click();
+  await page.getByRole("button", { name: "인용 상세 보기" }).click();
+  await page.getByRole("dialog").waitFor();
+  await page.getByRole("button", { name: "근거 상세 닫기" }).click();
   if ((await page.getByText(/^모델 /).count()) !== 0) {
     throw new Error("Research overview exposed the internal model name.");
   }

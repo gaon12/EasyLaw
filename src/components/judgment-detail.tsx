@@ -26,6 +26,8 @@ export function JudgmentDetailView({
   }>;
 }) {
   const caseTypeLabel = displayJudgmentCaseType(judgment.caseType);
+  const isLegalDocument = judgment.caseType === "law";
+  const documentLabel = isLegalDocument ? "법령" : "판결문";
   const documentText =
     judgment.originalText ??
     judgment.sourceSummary ??
@@ -40,7 +42,9 @@ export function JudgmentDetailView({
       <section className={styles.judgmentViewerHero}>
         <div>
           <span className={styles.badge}>
-            {privateDocument ? "비공개 판결문" : "공개 판결문"}
+            {privateDocument
+              ? `비공개 ${documentLabel}`
+              : `공개 ${documentLabel}`}
           </span>
           <h1>{judgment.title}</h1>
           <p>
@@ -56,13 +60,16 @@ export function JudgmentDetailView({
         </div>
       </section>
 
-      <section className={styles.judgmentViewer} aria-label="판결문 상세 보기">
+      <section
+        className={styles.judgmentViewer}
+        aria-label={`${documentLabel} 상세 보기`}
+      >
         <aside className={styles.viewerRail} aria-label="문서 탐색">
           <div className={styles.viewerRailPanel}>
             <strong className={styles.viewerRailTitle}>문서 목차</strong>
             <nav>
-              <a href="#original-document">판결문</a>
-              <a href="#easy-explanation">쉬운 판결문</a>
+              <a href="#original-document">{documentLabel}</a>
+              <a href="#easy-explanation">쉬운 설명</a>
               {relatedJudgments.length > 0 && <a href="#related-cases">전심</a>}
               <a href="#judgment-info">판결 정보</a>
             </nav>
@@ -110,11 +117,11 @@ export function JudgmentDetailView({
               <header className={styles.viewerPanelHeader}>
                 <span className={styles.badge}>원문</span>
                 <div>
-                  <h2 id="original-document-heading">판결문 본문</h2>
+                  <h2 id="original-document-heading">{documentLabel} 본문</h2>
                   <p>
                     {hasOriginalText
-                      ? "쉬운 설명 생성 여부와 관계없이 확보된 판결문 본문을 먼저 보여줘요."
-                      : "상세 본문을 아직 받지 못한 경우에는 확보된 판결 요지를 먼저 보여줘요."}
+                      ? `쉬운 설명 생성 여부와 관계없이 확보된 ${documentLabel} 본문을 먼저 보여줘요.`
+                      : `상세 본문을 아직 받지 못한 경우에는 확보된 ${documentLabel} 요지를 먼저 보여줘요.`}
                   </p>
                 </div>
               </header>
@@ -122,7 +129,7 @@ export function JudgmentDetailView({
                 <div className={styles.viewerText}>
                   {!hasOriginalText && (
                     <div className={styles.viewerFallbackNotice}>
-                      <strong>판결 요지를 표시하고 있어요.</strong>
+                      <strong>{documentLabel} 요지를 표시하고 있어요.</strong>
                       <p>
                         EasyLaw는 가능한 경우 자동으로 상세 본문을 가져와
                         저장합니다.
@@ -171,7 +178,9 @@ export function JudgmentDetailView({
                 </div>
               ) : (
                 <div className={styles.viewerEmpty}>
-                  <strong>표시할 판결문 내용을 아직 확보하지 못했어요.</strong>
+                  <strong>
+                    표시할 {documentLabel} 내용을 아직 확보하지 못했어요.
+                  </strong>
                   <p>기본 판결 정보와 전심 링크는 계속 볼 수 있습니다.</p>
                 </div>
               )}
@@ -187,7 +196,9 @@ export function JudgmentDetailView({
               <header className={styles.viewerPanelHeader}>
                 <span className={styles.badge}>해설</span>
                 <div>
-                  <h2 id="easy-explanation-heading">쉬운 판결문</h2>
+                  <h2 id="easy-explanation-heading">
+                    쉬운 {documentLabel} 설명
+                  </h2>
                   <p>생성된 해설이 있으면 핵심과 결론을 같이 보여줘요.</p>
                 </div>
               </header>
@@ -211,7 +222,7 @@ export function JudgmentDetailView({
                 <div className={styles.viewerEmpty}>
                   <strong>쉬운 설명은 아직 준비 중이에요.</strong>
                   <p>
-                    그래도 판결문 본문, 사건번호, 법원, 선고일은 먼저 확인할 수
+                    그래도 {documentLabel} 본문과 기본 정보는 먼저 확인할 수
                     있습니다.
                   </p>
                 </div>
