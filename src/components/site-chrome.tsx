@@ -41,7 +41,11 @@ const adminNav = [
   { href: "/admin/reviews", key: "admin.reviews", label: "결과 검토" },
   { href: "/admin/judgments", key: "admin.judgments", label: "판결문 데이터" },
   { href: "/admin/captcha", key: "admin.captcha", label: "CAPTCHA" },
-  { href: "/admin/dictionary", key: "admin.dictionary", label: "용어 사전" },
+  {
+    href: "/admin/dictionary/update",
+    key: "admin.dictionary",
+    label: "용어 사전",
+  },
   { href: "/admin#jobs", key: "admin.jobs", label: "사용자·작업" },
 ];
 

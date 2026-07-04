@@ -3,22 +3,22 @@ import styles from "@/app/page.module.css";
 
 const adminDictionaryNavItems = [
   {
-    href: "/admin/dictionary#dictionary-update",
+    href: "/admin/dictionary/update",
     key: "update",
     label: "공개 사전 데이터 업데이트",
   },
   {
-    href: "/admin/dictionary#legal-terms",
+    href: "/admin/dictionary/legal-terms",
     key: "legal",
     label: "자체 법률 용어 사전",
   },
   {
-    href: "/admin/dictionary#dictionary-latest",
+    href: "/admin/dictionary/latest",
     key: "latest",
     label: "최근 업데이트",
   },
   {
-    href: "/admin/dictionary#dictionary-events",
+    href: "/admin/dictionary/events",
     key: "events",
     label: "최근 작업 기록",
   },

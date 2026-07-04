@@ -502,7 +502,21 @@ try {
     );
   }
   await page.goto(`${baseUrl}/admin/dictionary`, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "용어 사전 관리" }).waitFor();
+  await page.waitForURL(`${baseUrl}/admin/dictionary/update`);
+  await page
+    .getByRole("heading", { name: "공개 사전 데이터 업데이트" })
+    .waitFor();
+  const dictionarySubNav = page.getByRole("navigation", {
+    name: "용어 사전 하위 메뉴",
+  });
+  await dictionarySubNav
+    .getByRole("link", { name: "자체 법률 용어 사전" })
+    .click();
+  await page.waitForURL(`${baseUrl}/admin/dictionary/legal-terms`);
+  await page.getByRole("heading", { name: "자체 법률 용어 사전" }).waitFor();
+  await page.goto(`${baseUrl}/admin/dictionary/update`, {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("button", { name: "표준국어대사전 업데이트" }).waitFor();
   await page.getByRole("button", { name: "법령용어 업데이트" }).waitFor();
   const dictionaryAdminText = await page.locator("main").innerText();
