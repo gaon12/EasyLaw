@@ -21,6 +21,7 @@ import {
   type JudgmentCategoryFilter,
   type JudgmentSearchFilters,
   type JudgmentSortOption,
+  judgmentCategory,
 } from "@/lib/judgment-search";
 import type { JudgmentListItem } from "@/lib/types";
 import styles from "./page.module.css";
@@ -532,7 +533,11 @@ export function JudgmentExplorer({
             value={pageInput}
           />
         </label>
-        <button disabled={isSearching} type="submit">
+        <button
+          className={styles.pageJumpButton}
+          disabled={isSearching}
+          type="submit"
+        >
           이동
         </button>
       </form>
@@ -586,7 +591,11 @@ export function JudgmentExplorer({
             <fieldset className={styles.categoryChips}>
               <legend className={styles.visuallyHidden}>문서 카테고리</legend>
               {ALL_CATEGORIES.map((category) => (
-                <label className={styles.categoryChip} key={category}>
+                <label
+                  className={styles.categoryChip}
+                  data-category={category}
+                  key={category}
+                >
                   <input
                     checked={categories.includes(category)}
                     onChange={() => toggleCategory(category)}
@@ -764,7 +773,7 @@ export function JudgmentExplorer({
               />
               <div className={styles.buttonRow}>
                 <button
-                  className={styles.secondaryButton}
+                  className={styles.primaryButton}
                   disabled={
                     isSaving ||
                     customTitle.trim().length < 2 ||
@@ -806,7 +815,10 @@ export function JudgmentExplorer({
             {pagedJudgments.map((judgment) => (
               <article className={styles.judgmentListItem} key={judgment.id}>
                 <div className={styles.judgmentListMain}>
-                  <span className={styles.categoryBadge}>
+                  <span
+                    className={styles.categoryBadge}
+                    data-category={judgmentCategory(judgment.caseType)}
+                  >
                     {judgment.caseType === "law"
                       ? "법령"
                       : displayJudgmentCaseType(judgment.caseType)}
@@ -825,7 +837,7 @@ export function JudgmentExplorer({
                 </div>
                 <div className={styles.judgmentListActions}>
                   <a
-                    className={styles.secondaryButton}
+                    className={styles.primaryButton}
                     href={`/p/${encodeURIComponent(judgment.id)}`}
                   >
                     보기

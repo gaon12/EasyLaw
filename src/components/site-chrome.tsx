@@ -148,8 +148,8 @@ export function AppFooter() {
           <span>EasyLaw</span>
         </a>
         <p data-i18n="footer.disclaimer">
-          EasyLaw는 판결문 이해를 돕는 서비스예요. 법률 자문을 대체하지 않으며,
-          중요한 판단은 변호사 등 전문가와 확인해 주세요.
+          EasyLaw는 법률 문서 이해를 돕는 서비스예요. 법률 자문을 대체하지
+          않으며, 중요한 판단은 변호사 등 전문가와 확인해 주세요.
         </p>
         <div className={styles.footerLinks}>
           <a href="/support" data-i18n="nav.support">

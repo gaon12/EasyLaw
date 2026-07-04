@@ -515,8 +515,12 @@
   border: 0;
   display: grid;
   place-items: center;
-  background: transparent;
-  color: var(--fg-strong);
+  background: var(--bg-brand);
+  color: var(--fg-on-brand);
+}
+
+.searchButton:hover {
+  background: var(--bg-brand-hover);
 }
 
 .servicePanel,
@@ -670,11 +674,12 @@
 .secondaryButton {
   border-color: var(--border-default);
   background: var(--bg-surface);
-  color: var(--fg-brand);
+  color: var(--fg-strong);
 }
 
 .secondaryButton:hover,
 .ghostButton:hover {
+  border-color: var(--border-strong);
   background: var(--bg-muted);
 }
 
@@ -2429,9 +2434,15 @@
 }
 
 .categoryChip:has(input:checked) {
-  border-color: transparent;
+  border-color: color-mix(in oklch, var(--fg-brand) 22%, transparent);
   background: var(--bg-brand-subtle);
   color: var(--fg-brand);
+}
+
+.categoryChip[data-category="law"]:has(input:checked) {
+  border-color: color-mix(in oklch, var(--fg-warning) 24%, transparent);
+  background: var(--bg-warning-subtle);
+  color: var(--fg-warning);
 }
 
 .categoryChip:has(input:checked)::before {
@@ -2465,11 +2476,16 @@
 .categoryBadge {
   border-radius: var(--radius-full);
   padding: 3px 9px;
-  background: var(--bg-muted);
-  color: var(--fg-secondary);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.categoryBadge[data-category="law"] {
+  background: var(--bg-warning-subtle);
+  color: var(--fg-warning);
 }
 
 .judgmentSkeletonItem {
@@ -2797,11 +2813,11 @@
 }
 
 .judgmentResultsArea {
-  margin-top: 28px;
+  margin-top: 36px;
 }
 
 .judgmentListHeader {
-  margin-bottom: 28px;
+  margin-bottom: 36px;
 }
 
 .judgmentListFooter {
@@ -2887,6 +2903,7 @@
 }
 
 .judgmentListActions .infoButton,
+.judgmentListActions .primaryButton,
 .judgmentListActions .secondaryButton {
   min-height: 36px;
   padding: 0 12px;
@@ -3930,6 +3947,17 @@
 .listPager button:not(:disabled):hover {
   background: var(--bg-muted);
   color: var(--fg-brand);
+}
+
+.listPager .pageJumpButton {
+  border-color: transparent;
+  background: var(--bg-brand);
+  color: var(--fg-on-brand);
+}
+
+.listPager .pageJumpButton:not(:disabled):hover {
+  background: var(--bg-brand-hover);
+  color: var(--fg-on-brand);
 }
 
 .listPager button:disabled {

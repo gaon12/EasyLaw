@@ -29,12 +29,15 @@ export function JudgmentDetailView({
   const caseTypeLabel = displayJudgmentCaseType(judgment.caseType);
   const isLegalDocument = judgment.caseType === "law";
   const documentLabel = isLegalDocument ? "법령" : "판결문";
+  const documentNumberLabel = isLegalDocument ? "문서번호" : "사건번호";
+  const documentIssuerLabel = isLegalDocument ? "출처" : "법원";
+  const documentDateLabel = isLegalDocument ? "기준일" : "선고일";
   const documentText =
     judgment.originalText ??
     judgment.sourceSummary ??
     fallbackJudgmentText(judgment, caseTypeLabel);
   const documentSections = documentText
-    ? parseJudgmentDocument(documentText)
+    ? parseJudgmentDocument(documentText, documentLabel)
     : [];
   const hasOriginalText = Boolean(judgment.originalText);
 
@@ -49,7 +52,7 @@ export function JudgmentDetailView({
           </span>
           <h1>{judgment.title}</h1>
           <p>
-            {judgment.caseNumber} · {judgment.courtName} · 선고일{" "}
+            {judgment.caseNumber} · {judgment.courtName} · {documentDateLabel}{" "}
             <LocalTime dateOnly dateTime={judgment.decidedOn} />
           </p>
         </div>
@@ -90,11 +93,11 @@ export function JudgmentDetailView({
           )}
           <dl className={`${styles.viewerRailPanel} ${styles.viewerMetaList}`}>
             <div>
-              <dt>사건번호</dt>
+              <dt>{documentNumberLabel}</dt>
               <dd>{judgment.caseNumber}</dd>
             </div>
             <div>
-              <dt>법원</dt>
+              <dt>{documentIssuerLabel}</dt>
               <dd>{judgment.courtName}</dd>
             </div>
             <div>
@@ -109,6 +112,7 @@ export function JudgmentDetailView({
         </aside>
 
         <JudgmentReaderTabs
+          documentLabel={documentLabel}
           documentPanel={
             <article
               aria-labelledby="original-document-heading"
@@ -183,7 +187,7 @@ export function JudgmentDetailView({
                   <strong>
                     표시할 {documentLabel} 내용을 아직 확보하지 못했어요.
                   </strong>
-                  <p>기본 판결 정보와 전심 링크는 계속 볼 수 있습니다.</p>
+                  <p>기본 문서 정보와 관련 링크는 계속 볼 수 있습니다.</p>
                 </div>
               )}
             </article>
@@ -200,8 +204,8 @@ export function JudgmentDetailView({
                 <div>
                   <h2 id="easy-explanation-heading">쉬운 해설</h2>
                   <p>
-                    원문을 보지 않아도 결론과 이유, 해야 할 일을 이해할 수
-                    있도록 정리했어요.
+                    원문을 보지 않아도 핵심 내용과 이유를 이해할 수 있도록
+                    정리했어요.
                   </p>
                 </div>
               </header>
@@ -229,9 +233,7 @@ export function JudgmentDetailView({
                 <span className={styles.badge}>이지 리드</span>
                 <div>
                   <h2 id="easy-read-heading">이지리드</h2>
-                  <p>
-                    꼭 알아야 할 결론과 해야 할 일만 큰 글씨로 짧게 보여줘요.
-                  </p>
+                  <p>꼭 알아야 할 핵심 내용만 큰 글씨로 짧게 보여줘요.</p>
                 </div>
               </header>
               {analysis ? (
@@ -254,7 +256,7 @@ export function JudgmentDetailView({
             <header className={styles.viewerPanelHeader}>
               <span className={styles.badge}>전심</span>
               <div>
-                <h2>함께 볼 판결문</h2>
+                <h2>함께 볼 문서</h2>
                 <p>
                   본문에서 확인한 원심·제1심 사건번호를 바로 이어 볼 수 있어요.
                 </p>
@@ -282,15 +284,15 @@ export function JudgmentDetailView({
           </header>
           <dl className={styles.viewerInfoGrid}>
             <div>
-              <dt>사건번호</dt>
+              <dt>{documentNumberLabel}</dt>
               <dd>{judgment.caseNumber}</dd>
             </div>
             <div>
-              <dt>법원</dt>
+              <dt>{documentIssuerLabel}</dt>
               <dd>{judgment.courtName}</dd>
             </div>
             <div>
-              <dt>선고일</dt>
+              <dt>{documentDateLabel}</dt>
               <dd>
                 <LocalTime dateOnly dateTime={judgment.decidedOn} />
               </dd>

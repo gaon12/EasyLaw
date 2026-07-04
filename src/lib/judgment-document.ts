@@ -39,6 +39,7 @@ const implicitHeadings = [
 
 export function parseJudgmentDocument(
   originalText: string,
+  fallbackTitle = "판결문",
 ): JudgmentDocumentSection[] {
   const lines = normalizeJudgmentText(originalText);
   const sections: JudgmentDocumentSection[] = [];
@@ -58,7 +59,7 @@ export function parseJudgmentDocument(
     }
 
     if (!current) {
-      current = { heading: "판결문", lines: [] };
+      current = { heading: fallbackTitle, lines: [] };
     }
     current.lines.push(line);
   }
@@ -73,7 +74,7 @@ export function parseJudgmentDocument(
         {
           id: "section-1",
           kind: "default",
-          title: "판결문",
+          title: fallbackTitle,
           blocks: splitBlocks(originalText),
         },
       ];

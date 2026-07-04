@@ -42,10 +42,12 @@ const readerViewStorageKey = "easylaw_reader_view";
 const onboardingStorageKey = "easylaw_reader_onboarding_complete";
 
 export function JudgmentReaderTabs({
+  documentLabel = "판결문",
   documentPanel,
   explanationPanel,
   easyReadPanel,
 }: {
+  documentLabel?: string;
   documentPanel: ReactNode;
   explanationPanel: ReactNode;
   easyReadPanel: ReactNode;
@@ -163,9 +165,7 @@ export function JudgmentReaderTabs({
       {noticeView && (
         <output className={styles.readerPreferenceNotice}>
           <p>
-            앞으로 판결문을 &apos;{getReaderViewTitle(noticeView)}&apos;로 먼저
-            보여드리겠습니다. 언제든지 상단에서 원문이나 이지리드로 바꿀 수
-            있습니다.
+            {`앞으로 ${documentLabel}을 '${getReaderViewTitle(noticeView)}'로 먼저 보여드리겠습니다. 언제든지 상단에서 원문이나 이지리드로 바꿀 수 있습니다.`}
           </p>
           <button onClick={() => setNoticeView(null)} type="button">
             확인
@@ -231,7 +231,8 @@ export function JudgmentReaderTabs({
             <div className={styles.readerOnboardingIntro}>
               <span className={styles.badge}>보기 설정</span>
               <h2 id={`${baseId}-reader-onboarding-title`}>
-                판결문을 더 편하게 볼 수 있도록 기본 화면을 골라드릴게요
+                {documentLabel}을 더 편하게 볼 수 있도록 기본 화면을
+                골라드릴게요
               </h2>
               <p>
                 답을 고르지 않고 닫아도 괜찮습니다. 그때는 쉬운 해설을 먼저
@@ -243,12 +244,12 @@ export function JudgmentReaderTabs({
               <>
                 <OnboardingProgress currentStep={1} />
                 <OnboardingQuestion
-                  legend="판결문을 어떤 방식으로 보고 싶으신가요?"
+                  legend={`${documentLabel}을 어떤 방식으로 보고 싶으신가요?`}
                   name={`${baseId}-preferred-reading`}
                   onChange={setPreferredReading}
                   options={[
                     {
-                      label: "원래 판결문 그대로 보고 싶어요",
+                      label: `원래 ${documentLabel} 그대로 보고 싶어요`,
                       value: "original",
                     },
                     {

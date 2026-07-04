@@ -29,13 +29,13 @@ const recommendations: Record<
   Omit<ReadingRecommendation, "view">
 > = {
   original: {
-    description: "원래 판결문 구조와 표현을 그대로 먼저 보여드립니다.",
+    description: "원래 문서 구조와 표현을 그대로 먼저 보여드립니다.",
     summaryFirst: false,
     title: "원문",
   },
   plain_language: {
     description:
-      "원문을 보지 않아도 판결의 결론과 이유를 이해할 수 있게 설명합니다.",
+      "원문을 보지 않아도 핵심 내용과 이유를 이해할 수 있게 설명합니다.",
     summaryFirst: false,
     title: "쉬운 해설",
   },

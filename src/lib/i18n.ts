@@ -16,7 +16,7 @@ export const translations = {
     "admin.mcp": "MCP 설정",
     "admin.openLaw": "공개법령 API",
     "footer.disclaimer":
-      "EasyLaw는 판결문 이해를 돕는 서비스예요. 법률 자문을 대체하지 않으며, 중요한 판단은 변호사 등 전문가와 확인해 주세요.",
+      "EasyLaw는 법률 문서 이해를 돕는 서비스예요. 법률 자문을 대체하지 않으며, 중요한 판단은 변호사 등 전문가와 확인해 주세요.",
     "home.hero.lede":
       "어려운 판결문을 결론, 판단 이유, 법률 용어, 주의할 점으로 나눠 쉽게 읽을 수 있어요. 궁금한 법률 상황은 AI에게 바로 물어보세요.",
     "home.rail.label": "지금 바로 시작",
@@ -97,7 +97,7 @@ export const translations = {
     "admin.mcp": "MCP",
     "admin.openLaw": "Open Law API",
     "footer.disclaimer":
-      "EasyLaw helps you understand court decisions. It does not replace legal advice; please confirm important decisions with a qualified professional.",
+      "EasyLaw helps you understand legal documents. It does not replace legal advice; please confirm important decisions with a qualified professional.",
     "home.hero.lede":
       "Read difficult court decisions as conclusions, reasoning, legal terms, and cautions — and ask the AI about your own situation.",
     "home.rail.label": "Start now",
@@ -179,7 +179,7 @@ export const translations = {
     "admin.mcp": "MCP設定",
     "admin.openLaw": "公開法令API",
     "footer.disclaimer":
-      "EasyLawは判決文の理解を助けるサービスです。法律相談の代わりにはならないため、重要な判断は弁護士など専門家にご確認ください。",
+      "EasyLawは法律文書の理解を助けるサービスです。法律相談の代わりにはならないため、重要な判断は弁護士など専門家にご確認ください。",
     "home.hero.lede":
       "難しい判決文を、結論・判断理由・法律用語・注意点に分けてやさしく読めます。気になる状況はAIにそのまま質問できます。",
     "home.rail.label": "今すぐはじめる",

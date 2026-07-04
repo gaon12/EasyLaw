@@ -135,7 +135,7 @@ test("reading onboarding recommends a default view without treating answers as a
       preferredReading: "original",
     }),
     {
-      description: "원래 판결문 구조와 표현을 그대로 먼저 보여드립니다.",
+      description: "원래 문서 구조와 표현을 그대로 먼저 보여드립니다.",
       summaryFirst: false,
       title: "원문",
       view: "original",
@@ -149,7 +149,7 @@ test("reading onboarding recommends a default view without treating answers as a
     }),
     {
       description:
-        "원문을 보지 않아도 판결의 결론과 이유를 이해할 수 있게 설명합니다.",
+        "원문을 보지 않아도 핵심 내용과 이유를 이해할 수 있게 설명합니다.",
       summaryFirst: false,
       title: "쉬운 해설",
       view: "plain_language",
@@ -176,7 +176,7 @@ test("reading onboarding recommends a default view without treating answers as a
     }),
     {
       description:
-        "원문을 보지 않아도 판결의 결론과 이유를 이해할 수 있게 설명합니다.",
+        "원문을 보지 않아도 핵심 내용과 이유를 이해할 수 있게 설명합니다.",
       summaryFirst: true,
       title: "쉬운 해설",
       view: "plain_language",
@@ -1970,6 +1970,16 @@ test("judgment document parser splits bracket headings and numbered reasons", ()
     text: "가. 관련 법리",
   });
   assert.equal(sections[2].blocks[2].kind, "paragraph");
+});
+
+test("judgment document parser uses a legal document fallback title", () => {
+  const sections = parseJudgmentDocument(
+    "제1조 목적 이 법은 국민의 권리 보호를 목적으로 한다.",
+    "법령",
+  );
+
+  assert.equal(sections[0]?.title, "법령");
+  assert.equal(sections[0]?.kind, "default");
 });
 
 test("judgment document parser splits inline spaced judgment headings", () => {
