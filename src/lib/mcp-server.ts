@@ -1,7 +1,12 @@
 import type { SqliteDatabase } from "./db";
 import { getJudgmentText } from "./judgment-texts";
-import { createLocalLegalToolbox } from "./local-legal-toolbox";
+import {
+  createLocalLegalToolbox,
+  legalSearchInputSchema,
+} from "./local-legal-toolbox";
 import { getPublicJudgmentByIdentifier } from "./queries";
+import { calculatorInputSchema } from "./toolbox-calculator";
+import { dateCalculatorInputSchema } from "./toolbox-date-calculator";
 
 /**
  * EasyLaw 코퍼스를 외부 MCP 클라이언트에 노출하는 stateless
@@ -26,17 +31,8 @@ const tools = [
   {
     annotations: { readOnlyHint: true },
     description:
-      "EasyLaw에 수집된 공개 판례, 헌재결정례, 법령, 행정규칙, 자치법규를 전문 검색합니다.",
-    inputSchema: {
-      properties: {
-        query: {
-          description: "검색할 법률 쟁점, 법령명, 사건번호, 키워드",
-          type: "string",
-        },
-      },
-      required: ["query"],
-      type: "object",
-    },
+      "EasyLaw에 수집된 공개 판례, 헌재결정례, 법령, 행정규칙, 자치법규를 전문 검색합니다. 사건유형, 출처, 기관명, 날짜 범위 필터를 지원합니다.",
+    inputSchema: legalSearchInputSchema,
     name: "search_legal_corpus",
     title: "법률 코퍼스 검색",
   },
@@ -56,6 +52,22 @@ const tools = [
     },
     name: "get_legal_document",
     title: "법률 문서 조회",
+  },
+  {
+    annotations: { readOnlyHint: true },
+    description:
+      "금액, 비율, 산술식 계산을 수행합니다. 숫자와 +, -, *, /, %, ^, 괄호만 지원합니다.",
+    inputSchema: calculatorInputSchema,
+    name: "calculate",
+    title: "계산기",
+  },
+  {
+    annotations: { readOnlyHint: true },
+    description:
+      "오늘 날짜, 요일, 날짜 더하기, 두 날짜 사이 일수를 계산합니다. 날짜는 YYYY-MM-DD 형식입니다.",
+    inputSchema: dateCalculatorInputSchema,
+    name: "calculate_date",
+    title: "날짜 계산기",
   },
 ] as const;
 
@@ -131,6 +143,26 @@ async function callTool(
       "local-legal/search_local_legal_data",
       args,
     );
+    return {
+      content: result.content,
+      isError: result.isError,
+      structuredContent: result.structuredContent,
+    };
+  }
+
+  if (name === "calculate") {
+    const toolbox = createLocalLegalToolbox(db);
+    const result = await toolbox.call("local-legal/calculate", args);
+    return {
+      content: result.content,
+      isError: result.isError,
+      structuredContent: result.structuredContent,
+    };
+  }
+
+  if (name === "calculate_date") {
+    const toolbox = createLocalLegalToolbox(db);
+    const result = await toolbox.call("local-legal/calculate_date", args);
     return {
       content: result.content,
       isError: result.isError,

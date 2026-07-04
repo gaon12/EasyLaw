@@ -1058,6 +1058,8 @@ test("the MCP endpoint serves corpus search and document tools", async () => {
       listed.body.result as { tools: Array<{ name: string }> }
     ).tools.map((tool) => tool.name);
     assert.deepEqual(toolNames.sort(), [
+      "calculate",
+      "calculate_date",
       "get_legal_document",
       "search_legal_corpus",
     ]);
@@ -1067,14 +1069,16 @@ test("the MCP endpoint serves corpus search and document tools", async () => {
       jsonrpc: "2.0",
       method: "tools/call",
       params: {
-        arguments: { query: "손해배상" },
+        arguments: { caseType: "civil", limit: 2, query: "손해배상" },
         name: "search_legal_corpus",
       },
     });
     assert.ok(searched.kind === "json");
     const searchResult = searched.body.result as {
       isError: boolean;
-      structuredContent: { records: Array<{ title: string }> };
+      structuredContent: {
+        records: Array<{ documentId: string; title: string }>;
+      };
     };
     assert.equal(searchResult.isError, false);
     assert.ok(
@@ -1082,6 +1086,46 @@ test("the MCP endpoint serves corpus search and document tools", async () => {
         record.title.includes("손해배상"),
       ),
     );
+    assert.ok(searchResult.structuredContent.records[0]?.documentId);
+    assert.equal(searchResult.structuredContent.records.length <= 2, true);
+
+    const calculated = await handleMcpRequest(db, {
+      id: 31,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { expression: "(1200000 * 0.03) / 12" },
+        name: "calculate",
+      },
+    });
+    assert.ok(calculated.kind === "json");
+    const calculateResult = calculated.body.result as {
+      isError: boolean;
+      structuredContent: { result: number };
+    };
+    assert.equal(calculateResult.isError, false);
+    assert.equal(calculateResult.structuredContent.result, 3000);
+
+    const dateCalculated = await handleMcpRequest(db, {
+      id: 32,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: {
+          amount: 14,
+          date: "2026-07-04",
+          operation: "add_days",
+        },
+        name: "calculate_date",
+      },
+    });
+    assert.ok(dateCalculated.kind === "json");
+    const dateResult = dateCalculated.body.result as {
+      isError: boolean;
+      structuredContent: { resultDate: string };
+    };
+    assert.equal(dateResult.isError, false);
+    assert.equal(dateResult.structuredContent.resultDate, "2026-07-18");
 
     const fetched = await handleMcpRequest(db, {
       id: 4,
