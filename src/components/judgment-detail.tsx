@@ -1,5 +1,6 @@
 import styles from "@/app/page.module.css";
 import { BookmarkButton } from "@/components/bookmark-button";
+import { CheckIcon } from "@/components/icons";
 import { JudgmentReaderTabs } from "@/components/judgment-reader-tabs";
 import { LocalTime } from "@/components/local-time";
 import { parseJudgmentDocument } from "@/lib/judgment-document";
@@ -68,10 +69,11 @@ export function JudgmentDetailView({
           <div className={styles.viewerRailPanel}>
             <strong className={styles.viewerRailTitle}>문서 목차</strong>
             <nav>
-              <a href="#original-document">{documentLabel}</a>
-              <a href="#easy-explanation">쉬운 설명</a>
+              <a href="#original-document">원본</a>
+              <a href="#easy-explanation">쉬운 해설</a>
+              <a href="#easy-read">이지 리드</a>
               {relatedJudgments.length > 0 && <a href="#related-cases">전심</a>}
-              <a href="#judgment-info">판결 정보</a>
+              <a href="#judgment-info">문서 정보</a>
             </nav>
           </div>
           {documentSections.length > 0 && (
@@ -101,7 +103,7 @@ export function JudgmentDetailView({
             </div>
             <div>
               <dt>상태</dt>
-              <dd>{analysis ? "쉬운 설명 있음" : "쉬운 설명 대기"}</dd>
+              <dd>{analysis ? "쉬운 해설 있음" : "쉬운 해설 대기"}</dd>
             </div>
           </dl>
         </aside>
@@ -194,33 +196,49 @@ export function JudgmentDetailView({
               role="tabpanel"
             >
               <header className={styles.viewerPanelHeader}>
-                <span className={styles.badge}>해설</span>
+                <span className={styles.badge}>쉬운 해설</span>
                 <div>
-                  <h2 id="easy-explanation-heading">
-                    쉬운 {documentLabel} 설명
-                  </h2>
-                  <p>생성된 해설이 있으면 핵심과 결론을 같이 보여줘요.</p>
+                  <h2 id="easy-explanation-heading">쉬운 해설</h2>
+                  <p>
+                    원문을 보지 않아도 결론과 이유, 해야 할 일을 이해할 수
+                    있도록 정리했어요.
+                  </p>
                 </div>
               </header>
               {analysis ? (
-                <div className={styles.viewerInsightBody}>
-                  <section>
-                    <h3>쉽게 말하면</h3>
-                    <p>{analysis.summary}</p>
-                    <ul>
-                      {analysis.easyRead.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </section>
-                  <section>
-                    <h3>판결의 결론</h3>
-                    <p>{analysis.finalResult}</p>
-                  </section>
-                </div>
+                <ExplanationBody analysis={analysis} />
               ) : (
                 <div className={styles.viewerEmpty}>
-                  <strong>쉬운 설명은 아직 준비 중이에요.</strong>
+                  <strong>쉬운 해설은 아직 준비 중이에요.</strong>
+                  <p>
+                    그래도 {documentLabel} 본문과 기본 정보는 먼저 확인할 수
+                    있습니다.
+                  </p>
+                </div>
+              )}
+            </article>
+          }
+          easyReadPanel={
+            <article
+              aria-labelledby="easy-read-heading"
+              className={styles.viewerInsight}
+              id="easy-read"
+              role="tabpanel"
+            >
+              <header className={styles.viewerPanelHeader}>
+                <span className={styles.badge}>이지 리드</span>
+                <div>
+                  <h2 id="easy-read-heading">이지 리드</h2>
+                  <p>
+                    꼭 알아야 할 결론과 해야 할 일만 큰 글씨로 짧게 보여줘요.
+                  </p>
+                </div>
+              </header>
+              {analysis ? (
+                <EasyReadBody analysis={analysis} />
+              ) : (
+                <div className={styles.viewerEmpty}>
+                  <strong>이지 리드는 아직 준비 중이에요.</strong>
                   <p>
                     그래도 {documentLabel} 본문과 기본 정보는 먼저 확인할 수
                     있습니다.
@@ -258,7 +276,7 @@ export function JudgmentDetailView({
           <header className={styles.viewerPanelHeader}>
             <span className={styles.badge}>정보</span>
             <div>
-              <h2>판결 정보</h2>
+              <h2>{documentLabel} 정보</h2>
               <p>문서 확인에 필요한 기본 정보를 따로 모았어요.</p>
             </div>
           </header>
@@ -285,6 +303,182 @@ export function JudgmentDetailView({
         </section>
       </section>
     </main>
+  );
+}
+
+function ExplanationBody({ analysis }: { analysis: EasyReadAnalysis }) {
+  const verdict = analysis.verdict;
+  const verdictDetails = verdict
+    ? ([
+        ["해야 할 일", verdict.obligations],
+        ["돈", verdict.amounts],
+        ["기간·기한", verdict.deadlines],
+        ["항소·불복", verdict.appeal ? [verdict.appeal] : []],
+      ] as const)
+    : [];
+
+  return (
+    <div className={styles.viewerInsightBody}>
+      <section>
+        <h3>쉽게 말하면</h3>
+        <p>{analysis.summary}</p>
+      </section>
+      <section className={styles.verdictCard}>
+        <h3>결론</h3>
+        <p className={styles.verdictOutcome}>
+          {verdict?.outcome ?? analysis.finalResult}
+        </p>
+        {verdictDetails.some(([, items]) => items.length > 0) && (
+          <dl className={styles.verdictGrid}>
+            {verdictDetails.map(
+              ([label, items]) =>
+                items.length > 0 && (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>
+                      <ul>
+                        {items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </dd>
+                  </div>
+                ),
+            )}
+          </dl>
+        )}
+      </section>
+      {analysis.timeline.length > 0 && (
+        <section>
+          <h3>사건의 흐름</h3>
+          <ol>
+            {analysis.timeline.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ol>
+        </section>
+      )}
+      {analysis.claims.length > 0 && (
+        <section>
+          <h3>각자의 주장</h3>
+          <ul>
+            {analysis.claims.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {analysis.courtReasoning.length > 0 && (
+        <section>
+          <h3>왜 그렇게 판단했나요?</h3>
+          <ul>
+            {analysis.courtReasoning.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <section>
+        <h3>자세한 풀이</h3>
+        <ul>
+          {analysis.easyRead.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
+      {analysis.terms.length > 0 && (
+        <section>
+          <h3>용어 풀이</h3>
+          <dl className={styles.explainTerms}>
+            {analysis.terms.map((term) => (
+              <div key={term.term}>
+                <dt>{term.term}</dt>
+                <dd>{term.explanation}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+      {analysis.sourceGrounds.length > 0 && (
+        <section>
+          <h3>원문 근거</h3>
+          <div className={styles.sourceGroundList}>
+            {analysis.sourceGrounds.map((ground) => (
+              <blockquote key={`${ground.label}-${ground.excerpt}`}>
+                <span>{ground.label}</span>
+                <p>{ground.excerpt}</p>
+              </blockquote>
+            ))}
+          </div>
+        </section>
+      )}
+      {analysis.unknowns.length > 0 && (
+        <section>
+          <h3>이 문서만으로 알 수 없는 것</h3>
+          <ul>
+            {analysis.unknowns.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {analysis.warnings.length > 0 && (
+        <section>
+          <h3>주의할 점</h3>
+          <ul>
+            {analysis.warnings.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function EasyReadBody({ analysis }: { analysis: EasyReadAnalysis }) {
+  const headline = analysis.accessible?.headline ?? analysis.finalResult;
+  const keyPoints = analysis.accessible?.keyPoints.length
+    ? analysis.accessible.keyPoints
+    : analysis.easyRead.slice(0, 3);
+  const todos = analysis.accessible?.todos ?? [];
+
+  return (
+    <div className={styles.ezReadBody}>
+      <p className={styles.ezReadHeadline}>{headline}</p>
+      <section className={styles.ezReadSection}>
+        <h3>꼭 알아야 해요</h3>
+        <ol className={styles.ezReadPoints}>
+          {keyPoints.map((point, index) => (
+            <li key={point}>
+              <span aria-hidden className={styles.ezReadNumber}>
+                {index + 1}
+              </span>
+              {point}
+            </li>
+          ))}
+        </ol>
+      </section>
+      {todos.length > 0 && (
+        <section className={styles.ezReadSection}>
+          <h3>해야 할 일</h3>
+          <ul className={styles.ezReadTodos}>
+            {todos.map((todo) => (
+              <li key={todo}>
+                <span aria-hidden className={styles.ezReadCheck}>
+                  <CheckIcon size={18} />
+                </span>
+                {todo}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <p className={styles.ezReadFootnote}>
+        이 화면은 핵심만 짧게 보여줘요. 더 자세한 내용은{" "}
+        <a href="#easy-explanation">쉬운 해설</a>에서 볼 수 있어요.
+      </p>
+    </div>
   );
 }
 

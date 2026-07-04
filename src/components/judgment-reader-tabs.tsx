@@ -4,26 +4,31 @@ import type { ReactNode } from "react";
 import { useEffect, useId, useState } from "react";
 import styles from "@/app/page.module.css";
 
-type ReaderTab = "document" | "explanation";
+type ReaderTab = "document" | "explanation" | "easyread";
+
+const tabHashes: Record<string, ReaderTab> = {
+  "#original-document": "document",
+  "#easy-explanation": "explanation",
+  "#easy-read": "easyread",
+};
 
 export function JudgmentReaderTabs({
   documentPanel,
   explanationPanel,
+  easyReadPanel,
 }: {
   documentPanel: ReactNode;
   explanationPanel: ReactNode;
+  easyReadPanel: ReactNode;
 }) {
   const baseId = useId();
   const [activeTab, setActiveTab] = useState<ReaderTab>("document");
 
   useEffect(() => {
     function syncTabWithHash() {
-      if (window.location.hash === "#easy-explanation") {
-        setActiveTab("explanation");
-        return;
-      }
-      if (window.location.hash === "#original-document") {
-        setActiveTab("document");
+      const tab = tabHashes[window.location.hash];
+      if (tab) {
+        setActiveTab(tab);
       }
     }
 
@@ -35,7 +40,7 @@ export function JudgmentReaderTabs({
   return (
     <div className={styles.viewerTabs} id="reader-tabs">
       <div
-        aria-label="판결문 읽기 방식"
+        aria-label="본문 읽기 방식"
         className={styles.viewerTabList}
         role="tablist"
       >
@@ -47,7 +52,7 @@ export function JudgmentReaderTabs({
           role="tab"
           type="button"
         >
-          판결문
+          원본
         </button>
         <button
           aria-controls="easy-explanation"
@@ -57,11 +62,22 @@ export function JudgmentReaderTabs({
           role="tab"
           type="button"
         >
-          쉬운 판결문
+          쉬운 해설
+        </button>
+        <button
+          aria-controls="easy-read"
+          aria-selected={activeTab === "easyread"}
+          id={`${baseId}-easyread-tab`}
+          onClick={() => setActiveTab("easyread")}
+          role="tab"
+          type="button"
+        >
+          이지 리드
         </button>
       </div>
       <div hidden={activeTab !== "document"}>{documentPanel}</div>
       <div hidden={activeTab !== "explanation"}>{explanationPanel}</div>
+      <div hidden={activeTab !== "easyread"}>{easyReadPanel}</div>
     </div>
   );
 }

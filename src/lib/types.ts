@@ -74,6 +74,26 @@ export type EasyReadAnalysis = {
   sourceGrounds: Array<{ label: string; excerpt: string }>;
   unknowns: string[];
   warnings: string[];
+  /**
+   * 쉬운 해설을 완결형으로 만드는 판결 결과 정보.
+   * 과거에 생성된 분석에는 없을 수 있다.
+   */
+  verdict?: {
+    outcome: string;
+    obligations: string[];
+    amounts: string[];
+    deadlines: string[];
+    appeal: string;
+  };
+  /**
+   * 이지 리드(저문해력 접근성 버전)용 축약 정보.
+   * 과거에 생성된 분석에는 없을 수 있다.
+   */
+  accessible?: {
+    headline: string;
+    keyPoints: string[];
+    todos: string[];
+  };
 };
 
 export type DashboardSnapshot = {

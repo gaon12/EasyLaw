@@ -3334,10 +3334,186 @@
   line-height: 1.75;
 }
 
-.viewerInsightBody ul {
+.viewerInsightBody ul,
+.viewerInsightBody ol {
   display: grid;
   gap: 8px;
   padding-left: 20px;
+}
+
+.verdictCard {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  padding: 16px;
+  background: var(--bg-surface);
+}
+
+.verdictOutcome {
+  color: var(--fg-strong);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.verdictGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.verdictGrid > div {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.verdictGrid dt {
+  color: var(--fg-brand);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.verdictGrid ul {
+  padding-left: 18px;
+}
+
+.explainTerms {
+  display: grid;
+  gap: 10px;
+}
+
+.explainTerms > div {
+  display: grid;
+  gap: 3px;
+  border-left: 3px solid var(--border-subtle);
+  padding-left: 12px;
+}
+
+.explainTerms dt {
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.explainTerms dd {
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.sourceGroundList {
+  display: grid;
+  gap: 10px;
+}
+
+.sourceGroundList blockquote {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  border-left: 3px solid var(--bg-brand);
+  border-radius: 0 var(--radius-8) var(--radius-8) 0;
+  padding: 10px 14px;
+  background: var(--bg-muted);
+}
+
+.sourceGroundList blockquote span {
+  color: var(--fg-brand);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sourceGroundList blockquote p {
+  color: var(--fg-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.ezReadBody {
+  display: grid;
+  gap: 24px;
+}
+
+.ezReadHeadline {
+  border-radius: var(--radius-12);
+  padding: 22px 24px;
+  background: var(--bg-brand);
+  color: var(--fg-on-brand);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.ezReadSection {
+  display: grid;
+  gap: 14px;
+}
+
+.ezReadSection h3 {
+  color: var(--fg-strong);
+  font-size: 20px;
+}
+
+.ezReadPoints,
+.ezReadTodos {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.ezReadPoints li,
+.ezReadTodos li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  padding: 16px 18px;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.ezReadNumber {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.ezReadCheck {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+}
+
+.ezReadFootnote {
+  color: var(--fg-secondary);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.ezReadFootnote a {
+  color: var(--fg-brand);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .viewerInfoGrid {

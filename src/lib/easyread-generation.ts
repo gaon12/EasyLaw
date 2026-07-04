@@ -28,7 +28,7 @@ function activePromptVersion(db: SqliteDatabase) {
   );
 }
 
-export const EASYREAD_PROMPT_VERSION = "easyread-v1";
+export const EASYREAD_PROMPT_VERSION = "easyread-v2";
 const MAX_ATTEMPTS = 3;
 const MAX_SOURCE_CHARS = 24_000;
 
@@ -50,6 +50,22 @@ const analysisSchema = z.object({
     .default([]),
   unknowns: z.array(shortLine).max(8).default([]),
   warnings: z.array(shortLine).max(8).default([]),
+  verdict: z
+    .object({
+      outcome: shortLine,
+      obligations: z.array(shortLine).max(8).default([]),
+      amounts: z.array(shortLine).max(8).default([]),
+      deadlines: z.array(shortLine).max(8).default([]),
+      appeal: shortLine,
+    })
+    .optional(),
+  accessible: z
+    .object({
+      headline: shortLine,
+      keyPoints: z.array(shortLine).min(1).max(5),
+      todos: z.array(shortLine).max(5).default([]),
+    })
+    .optional(),
 });
 
 const requiredWarnings = [
@@ -99,13 +115,27 @@ export async function generateEasyReadAnalysis(
   "terms": [{"term": "어려운 법률 용어", "explanation": "쉬운 설명"}],
   "sourceGrounds": [{"label": "결론|판단 이유 등", "excerpt": "원문에서 그대로 옮긴 근거 문장"}],
   "unknowns": ["이 문서만으로 알 수 없는 것"],
-  "warnings": ["이용자가 주의할 점"]
+  "warnings": ["이용자가 주의할 점"],
+  "verdict": {
+    "outcome": "누가 이기고 졌는지(또는 처분·청구가 어떻게 되었는지) 한 문장",
+    "obligations": ["각 당사자가 판결에 따라 해야 하는 일"],
+    "amounts": ["문서에 나온 돈(금액·이자율)을 그대로 옮긴 문장"],
+    "deadlines": ["문서에 나온 기간·기한"],
+    "appeal": "항소·불복 관련해 문서에서 알 수 있는 내용 한 문장"
+  },
+  "accessible": {
+    "headline": "가장 중요한 결론을 아주 쉬운 말로 한 문장",
+    "keyPoints": ["꼭 알아야 하는 것 1~5개, 각각 15자 안팎의 짧은 문장"],
+    "todos": ["문서에 따라 해야 하는 일을 순서대로, 아주 짧은 문장"]
+  }
 }
 
 규칙:
 - sourceGrounds의 excerpt는 원문에 실제로 있는 문장만 사용한다.
-- 법령·행정규칙처럼 판결문이 아닌 문서면 timeline과 claims는 빈 배열로 두고 easyRead에 집중한다.
+- 법령·행정규칙처럼 판결문이 아닌 문서면 timeline과 claims는 빈 배열로 두고 easyRead에 집중하며, verdict는 생략한다.
 - 결론이 원문에 명시되지 않으면 finalResult에 "이 문서에는 명시적인 결론이 없습니다."라고 쓴다.
+- verdict는 쉬운 해설을 원문 없이도 이해할 수 있게 만드는 정보다. 승패(또는 처분 결과), 각자가 해야 할 일, 돈, 기한, 불복 가능성을 문서에 있는 내용만으로 채운다. 문서에 없으면 "문서에 나와 있지 않습니다."라고 쓴다.
+- accessible은 문해력이 낮은 사람을 위한 축약본이다. 모든 내용을 담으려 하지 말고, 반드시 알아야 하는 핵심 결론과 해야 할 일만 초등학생도 이해할 수 있는 짧은 문장으로 쓴다.
 - 승패 예측, 유불리 조언, 법률 자문 표현은 쓰지 않는다.`,
     },
     {

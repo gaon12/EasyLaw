@@ -57,6 +57,22 @@ export const sampleAnalysis: EasyReadAnalysis = {
     "이 서비스는 법률자문이 아니라 문서 이해 보조 도구입니다.",
     "중요한 법적 판단은 변호사 등 전문가에게 확인해야 합니다.",
   ],
+  verdict: {
+    outcome: "원고가 이겼고, 교육지원청의 학교폭력 처분은 취소되었습니다.",
+    obligations: ["교육지원청은 원고에게 내린 처분을 없던 것으로 해야 합니다."],
+    amounts: ["소송비용은 피고가 부담합니다."],
+    deadlines: ["문서에 나와 있지 않습니다."],
+    appeal: "판결문만으로는 피고의 항소 여부를 알 수 없습니다.",
+  },
+  accessible: {
+    headline: "법원이 학교폭력 처분을 취소했습니다.",
+    keyPoints: [
+      "원고가 이겼습니다.",
+      "학교폭력 처분은 없어집니다.",
+      "소송 비용은 상대방이 냅니다.",
+    ],
+    todos: ["처분이 취소되었는지 통지를 확인하세요."],
+  },
 };
 
 export function buildPendingAnalysis(title: string): EasyReadAnalysis {
