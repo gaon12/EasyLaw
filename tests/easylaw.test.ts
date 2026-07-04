@@ -2313,6 +2313,32 @@ test("judgment document parser splits inline spaced judgment headings", () => {
   });
 });
 
+test("judgment document parser splits compact constitutional decisions", () => {
+  const sections = parseJudgmentDocument(
+    "헌 법 재 판 소제2지정재판부결정사 건 92 헌마91 1994학년도 신입생선발입시안에 대한 헌법소원청 구 인 김 ○ 택피청구인 서울대학교 총장주 문 이 사건 심판청구를 각하한다.이 유 청구인은 변호사를 대리인으로 선임하지 아니한 채 이 사건심판청구를 하였고, 보정명령을 받고도 이를 보정하지 아니하였으므로 헌법재판소법 제72조 제3항 제3호에 따라 주문과 같이 결정한다.1992. 5. 13.재판장 재판관 김문희재판관 변정수재판관 김진우",
+  );
+
+  assert.deepEqual(
+    sections.map((section) => ({
+      kind: section.kind,
+      title: section.title,
+    })),
+    [
+      { kind: "default", title: "판결문" },
+      { kind: "meta", title: "사건" },
+      { kind: "meta", title: "청구인" },
+      { kind: "meta", title: "피청구인" },
+      { kind: "order", title: "주문" },
+      { kind: "reason", title: "이유" },
+    ],
+  );
+  assert.equal(sections[4].blocks[0]?.text, "이 사건 심판청구를 각하한다.");
+  assert.match(
+    sections[5].blocks[0]?.text ?? "",
+    /^청구인은 변호사를 대리인으로 선임하지 아니한 채/,
+  );
+});
+
 test("judgment relation parser extracts lower court case numbers", () => {
   const references = extractRelatedCaseReferences(
     "【원심판결】 서울중앙지법 2024. 1. 23. 선고 2023나4119 판결<br/>【이 유】 현재 사건은 2024다222212이다.",
@@ -2349,6 +2375,21 @@ test("document reference parser extracts law titles and case numbers", () => {
       kind: "law",
       lookupText: "지방세법",
       text: "구 지방세법",
+    },
+  ]);
+});
+
+test("document reference parser trims sentence fragments before law titles", () => {
+  const references = extractDocumentReferenceCandidates(
+    "보정명령을 받고도 이를 보정하지 아니하였으므로 헌법재판소법 제72조 제3항 제3호에 따라 결정한다.",
+    "92헌마91",
+  );
+
+  assert.deepEqual(references, [
+    {
+      kind: "law",
+      lookupText: "헌법재판소법",
+      text: "헌법재판소법",
     },
   ]);
 });

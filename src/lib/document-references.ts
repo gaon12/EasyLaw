@@ -18,9 +18,9 @@ export type DocumentReferenceLink = {
 
 const caseNumberPattern = /\b\d{4}[가-힣]{1,4}\d{1,8}\b/g;
 const quotedLawPattern =
-  /[「『]([^」』\n]{2,80}?(?:특례법|시행령|시행규칙|법|령|규칙|조례|고시|훈령|예규|규정))[」』]/g;
+  /[「『]([^」』\n]{2,80}?(?:특례법|시행령|시행규칙|법률|법|령|규칙|조례|고시|훈령|예규|규정))[」』]/g;
 const articleLawPattern =
-  /((?:구\s+)?[가-힣·ㆍ\s]{1,42}?(?:특례법|시행령|시행규칙|법|령|규칙|조례|고시|훈령|예규|규정))\s+제\d+조(?:의\d+)?/g;
+  /((?:구\s+)?[가-힣·ㆍ\s]{1,42}?(?:특례법|시행령|시행규칙|법률|법|령|규칙|조례|고시|훈령|예규|규정))\s+제\d+조(?:의\d+)?/g;
 
 export function extractDocumentReferenceCandidates(
   originalText: string | null,
@@ -92,8 +92,43 @@ function normalizeLawMention(value: string | undefined) {
   if (oldLawPrefixIndex > 0) {
     text = text.slice(oldLawPrefixIndex);
   }
-  return text
-    .replace(/^(?:및|또는)\s+/, "")
-    .replace(/^[가-힣]{1,4}[와과]\s+/, "")
-    .trim();
+  return extractLawMentionTail(
+    text
+      .replace(/^(?:및|또는)\s+/, "")
+      .replace(/^[가-힣]{1,4}[와과]\s+/, "")
+      .trim(),
+  );
 }
+
+function extractLawMentionTail(value: string) {
+  const tokens = value.split(/\s+/).filter(Boolean);
+  if (tokens.length <= 1) {
+    return value;
+  }
+
+  const searchStart = Math.max(0, tokens.length - 6);
+  for (let index = searchStart; index < tokens.length; index += 1) {
+    const candidate = tokens.slice(index).join(" ");
+    if (
+      isSentenceFragmentStart(tokens[index]) ||
+      !lawTitleSuffixPattern.test(candidate)
+    ) {
+      continue;
+    }
+    return candidate
+      .replace(/^(?:및|또는)\s+/, "")
+      .replace(/^[가-힣]{1,4}[와과]\s+/, "")
+      .trim();
+  }
+
+  return value;
+}
+
+function isSentenceFragmentStart(token: string) {
+  return /(?:은|는|이|가|을|를|도|고도|므로|하지|하였으므로|아니하였으므로)$/.test(
+    token,
+  );
+}
+
+const lawTitleSuffixPattern =
+  /(?:특례법|시행령|시행규칙|법률|법|령|규칙|조례|고시|훈령|예규|규정)$/;

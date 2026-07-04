@@ -18,6 +18,9 @@ export type JudgmentDocumentSection = {
 };
 
 const headingAliases: Record<string, string> = {
+  사건: "사건",
+  청구인: "청구인",
+  피청구인: "피청구인",
   주문: "주문",
   이유: "이유",
   청구취지: "청구취지",
@@ -33,6 +36,9 @@ const implicitHeadings = [
   "청구취지",
   "참조조문",
   "참조판례",
+  "피청구인",
+  "청구인",
+  "사건",
   "주문",
   "이유",
 ] as const;
@@ -92,12 +98,11 @@ function normalizeJudgmentText(originalText: string) {
     .replace(/<[^>]+>/g, "")
     .replace(/【([^】]+)】/g, "\n§§$1§§\n")
     .replace(
-      new RegExp(
-        `(^|[\\n\\r]|[.!?。]\\s+)(${implicitHeadings.map(spacedHeadingPattern).join("|")})(?=\\s)`,
-        "g",
-      ),
+      implicitHeadingPattern,
       (_match, prefix: string, heading: string) =>
-        `${prefix}\n§§${compactHeading(heading)}§§\n`,
+        shouldSplitInlineHeading(prefix, heading)
+          ? `${prefix}\n§§${compactHeading(heading)}§§\n`
+          : `${prefix}${heading}`,
     )
     .replace(/\r\n?/g, "\n")
     .split("\n")
@@ -128,6 +133,26 @@ function spacedHeadingPattern(heading: string) {
   return heading.split("").join("\\s*");
 }
 
+const implicitHeadingPattern = new RegExp(
+  `(^|[\\s\\S])(${implicitHeadings.map(spacedHeadingPattern).join("|")})(?=\\s)`,
+  "g",
+);
+
+function shouldSplitInlineHeading(prefix: string, heading: string) {
+  if (prefix === "" || /[\n\r]/.test(prefix)) {
+    return true;
+  }
+  if (/[.!?。]$/.test(prefix)) {
+    return true;
+  }
+  if (alwaysInlineHeadingCompacts.has(compactHeading(heading))) {
+    return true;
+  }
+  return /\s/.test(heading);
+}
+
+const alwaysInlineHeadingCompacts = new Set(["피청구인"]);
+
 function pushSection(
   sections: JudgmentDocumentSection[],
   section: MutableSection,
@@ -153,7 +178,9 @@ function sectionKind(title: string): JudgmentDocumentSection["kind"] {
   if (title === "이유") {
     return "reason";
   }
-  if (/원고|피고|상고인|피상고인|원심판결|변호사/.test(title)) {
+  if (
+    /사건|청구인|피청구인|원고|피고|상고인|피상고인|원심판결|변호사/.test(title)
+  ) {
     return "meta";
   }
   return "default";
