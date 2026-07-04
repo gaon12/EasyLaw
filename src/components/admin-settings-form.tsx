@@ -25,6 +25,9 @@ export function AdminSettingsForm({
   const [message, setMessage] = useState(description);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [isSaving, setIsSaving] = useState(false);
+  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>(
+    {},
+  );
   const isSavingRef = useRef(false);
 
   return (
@@ -97,16 +100,43 @@ export function AdminSettingsForm({
                 </option>
               ))}
             </select>
+          ) : field.secret || field.type === "password" ? (
+            <span className={styles.secretInputRow}>
+              <input
+                aria-label={field.label}
+                className={styles.input}
+                defaultValue={field.value}
+                id={`setting-${field.key}`}
+                name={field.key}
+                placeholder={field.placeholder}
+                type={visibleSecrets[field.key] ? "text" : "password"}
+              />
+              <button
+                aria-controls={`setting-${field.key}`}
+                aria-label={
+                  visibleSecrets[field.key] ? "비밀 값 숨기기" : "비밀 값 보기"
+                }
+                className={styles.secondaryButton}
+                onClick={() =>
+                  setVisibleSecrets((current) => ({
+                    ...current,
+                    [field.key]: !current[field.key],
+                  }))
+                }
+                type="button"
+              >
+                {visibleSecrets[field.key] ? "숨기기" : "보기"}
+              </button>
+            </span>
           ) : (
             <input
+              aria-label={field.label}
               className={styles.input}
               defaultValue={field.value}
               id={`setting-${field.key}`}
               name={field.key}
               placeholder={field.placeholder}
-              type={
-                field.secret || field.type === "password" ? "password" : "text"
-              }
+              type="text"
             />
           )}
         </label>

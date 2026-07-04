@@ -11,9 +11,11 @@ export function LlmSettingsForm({
   initialModel,
   initialPreset,
   initialProvider,
+  initialApiKey = "",
   initialTimeoutSeconds = "",
 }: {
   description: string;
+  initialApiKey?: string;
   initialBaseUrl: string;
   initialModel: string;
   initialPreset: LlmPresetKey;
@@ -27,6 +29,7 @@ export function LlmSettingsForm({
   const [message, setMessage] = useState(description);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [isSaving, setIsSaving] = useState(false);
+  const [isApiKeyVisible, setIsApiKeyVisible] = useState(false);
   const isSavingRef = useRef(false);
 
   function selectPreset(nextPresetKey: LlmPresetKey) {
@@ -158,13 +161,26 @@ export function LlmSettingsForm({
       </label>
       <label className={styles.settingsField} htmlFor="setting-llm_api_key">
         <span className={styles.label}>API Key</span>
-        <input
-          className={styles.input}
-          id="setting-llm_api_key"
-          name="llm_api_key"
-          placeholder="새 키를 입력할 때만 저장"
-          type="password"
-        />
+        <span className={styles.secretInputRow}>
+          <input
+            aria-label="API Key"
+            className={styles.input}
+            defaultValue={initialApiKey}
+            id="setting-llm_api_key"
+            name="llm_api_key"
+            placeholder="새 키를 입력할 때만 저장"
+            type={isApiKeyVisible ? "text" : "password"}
+          />
+          <button
+            aria-controls="setting-llm_api_key"
+            aria-label={isApiKeyVisible ? "비밀 값 숨기기" : "비밀 값 보기"}
+            className={styles.secondaryButton}
+            onClick={() => setIsApiKeyVisible((current) => !current)}
+            type="button"
+          >
+            {isApiKeyVisible ? "숨기기" : "보기"}
+          </button>
+        </span>
       </label>
       <label
         className={styles.settingsField}

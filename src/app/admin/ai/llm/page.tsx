@@ -34,7 +34,7 @@ export default function AdminAiLlmPage() {
               <h1>모델 API</h1>
               <p>
                 자연어 질문 답변에 사용할 공급자, 모델명, API 주소를 설정해요.
-                API Key는 암호화해 저장하고 다시 표시하지 않습니다.
+                API Key는 암호화해 저장하고 관리자 화면에서 마스킹해 표시합니다.
               </p>
             </div>
             <span className={styles.badge}>AI 설정</span>
@@ -50,6 +50,7 @@ export default function AdminAiLlmPage() {
                   : "API Key가 없으면 질문 화면은 하네스 미리보기로 동작합니다."
               }
               initialBaseUrl={baseUrl}
+              initialApiKey={getSetting(db, "llm_api_key") ?? ""}
               initialModel={model}
               initialPreset={detectLlmPreset({ baseUrl, model, provider })}
               initialProvider={provider}

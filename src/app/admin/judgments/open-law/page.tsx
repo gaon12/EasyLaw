@@ -5,7 +5,7 @@ import { AppShell } from "@/components/site-chrome";
 import { getDatabase } from "@/lib/db";
 import { listIntegrationEvents } from "@/lib/integration-events";
 import { pageMetadata } from "@/lib/metadata";
-import { hasSetting } from "@/lib/settings";
+import { getSetting } from "@/lib/settings";
 import styles from "../../../page.module.css";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +20,8 @@ export const metadata = pageMetadata({
 export default function AdminOpenLawPage() {
   const db = getDatabase();
   const events = listIntegrationEvents(db, "open-law");
-  const hasOpenLawOc = hasSetting(db, "open_law_oc");
-  const hasDataGoKrKey = hasSetting(db, "data_go_kr_api_key");
+  const openLawOc = getSetting(db, "open_law_oc") ?? "";
+  const dataGoKrKey = getSetting(db, "data_go_kr_api_key") ?? "";
 
   return (
     <AppShell
@@ -43,7 +43,7 @@ export default function AdminOpenLawPage() {
           <div className={styles.contentCard}>
             <AdminSettingsForm
               description={
-                hasOpenLawOc || hasDataGoKrKey
+                openLawOc || dataGoKrKey
                   ? "저장된 API 키가 있어요. 새 값을 입력하면 해당 키가 교체됩니다."
                   : "API 키를 저장하면 판결문 수집과 공휴일 달력 도구가 공공 API를 사용합니다."
               }
@@ -53,12 +53,14 @@ export default function AdminOpenLawPage() {
                   label: "OC 키",
                   placeholder: "새 키를 입력할 때만 저장",
                   secret: true,
+                  value: openLawOc,
                 },
                 {
                   key: "data_go_kr_api_key",
                   label: "data.go.kr ServiceKey",
                   placeholder: "한국천문연구원 특일 정보 API 키",
                   secret: true,
+                  value: dataGoKrKey,
                 },
               ]}
               scope="openLaw"

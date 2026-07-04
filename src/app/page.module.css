@@ -3635,6 +3635,23 @@
   gap: 8px;
 }
 
+.secretInputRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.secretInputRow .input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.secretInputRow .secondaryButton {
+  min-width: 74px;
+  flex: 0 0 auto;
+  padding-inline: 14px;
+}
+
 .checkboxField {
   display: flex;
   align-items: center;
