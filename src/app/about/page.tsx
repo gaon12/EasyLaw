@@ -76,7 +76,7 @@ export default function AboutPage() {
             </p>
             <div className={styles.aboutHeroActions}>
               <Link className={styles.aboutHeroPrimary} href="/catalog">
-                판결문 검색하기
+                판결문·법령 검색하기
                 <ChevronRightIcon size={18} />
               </Link>
               <Link className={styles.aboutHeroGhost} href="/guide">
@@ -175,7 +175,7 @@ export default function AboutPage() {
           <p>판결문을 검색하거나, 지금 겪는 상황을 AI에게 물어볼 수 있어요.</p>
           <div className={styles.aboutHeroActions}>
             <Link className={styles.primaryButton} href="/catalog">
-              판결문 검색
+              판결문·법령 검색
             </Link>
             <Link className={styles.secondaryButton} href="/research">
               AI에게 질문하기

@@ -29,7 +29,7 @@ const publicNav = [
 
 const signedInNav = [
   { href: "/", key: "nav.home", label: "홈" },
-  { href: "/catalog", key: "nav.catalog", label: "판결문 검색" },
+  { href: "/catalog", key: "nav.catalog", label: "판결문·법령 검색" },
   { href: "/research", key: "nav.research", label: "AI 질문" },
   { href: "/me", key: "nav.me", label: "내 문서함" },
   { href: "/org", key: "nav.org", label: "조직" },
@@ -190,8 +190,8 @@ export const serviceShortcuts = [
   {
     href: "/catalog",
     icon: FileTextIcon,
-    label: "판결문 검색",
-    description: "사건번호와 법원명으로 판결문을 찾아요",
+    label: "판결문·법령 검색",
+    description: "사건번호와 법원명으로 판결문과 법령을 찾아요",
   },
   {
     href: "/research",

@@ -46,11 +46,11 @@ export const translations = {
     "research.title": "AI 법률 질문",
     "research.description":
       "궁금한 상황을 검색하듯 입력하면 AI 답변과 출처를 함께 보여줘요.",
-    "catalog.title": "판결문 검색",
-    "catalog.titleResults": "판결문 검색 결과",
+    "catalog.title": "판결문·법령 검색",
+    "catalog.titleResults": "판결문·법령 검색 결과",
     "catalog.titleRecent": "공개 판결문 전체 보기",
     "catalog.description":
-      "사건번호, 법원명, 판결문 제목으로 공개 판결문을 바로 찾아요. 직접 붙여넣은 내 문서는 로그인 후 비공개로 저장할 수 있어요.",
+      "사건번호, 법원명, 제목으로 공개 판결문과 법령을 바로 찾아요. 직접 붙여넣은 내 문서는 로그인 후 비공개로 저장할 수 있어요.",
     "catalog.descriptionRecent":
       "최근 공개된 판결문을 최신순으로 모아 볼 수 있어요.",
     "guide.title": "쉬운 판결문 위키",
@@ -70,7 +70,7 @@ export const translations = {
     "home.eyebrow.privacy": "개인정보 보호",
     "meta.home.title": "판결문을 이해하기 쉽게 | EasyLaw",
     "nav.admin": "관리센터",
-    "nav.catalog": "판결문 검색",
+    "nav.catalog": "판결문·법령 검색",
     "nav.guide": "쉬운 판결문",
     "nav.home": "홈",
     "nav.login": "로그인",
@@ -128,11 +128,11 @@ export const translations = {
     "research.title": "AI legal questions",
     "research.description":
       "Describe your situation like a search query and get an AI answer with sources.",
-    "catalog.title": "Judgment search",
+    "catalog.title": "Judgment & law search",
     "catalog.titleResults": "Search results",
     "catalog.titleRecent": "All public judgments",
     "catalog.description":
-      "Find public judgments by case number, court, or title. Documents you paste yourself are stored privately after signing in.",
+      "Find public judgments and statutes by case number, court, or title. Documents you paste yourself are stored privately after signing in.",
     "catalog.descriptionRecent":
       "Browse recently published judgments, newest first.",
     "guide.title": "Easy-read judgment wiki",
@@ -152,7 +152,7 @@ export const translations = {
     "home.eyebrow.privacy": "Privacy",
     "meta.home.title": "Understand Judgments Clearly | EasyLaw",
     "nav.admin": "Admin",
-    "nav.catalog": "Judgment Search",
+    "nav.catalog": "Judgment & Law Search",
     "nav.guide": "Easy Judgments",
     "nav.home": "Home",
     "nav.login": "Log in",
@@ -209,11 +209,11 @@ export const translations = {
     "research.title": "AI法律質問",
     "research.description":
       "気になる状況を検索のように入力すると、AIの回答と出典を一緒に表示します。",
-    "catalog.title": "判決文検索",
-    "catalog.titleResults": "判決文の検索結果",
+    "catalog.title": "判決文・法令検索",
+    "catalog.titleResults": "判決文・法令の検索結果",
     "catalog.titleRecent": "公開判決文の一覧",
     "catalog.description":
-      "事件番号・裁判所名・タイトルで公開判決文をすぐに探せます。貼り付けた文書はログイン後に非公開で保存できます。",
+      "事件番号・裁判所名・タイトルで公開判決文と法令をすぐに探せます。貼り付けた文書はログイン後に非公開で保存できます。",
     "catalog.descriptionRecent":
       "最近公開された判決文を新しい順に確認できます。",
     "guide.title": "やさしい判決文ウィキ",
@@ -233,7 +233,7 @@ export const translations = {
     "home.eyebrow.privacy": "プライバシー",
     "meta.home.title": "判決文をわかりやすく | EasyLaw",
     "nav.admin": "管理センター",
-    "nav.catalog": "判決文検索",
+    "nav.catalog": "判決文・法令検索",
     "nav.guide": "やさしい判決文",
     "nav.home": "ホーム",
     "nav.login": "ログイン",

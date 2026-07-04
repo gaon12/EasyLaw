@@ -42,8 +42,8 @@ const servicePaths = [
   {
     href: "/catalog",
     icon: SearchIcon,
-    title: "판결문 검색",
-    description: "사건번호나 법원명으로 공개 판결문을 찾아요.",
+    title: "판결문·법령 검색",
+    description: "사건번호나 법원명으로 공개 판결문과 법령을 찾아요.",
   },
   {
     href: "/guide",
@@ -110,7 +110,7 @@ export function SignedInHome({
         <aside className={styles.referenceRail} aria-label="서비스 현황">
           <span className={styles.railLabel}>바로가기</span>
           <Link className={styles.railPrimary} href="/catalog">
-            판결문 검색으로 이동
+            판결문·법령 검색으로 이동
             <ChevronRightIcon size={18} />
           </Link>
           <dl className={styles.metricList}>

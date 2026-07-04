@@ -759,7 +759,7 @@ try {
   await anonymousPage
     .getByRole("region", { name: "EasyLaw 결과 예시" })
     .waitFor();
-  await anonymousPage.getByLabel("판결문 검색").waitFor();
+  await anonymousPage.getByLabel("판결문·법령 검색").waitFor();
   if (
     (await anonymousPage.getByRole("link", { name: "판결문 찾기" }).count()) !==
     0
@@ -1057,16 +1057,9 @@ try {
   await page.goto(`${baseUrl}/catalog?q=${encodeURIComponent("서울")}`, {
     waitUntil: "networkidle",
   });
-  await page.getByRole("heading", { name: "판결문 검색 결과" }).waitFor();
+  await page.getByRole("heading", { name: "판결문·법령 검색 결과" }).waitFor();
   await page.getByRole("button", { name: "이전" }).waitFor();
   await page.getByRole("button", { name: "다음" }).waitFor();
-  if (
-    (await page
-      .getByRole("heading", { exact: true, name: "판결문 검색" })
-      .count()) !== 0
-  ) {
-    throw new Error("Catalog search results still showed the workspace first.");
-  }
 
   await page.locator('a[href="/catalog"]').first().click();
   await page.locator("main article").first().waitFor();

@@ -26,7 +26,7 @@ EasyLaw helps Korean readers understand court decisions, legal terms, public cas
 ## Key pages
 
 - [Home](${siteUrl})
-- [판결문 검색](${new URL("/catalog", siteUrl)})
+- [판결문·법령 검색](${new URL("/catalog", siteUrl)})
 - [AI 법률 질문](${new URL("/research", siteUrl)})
 - [공지사항](${new URL("/notice", siteUrl)})
 - [개인정보처리방침](${new URL("/privacy", siteUrl)})

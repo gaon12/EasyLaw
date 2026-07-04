@@ -24,11 +24,13 @@ export function LandingSearch() {
     <div className={styles.searchExperience}>
       <div className={styles.searchModeRow}>
         <div>
-          <strong>{isQuestionMode ? "생활 법률 질문" : "판결문 검색"}</strong>
+          <strong>
+            {isQuestionMode ? "생활 법률 질문" : "판결문·법령 검색"}
+          </strong>
           <span>
             {isQuestionMode
               ? "겪은 일과 궁금한 점을 편하게 적어보세요."
-              : "사건번호, 법원명 또는 판결문 제목으로 찾아보세요."}
+              : "사건번호, 법원명 또는 제목으로 판결문과 법령을 찾아보세요."}
           </span>
         </div>
         <button
@@ -52,7 +54,7 @@ export function LandingSearch() {
       >
         <SearchIcon size={22} />
         <input
-          aria-label={isQuestionMode ? "법률 상황 질문" : "판결문 검색"}
+          aria-label={isQuestionMode ? "법률 상황 질문" : "판결문·법령 검색"}
           name="q"
           maxLength={
             isQuestionMode

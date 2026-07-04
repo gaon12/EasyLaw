@@ -17,9 +17,9 @@ export default function SearchPage() {
         <section className={styles.authPanel}>
           <h1>통합검색</h1>
           <p>
-            지금은 자연어 질문은 AI 질문으로, 사건번호 검색은 판결문 검색으로
-            분리해 운영해요. 검색 목적이 헷갈리지 않도록 이 화면은 판결문 검색에
-            연결합니다.
+            지금은 자연어 질문은 AI 질문으로, 사건번호 검색은 판결문·법령
+            검색으로 분리해 운영해요. 검색 목적이 헷갈리지 않도록 이 화면은
+            판결문·법령 검색에 연결합니다.
           </p>
           <form action="/catalog" className={styles.authForm}>
             <label className={styles.label} htmlFor="site-search">
