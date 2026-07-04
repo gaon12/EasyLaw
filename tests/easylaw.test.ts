@@ -92,6 +92,10 @@ import {
   getPublicJudgmentByIdentifier,
   getPublicJudgments,
 } from "../src/lib/queries";
+import {
+  defaultReaderView,
+  recommendReaderView,
+} from "../src/lib/reading-onboarding";
 import { getPublicRequestOrigin } from "../src/lib/request-origin";
 import { answerFormatInstruction } from "../src/lib/research-options";
 import { optionalSafeNextPath, safeNextPath } from "../src/lib/safe-next-path";
@@ -120,6 +124,64 @@ test("server config keeps native database and archive packages external", () => 
     "7zip-bin-full",
     "better-sqlite3",
   ]);
+});
+
+test("reading onboarding recommends a default view without treating answers as a score", () => {
+  assert.equal(defaultReaderView, "plain_language");
+  assert.deepEqual(
+    recommendReaderView({
+      legalDocumentFamiliarity: "familiar",
+      longTextComfort: "fine",
+      preferredReading: "original",
+    }),
+    {
+      description: "원래 판결문 구조와 표현을 그대로 먼저 보여드립니다.",
+      summaryFirst: false,
+      title: "원문",
+      view: "original",
+    },
+  );
+  assert.deepEqual(
+    recommendReaderView({
+      legalDocumentFamiliarity: "difficult",
+      longTextComfort: "fine",
+      preferredReading: "plain_language",
+    }),
+    {
+      description:
+        "원문을 보지 않아도 판결의 결론과 이유를 이해할 수 있게 설명합니다.",
+      summaryFirst: false,
+      title: "쉬운 해설",
+      view: "plain_language",
+    },
+  );
+  assert.deepEqual(
+    recommendReaderView({
+      legalDocumentFamiliarity: "difficult",
+      longTextComfort: "high",
+      preferredReading: "plain_language",
+    }),
+    {
+      description: "짧은 문장과 큰 글씨로 핵심 내용을 먼저 보여드립니다.",
+      summaryFirst: true,
+      title: "이지리드",
+      view: "easy_read",
+    },
+  );
+  assert.deepEqual(
+    recommendReaderView({
+      legalDocumentFamiliarity: null,
+      longTextComfort: "some",
+      preferredReading: null,
+    }),
+    {
+      description:
+        "원문을 보지 않아도 판결의 결론과 이유를 이해할 수 있게 설명합니다.",
+      summaryFirst: true,
+      title: "쉬운 해설",
+      view: "plain_language",
+    },
+  );
 });
 
 function withDb() {

@@ -1079,6 +1079,20 @@ try {
   await page.locator('a[href="/catalog"]').first().click();
   await page.locator("main article").first().waitFor();
   await page.locator('main article a[href^="/p/"]').first().click();
+  await page
+    .getByRole("dialog", {
+      name: "판결문을 더 편하게 볼 수 있도록 기본 화면을 골라드릴게요",
+    })
+    .waitFor();
+  await page.getByText("추천 보기: 쉬운 해설", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "이대로 시작하기" }).click();
+  await page
+    .getByText("앞으로 판결문을 '쉬운 해설'로 먼저 보여드리겠습니다.", {
+      exact: false,
+    })
+    .waitFor();
+  await page.getByRole("heading", { exact: true, name: "쉬운 해설" }).waitFor();
+  await page.getByRole("tab", { name: "원문" }).click();
   await page.getByRole("heading", { name: "판결문 본문" }).waitFor();
   const publicJudgmentText = await page.locator("main").innerText();
   if (/공개 출처|원문 출처/.test(publicJudgmentText)) {

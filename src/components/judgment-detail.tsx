@@ -69,9 +69,9 @@ export function JudgmentDetailView({
           <div className={styles.viewerRailPanel}>
             <strong className={styles.viewerRailTitle}>문서 목차</strong>
             <nav>
-              <a href="#original-document">원본</a>
+              <a href="#original-document">원문</a>
               <a href="#easy-explanation">쉬운 해설</a>
-              <a href="#easy-read">이지 리드</a>
+              <a href="#easy-read">이지리드</a>
               {relatedJudgments.length > 0 && <a href="#related-cases">전심</a>}
               <a href="#judgment-info">문서 정보</a>
             </nav>
@@ -228,7 +228,7 @@ export function JudgmentDetailView({
               <header className={styles.viewerPanelHeader}>
                 <span className={styles.badge}>이지 리드</span>
                 <div>
-                  <h2 id="easy-read-heading">이지 리드</h2>
+                  <h2 id="easy-read-heading">이지리드</h2>
                   <p>
                     꼭 알아야 할 결론과 해야 할 일만 큰 글씨로 짧게 보여줘요.
                   </p>
