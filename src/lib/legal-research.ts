@@ -16,6 +16,10 @@ import {
 } from "./legal-research-policy";
 import { routeResearchQuery } from "./legal-research-router";
 import {
+  type ResearchSkillEvent,
+  researchSkillEvent,
+} from "./legal-research-skills";
+import {
   isLocalLlmConfiguration,
   type LlmConfiguration,
   LlmError,
@@ -62,6 +66,7 @@ export type ResearchHarnessEvent =
   | { type: "plan"; plan: PlanDraft }
   | { type: "evidence"; evidence: ResearchEvidence }
   | { type: "answer"; answer: string; verified: boolean }
+  | { type: "skill"; skill: ResearchSkillEvent }
   | {
       type: "progress";
       detail: string;
@@ -118,6 +123,12 @@ export async function buildResearchPlan(
   }
 
   onEvent?.({ phase: "planning", type: "phase" });
+  emitSkill(
+    onEvent,
+    "summarize_question",
+    "running",
+    "질문의 목적과 위험도를 먼저 정리합니다.",
+  );
   const route = routeResearchQuery(normalizedQuery);
   let plan: PlanDraft = {
     assumptions: [],
@@ -130,10 +141,17 @@ export async function buildResearchPlan(
     query: normalizedQuery,
     steps: stepsForResearchMode(route.mode),
   };
+  emitSkill(onEvent, "summarize_question", "completed", plan.intent);
   onEvent?.({ plan, type: "plan" });
 
   if (route.mode === "quick") {
     onEvent?.({ phase: "composing", type: "phase" });
+    emitSkill(
+      onEvent,
+      "draft_answer",
+      "running",
+      "검색 없이 설명 가능한 질문이라 바로 답변을 작성합니다.",
+    );
     let streamed = "";
     const answer = await streamQuickAnswer(
       configuration,
@@ -142,6 +160,12 @@ export async function buildResearchPlan(
         streamed += token;
         onEvent?.({ answer: streamed, type: "answer", verified: false });
       },
+    );
+    emitSkill(
+      onEvent,
+      "draft_answer",
+      "completed",
+      "빠른 답변을 완료했습니다.",
     );
     onEvent?.({ answer, type: "answer", verified: false });
     return { ...plan, answer, evidence: [] };
@@ -172,6 +196,12 @@ async function runFastFirstDeepResearch(
   let finalAnswerStarted = false;
   let previewText = "";
   onEvent?.({ phase: "composing", type: "phase" });
+  emitSkill(
+    onEvent,
+    "draft_answer",
+    "running",
+    "심층 검토를 기다리는 동안 먼저 예비 답변을 씁니다.",
+  );
   const previewPromise = streamDraftAnswer(
     configuration,
     plan.query,
@@ -183,15 +213,39 @@ async function runFastFirstDeepResearch(
       previewText += token;
       onEvent?.({ answer: previewText, type: "answer", verified: false });
     },
-  ).catch(() => {
-    onEvent?.({
-      message: "빠른 예비 답변 생성에 실패해 심층 검토 결과를 기다립니다.",
-      type: "warning",
+  )
+    .catch(() => {
+      emitSkill(
+        onEvent,
+        "draft_answer",
+        "failed",
+        "예비 답변 생성이 실패했습니다.",
+      );
+      onEvent?.({
+        message: "빠른 예비 답변 생성에 실패해 심층 검토 결과를 기다립니다.",
+        type: "warning",
+      });
+      return "";
+    })
+    .then((text) => {
+      if (text) {
+        emitSkill(
+          onEvent,
+          "draft_answer",
+          "completed",
+          "예비 답변을 표시했습니다.",
+        );
+      }
+      return text;
     });
-    return "";
-  });
 
   onEvent?.({ phase: "connecting", type: "phase" });
+  emitSkill(
+    onEvent,
+    "retrieve_evidence",
+    "running",
+    "MCP와 로컬 도구를 연결합니다.",
+  );
   try {
     const toolbox = mergeToolboxes(
       await connectMcpToolbox(db),
@@ -249,6 +303,12 @@ async function runAnswerFirstOverview(
   onEvent?: (event: ResearchHarnessEvent) => void,
 ): Promise<ResearchPlan> {
   onEvent?.({ phase: "composing", type: "phase" });
+  emitSkill(
+    onEvent,
+    "draft_answer",
+    "running",
+    "근거 검색과 동시에 초안 답변을 작성합니다.",
+  );
   let draftText = "";
   const draftPromise = streamDraftAnswer(
     configuration,
@@ -258,6 +318,12 @@ async function runAnswerFirstOverview(
       draftText += token;
       onEvent?.({ answer: draftText, type: "answer", verified: false });
     },
+  );
+  emitSkill(
+    onEvent,
+    "retrieve_evidence",
+    "running",
+    "MCP와 로컬 검색 도구를 병렬로 호출합니다.",
   );
   const evidencePromise = retrieveEvidenceInParallel(db, plan.query, onEvent);
 
@@ -271,6 +337,15 @@ async function runAnswerFirstOverview(
   const draft = draftResult.value.trim();
   const evidence =
     evidenceResult.status === "fulfilled" ? evidenceResult.value : [];
+  emitSkill(onEvent, "draft_answer", "completed", "초안 답변을 완료했습니다.");
+  emitSkill(
+    onEvent,
+    "retrieve_evidence",
+    evidenceResult.status === "fulfilled" ? "completed" : "failed",
+    evidence.length > 0
+      ? `${evidence.length}개의 근거 후보를 확보했습니다.`
+      : "근거 후보를 확보하지 못했습니다.",
+  );
 
   if (evidence.length === 0) {
     onEvent?.({
@@ -283,6 +358,12 @@ async function runAnswerFirstOverview(
   }
 
   onEvent?.({ phase: "verifying", type: "phase" });
+  emitSkill(
+    onEvent,
+    "verify_answer",
+    "running",
+    "초안과 검색 근거를 대조합니다.",
+  );
   let sectionText = "";
   try {
     const section = await streamGroundedRevision(
@@ -300,6 +381,12 @@ async function runAnswerFirstOverview(
       },
     );
     const answer = `${draft}${GROUNDING_HEADING}${section.trim()}`;
+    emitSkill(
+      onEvent,
+      "verify_answer",
+      "completed",
+      "근거 확인 섹션을 작성했습니다.",
+    );
     onEvent?.({ answer, type: "answer", verified: true });
     return { ...plan, answer, evidence };
   } catch (error) {
@@ -310,6 +397,12 @@ async function runAnswerFirstOverview(
       message: "근거 확인 섹션 생성에 실패해 초안 답변만 표시합니다.",
       type: "warning",
     });
+    emitSkill(
+      onEvent,
+      "verify_answer",
+      "failed",
+      "근거 확인 섹션 작성에 실패했습니다.",
+    );
     onEvent?.({ answer: draft, type: "answer", verified: false });
     return { ...plan, answer: draft, evidence };
   }
@@ -413,6 +506,14 @@ async function runDeepToolLoop(
       phase: iteration === 0 ? "planning" : "retrieving",
       type: "phase",
     });
+    emitSkill(
+      onEvent,
+      "select_tools",
+      "running",
+      iteration === 0
+        ? "질문에 맞는 검색 도구와 쟁점을 고릅니다."
+        : "부족한 근거를 보강할 도구를 다시 고릅니다.",
+    );
     const decision = await requestAgentDecision(configuration, {
       evidence,
       history,
@@ -421,6 +522,14 @@ async function runDeepToolLoop(
       reviewFeedback,
       tools: toolbox.tools,
     });
+    emitSkill(
+      onEvent,
+      "select_tools",
+      "completed",
+      decision.type === "tool_calls"
+        ? `${decision.calls.length}개 도구 호출을 준비했습니다.`
+        : "확보한 근거로 답변 가능하다고 판단했습니다.",
+    );
     if (iteration === 0) {
       plan = mergeDecisionIntoPlan(plan, decision);
       onPlanUpdate?.(plan);
@@ -519,6 +628,12 @@ async function executeToolCalls(
   onEvent?: (event: ResearchHarnessEvent) => void,
 ) {
   // 한 결정에 담긴 검색들은 서로 독립적이므로 병렬로 실행한다.
+  emitSkill(
+    onEvent,
+    "retrieve_evidence",
+    "running",
+    `${calls.length}개 도구 호출을 병렬로 실행합니다.`,
+  );
   const settled = await Promise.all(
     calls.map(async (call) => {
       const tool = tools.find((item) => item.key === call.toolKey);
@@ -559,6 +674,15 @@ async function executeToolCalls(
     }
     history.push({ ...outcome.call, status: outcome.status });
   }
+  const completed = settled.filter(
+    (outcome) => outcome.status === "completed",
+  ).length;
+  emitSkill(
+    onEvent,
+    "retrieve_evidence",
+    completed > 0 ? "completed" : "failed",
+    `${completed}/${settled.length}개 도구 호출이 완료되었습니다.`,
+  );
 }
 
 async function finishAnswer(
@@ -588,12 +712,24 @@ async function finishAnswer(
   }
 
   onEvent?.({ phase: "verifying", type: "phase" });
+  emitSkill(
+    onEvent,
+    "verify_answer",
+    "running",
+    "인용과 단정 표현을 다시 점검합니다.",
+  );
   try {
     const verifiedAnswer = await verifyResearchAnswer(
       configuration,
       query,
       evidence,
       answer,
+    );
+    emitSkill(
+      onEvent,
+      "verify_answer",
+      "completed",
+      "검증된 최종 답변을 반영했습니다.",
     );
     onEvent?.({ answer: verifiedAnswer, type: "answer", verified: true });
     return { ...plan, answer: verifiedAnswer, evidence };
@@ -605,6 +741,12 @@ async function finishAnswer(
       message: "심층 검증을 완료하지 못해 먼저 작성된 오버뷰를 표시합니다.",
       type: "warning",
     });
+    emitSkill(
+      onEvent,
+      "verify_answer",
+      "failed",
+      "검증 응답이 실패해 이전 오버뷰를 유지합니다.",
+    );
     return { ...plan, answer, evidence };
   }
 }
@@ -618,6 +760,12 @@ async function composeVisibleAnswer(
   onEvent?: (event: ResearchHarnessEvent) => void,
 ) {
   onEvent?.({ phase: "composing", type: "phase" });
+  emitSkill(
+    onEvent,
+    "compose_answer",
+    "running",
+    "근거를 사용해 문단별 답변을 생성합니다.",
+  );
   onEvent?.({
     detail: "최종 답변을 한 번에 만들지 않고 문단 단위로 생성합니다.",
     status: "running",
@@ -650,6 +798,12 @@ async function composeVisibleAnswer(
       title: "AI 오버뷰 작성",
       type: "progress",
     });
+    emitSkill(
+      onEvent,
+      "compose_answer",
+      "completed",
+      "문단별 답변 생성을 완료했습니다.",
+    );
     return answer;
   } catch (error) {
     if (!(error instanceof LlmError)) {
@@ -660,9 +814,24 @@ async function composeVisibleAnswer(
         "스트리밍 답변 생성에 실패해 먼저 확보한 초안 답변을 표시합니다.",
       type: "warning",
     });
+    emitSkill(
+      onEvent,
+      "compose_answer",
+      "failed",
+      "최종 답변 생성이 실패해 초안을 유지합니다.",
+    );
     onEvent?.({ answer: draft, type: "answer", verified: false });
     return draft;
   }
+}
+
+function emitSkill(
+  onEvent: ((event: ResearchHarnessEvent) => void) | undefined,
+  key: Parameters<typeof researchSkillEvent>[0],
+  stage: Parameters<typeof researchSkillEvent>[1],
+  detail: string,
+) {
+  onEvent?.({ skill: researchSkillEvent(key, stage, detail), type: "skill" });
 }
 
 function rejectUngroundedAnswer(

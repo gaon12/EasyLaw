@@ -69,7 +69,10 @@ import {
   setJudgmentText,
 } from "../src/lib/judgment-texts";
 import { resetLegalData } from "../src/lib/legal-data-maintenance";
-import { buildResearchPlan } from "../src/lib/legal-research";
+import {
+  buildResearchPlan,
+  type ResearchHarnessEvent,
+} from "../src/lib/legal-research";
 import { routeResearchQuery } from "../src/lib/legal-research-router";
 import { requestLlmText } from "../src/lib/llm-client";
 import {
@@ -1942,10 +1945,12 @@ test("legal research harness assigns coverage and evidence", async () => {
       ],
     });
     globalThis.fetch = mock.fetch;
+    const events: ResearchHarnessEvent[] = [];
 
     const plan = await buildResearchPlan(
       db,
       "중고거래 판매자에게 입금했는데 잠적했습니다. 손해배상을 받을 수 있나요?",
+      (event) => events.push(event),
     );
 
     assert.equal(plan.mode, "overview");
@@ -1973,6 +1978,21 @@ test("legal research harness assigns coverage and evidence", async () => {
     assert.ok(
       mock.state.llmBodies.every((body) => !("reasoning" in body)),
       "research requests should not force reasoning mode",
+    );
+    const skillEvents = events
+      .filter((event) => event.type === "skill")
+      .map((event) => event.skill);
+    assert.ok(
+      skillEvents.some(
+        (event) =>
+          event.key === "summarize_question" && event.stage === "completed",
+      ),
+    );
+    assert.ok(
+      skillEvents.some(
+        (event) =>
+          event.key === "retrieve_evidence" && event.stage === "completed",
+      ),
     );
   } finally {
     globalThis.fetch = originalFetch;

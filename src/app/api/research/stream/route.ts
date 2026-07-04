@@ -115,6 +115,9 @@ export async function POST(request: NextRequest) {
                   verified: event.verified,
                 });
                 break;
+              case "skill":
+                send("skill", event.skill);
+                break;
               case "progress":
                 send("progress", {
                   detail: event.detail,

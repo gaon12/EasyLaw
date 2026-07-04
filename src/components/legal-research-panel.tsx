@@ -21,6 +21,14 @@ type ResearchRequest = {
   query: string;
 };
 
+type AgentActivity = {
+  detail: string;
+  id: number;
+  status: "completed" | "failed" | "running";
+  title: string;
+  type: "progress" | "skill" | "tool";
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -225,6 +233,7 @@ export function LegalResearchPanel({
   const [answer, setAnswer] = useState("");
   const [phase, setPhase] = useState("");
   const [toolStatus, setToolStatus] = useState("");
+  const [activities, setActivities] = useState<AgentActivity[]>([]);
   const [warning, setWarning] = useState("");
   const [errorMessage, setErrorMessage] = useState(
     "질문을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
@@ -234,46 +243,94 @@ export function LegalResearchPanel({
   >(initialQuery ? "loading" : "idle");
   const renderedAnswerRef = useRef<HTMLDivElement>(null);
   const submitGuardRef = useRef(false);
+  const activityIdRef = useRef(0);
 
-  const applyServerEvent = useCallback((eventText: string) => {
-    const event = eventText.match(/^event: (.+)$/m)?.[1];
-    const rawData = eventText.match(/^data: (.+)$/m)?.[1];
-    if (!event || !rawData) {
-      return;
-    }
-    const data = JSON.parse(rawData) as unknown;
-
-    if (event === "plan") {
-      setPlan(data as Plan);
-    }
-    if (event === "evidence") {
-      setEvidence((current) => [...current, data as CitationEvidence]);
-    }
-    if (event === "answer" && isRecord(data) && typeof data.text === "string") {
-      setAnswer(data.text);
-    }
-    if (event === "warning" && typeof data === "string") {
-      setWarning(data);
-    }
-    if (
-      event === "tool" &&
-      isRecord(data) &&
-      typeof data.tool === "string" &&
-      typeof data.stage === "string"
-    ) {
-      setToolStatus(toolStatusLabel(data.stage));
-    }
-    if (event === "phase" && typeof data === "string") {
-      setPhase(data);
-    }
-    if (event === "done") {
-      setStatus("done");
-    }
-    if (event === "error") {
-      setErrorMessage(readableStreamError(data));
-      setStatus("error");
-    }
+  const appendActivity = useCallback((activity: Omit<AgentActivity, "id">) => {
+    activityIdRef.current += 1;
+    const next = { ...activity, id: activityIdRef.current };
+    setActivities((current) => [...current.slice(-7), next]);
   }, []);
+
+  const applyServerEvent = useCallback(
+    (eventText: string) => {
+      const event = eventText.match(/^event: (.+)$/m)?.[1];
+      const rawData = eventText.match(/^data: (.+)$/m)?.[1];
+      if (!event || !rawData) {
+        return;
+      }
+      const data = JSON.parse(rawData) as unknown;
+
+      if (event === "plan") {
+        setPlan(data as Plan);
+      }
+      if (event === "evidence") {
+        setEvidence((current) => [...current, data as CitationEvidence]);
+      }
+      if (
+        event === "answer" &&
+        isRecord(data) &&
+        typeof data.text === "string"
+      ) {
+        setAnswer(data.text);
+      }
+      if (event === "warning" && typeof data === "string") {
+        setWarning(data);
+      }
+      if (
+        event === "skill" &&
+        isRecord(data) &&
+        typeof data.title === "string" &&
+        typeof data.detail === "string" &&
+        isActivityStatus(data.stage)
+      ) {
+        appendActivity({
+          detail: data.detail,
+          status: data.stage,
+          title: data.title,
+          type: "skill",
+        });
+      }
+      if (
+        event === "progress" &&
+        isRecord(data) &&
+        typeof data.title === "string" &&
+        typeof data.detail === "string" &&
+        isActivityStatus(data.status)
+      ) {
+        appendActivity({
+          detail: data.detail,
+          status: data.status,
+          title: data.title,
+          type: "progress",
+        });
+      }
+      if (
+        event === "tool" &&
+        isRecord(data) &&
+        typeof data.tool === "string" &&
+        typeof data.stage === "string"
+      ) {
+        setToolStatus(toolStatusLabel(data.stage));
+        appendActivity({
+          detail: toolActivityDetail(data.stage),
+          status: toolActivityStatus(data.stage),
+          title: data.tool,
+          type: "tool",
+        });
+      }
+      if (event === "phase" && typeof data === "string") {
+        setPhase(data);
+      }
+      if (event === "done") {
+        setStatus("done");
+      }
+      if (event === "error") {
+        setErrorMessage(readableStreamError(data));
+        setStatus("error");
+      }
+    },
+    [appendActivity],
+  );
 
   const runResearch = useCallback(
     async (nextQuery: string, signal: AbortSignal, captchaPayload?: string) => {
@@ -283,6 +340,7 @@ export function LegalResearchPanel({
       setAnswer("");
       setPhase("");
       setToolStatus("");
+      setActivities([]);
       setWarning("");
 
       try {
@@ -489,6 +547,26 @@ export function LegalResearchPanel({
           </div>
         )}
 
+        {activities.length > 0 && (
+          <section className={styles.aiAgentTimeline}>
+            <h2>Agent run</h2>
+            <ol>
+              {activities.map((activity) => (
+                <li
+                  className={activityClassName(activity.status)}
+                  key={activity.id}
+                >
+                  <span>{activityTypeLabel(activity.type)}</span>
+                  <div>
+                    <strong>{activity.title}</strong>
+                    <small>{activity.detail}</small>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
         {plan && (
           <article className={styles.aiOverviewCard}>
             <header className={styles.aiOverviewHeader}>
@@ -625,4 +703,48 @@ function toolStatusLabel(stage: string) {
     return "찾은 근거를 확인했어요.";
   }
   return "다른 근거 경로를 확인하고 있어요.";
+}
+
+function isActivityStatus(value: unknown): value is AgentActivity["status"] {
+  return value === "completed" || value === "failed" || value === "running";
+}
+
+function toolActivityStatus(stage: string): AgentActivity["status"] {
+  if (stage === "completed") {
+    return "completed";
+  }
+  if (stage === "failed") {
+    return "failed";
+  }
+  return "running";
+}
+
+function toolActivityDetail(stage: string) {
+  if (stage === "completed") {
+    return "도구 결과를 받아 근거 후보로 반영했습니다.";
+  }
+  if (stage === "failed") {
+    return "이 도구 호출은 실패했고 다른 경로를 계속 확인합니다.";
+  }
+  return "도구를 호출하고 결과를 기다립니다.";
+}
+
+function activityTypeLabel(type: AgentActivity["type"]) {
+  if (type === "skill") {
+    return "Skill";
+  }
+  if (type === "tool") {
+    return "Tool";
+  }
+  return "Run";
+}
+
+function activityClassName(status: AgentActivity["status"]) {
+  if (status === "completed") {
+    return `${styles.aiAgentTimelineItem} ${styles.aiAgentTimelineDone}`;
+  }
+  if (status === "failed") {
+    return `${styles.aiAgentTimelineItem} ${styles.aiAgentTimelineFailed}`;
+  }
+  return styles.aiAgentTimelineItem;
 }
