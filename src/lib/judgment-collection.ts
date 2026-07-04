@@ -4,7 +4,7 @@ import {
   fetchOpenLawRecordPage,
   hydrateOpenLawRecordOriginalText,
   openLawCollectionTargets,
-  upsertJudgmentFromExternal,
+  upsertJudgmentsFromExternal,
 } from "./external-law";
 import { logIntegrationEvent } from "./integration-events";
 import { newId } from "./security/crypto";
@@ -126,11 +126,6 @@ type ResumeState = {
 };
 
 type CollectionCandidate = {
-  existing: boolean;
-  record: ExternalJudgmentRecord;
-};
-
-type HydratedCollectionCandidate = CollectionCandidate & {
   record: ExternalJudgmentRecord;
 };
 
@@ -650,7 +645,7 @@ async function collectAndStoreOpenLawRecords(
           continue;
         }
 
-        candidates.push({ existing: Boolean(existing), record });
+        candidates.push({ record });
       }
 
       if (candidates.length > 0) {
@@ -720,23 +715,26 @@ async function collectAndStoreOpenLawRecords(
 
 function saveHydratedCandidates(
   db: SqliteDatabase,
-  candidates: HydratedCollectionCandidate[],
+  candidates: CollectionCandidate[],
 ) {
-  return db.transaction((items: HydratedCollectionCandidate[]) => {
-    let createdCount = 0;
-    let importedCount = 0;
-    let updatedCount = 0;
-    for (const candidate of items) {
-      upsertJudgmentFromExternal(db, candidate.record);
-      importedCount += 1;
-      if (candidate.existing) {
-        updatedCount += 1;
-      } else {
-        createdCount += 1;
-      }
+  const saved = upsertJudgmentsFromExternal(
+    db,
+    candidates.map((candidate) => candidate.record),
+  );
+  let createdCount = 0;
+  let updatedCount = 0;
+  for (const result of saved) {
+    if (result.created) {
+      createdCount += 1;
+    } else {
+      updatedCount += 1;
     }
-    return { createdCount, importedCount, updatedCount };
-  })(candidates);
+  }
+  return {
+    createdCount,
+    importedCount: saved.length,
+    updatedCount,
+  };
 }
 
 async function mapWithConcurrency<T, R>(

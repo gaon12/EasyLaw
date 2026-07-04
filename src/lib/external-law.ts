@@ -128,18 +128,21 @@ export function upsertJudgmentFromExternal(
   db: SqliteDatabase,
   record: ExternalJudgmentRecord,
 ) {
-  const now = nowIso();
-  const existing = db
-    .prepare<[string, string], { id: string }>(
-      `SELECT id
-        FROM judgments
-        WHERE source_provider = ? AND source_external_id = ?`,
-    )
-    .get(record.sourceProvider, record.externalId);
+  const result = upsertJudgmentsFromExternal(db, [record])[0];
+  return result.id;
+}
 
-  if (existing) {
-    db.prepare(
-      `UPDATE judgments
+export function upsertJudgmentsFromExternal(
+  db: SqliteDatabase,
+  records: ExternalJudgmentRecord[],
+) {
+  const selectJudgment = db.prepare<[string, string], { id: string }>(
+    `SELECT id
+      FROM judgments
+      WHERE source_provider = ? AND source_external_id = ?`,
+  );
+  const updateJudgment = db.prepare(
+    `UPDATE judgments
         SET case_number = ?,
           court_name = ?,
           decided_on = ?,
@@ -150,54 +153,108 @@ export function upsertJudgmentFromExternal(
           source_summary = COALESCE(?, source_summary),
           updated_at = ?
         WHERE id = ?`,
-    ).run(
-      record.caseNumber,
-      record.courtName,
-      record.decidedOn,
-      record.title,
-      record.caseType,
-      record.sourceUrl ?? null,
-      record.summary ?? null,
-      now,
-      existing.id,
-    );
-    if (record.originalText) {
-      setJudgmentText(db, existing.id, record.originalText);
-    }
-    upsertJudgmentSource(db, existing.id, record, now);
-    return existing.id;
-  }
-
-  const id = newId("judgment");
-  db.prepare(
+  );
+  const insertJudgment = db.prepare(
     `INSERT INTO judgments
       (id, case_number, court_name, decided_on, title, case_type, status,
         visibility, source_provider, source_external_id, source_url,
         source_trust, source_summary, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    id,
-    record.caseNumber,
-    record.courtName,
-    record.decidedOn,
-    record.title,
-    record.caseType,
-    "pending",
-    "public",
-    record.sourceProvider,
-    record.externalId,
-    record.sourceUrl ?? null,
-    "external_verified",
-    record.summary ?? null,
-    now,
-    now,
+  );
+  const upsertText = db.prepare(
+    `INSERT INTO judgment_texts (judgment_id, original_text, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(judgment_id) DO UPDATE SET
+        original_text = excluded.original_text,
+        updated_at = excluded.updated_at`,
+  );
+  const selectSource = db.prepare<[string, string, string], { id: string }>(
+    `SELECT id
+      FROM judgment_sources
+      WHERE judgment_id = ? AND provider = ? AND external_id = ?`,
+  );
+  const updateSource = db.prepare(
+    `UPDATE judgment_sources
+      SET source_url = ?, raw_hash = ?, fetched_at = ?, is_preferred = 1
+      WHERE id = ?`,
+  );
+  const insertSource = db.prepare(
+    `INSERT INTO judgment_sources
+      (id, judgment_id, provider, external_id, source_url, raw_hash, fetched_at, is_preferred)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
-  if (record.originalText) {
-    setJudgmentText(db, id, record.originalText);
-  }
-  upsertJudgmentSource(db, id, record, now);
-  return id;
+  return db.transaction((items: ExternalJudgmentRecord[]) => {
+    const results: Array<{ created: boolean; id: string }> = [];
+    for (const record of items) {
+      const now = nowIso();
+      const existing = selectJudgment.get(
+        record.sourceProvider,
+        record.externalId,
+      );
+      const id = existing?.id ?? newId("judgment");
+
+      if (existing) {
+        updateJudgment.run(
+          record.caseNumber,
+          record.courtName,
+          record.decidedOn,
+          record.title,
+          record.caseType,
+          record.sourceUrl ?? null,
+          record.summary ?? null,
+          now,
+          id,
+        );
+      } else {
+        insertJudgment.run(
+          id,
+          record.caseNumber,
+          record.courtName,
+          record.decidedOn,
+          record.title,
+          record.caseType,
+          "pending",
+          "public",
+          record.sourceProvider,
+          record.externalId,
+          record.sourceUrl ?? null,
+          "external_verified",
+          record.summary ?? null,
+          now,
+          now,
+        );
+      }
+
+      if (record.originalText) {
+        upsertText.run(id, record.originalText, now);
+      }
+      const raw = JSON.stringify(record);
+      const rawHash = createHash("sha256").update(raw).digest("hex");
+      const source = selectSource.get(
+        id,
+        record.sourceProvider,
+        record.externalId,
+      );
+      if (source) {
+        updateSource.run(record.sourceUrl ?? null, rawHash, now, source.id);
+      } else {
+        insertSource.run(
+          newId("source"),
+          id,
+          record.sourceProvider,
+          record.externalId,
+          record.sourceUrl ?? null,
+          rawHash,
+          now,
+          1,
+        );
+      }
+
+      results.push({ created: !existing, id });
+    }
+    return results;
+  })(records);
 }
 
 export function mergeExternalFirst<T extends Record<string, unknown>>(
@@ -226,7 +283,7 @@ export function mergeExternalFirst<T extends Record<string, unknown>>(
 
 export async function syncExternalCatalog(db: SqliteDatabase) {
   const records = await fetchOpenLawJudgments(db, "손해배상", { display: 20 });
-  return records.map((record) => upsertJudgmentFromExternal(db, record));
+  return upsertJudgmentsFromExternal(db, records).map((result) => result.id);
 }
 
 export async function fetchOpenLawJudgments(
@@ -1050,47 +1107,6 @@ function buildOpenLawTitle(input: {
     return title;
   }
   return `${leadingMarker} ${title}`;
-}
-
-function upsertJudgmentSource(
-  db: SqliteDatabase,
-  judgmentId: string,
-  record: ExternalJudgmentRecord,
-  fetchedAt: string,
-) {
-  const raw = JSON.stringify(record);
-  const rawHash = createHash("sha256").update(raw).digest("hex");
-  const existing = db
-    .prepare<[string, string, string], { id: string }>(
-      `SELECT id
-        FROM judgment_sources
-        WHERE judgment_id = ? AND provider = ? AND external_id = ?`,
-    )
-    .get(judgmentId, record.sourceProvider, record.externalId);
-
-  if (existing) {
-    db.prepare(
-      `UPDATE judgment_sources
-        SET source_url = ?, raw_hash = ?, fetched_at = ?, is_preferred = 1
-        WHERE id = ?`,
-    ).run(record.sourceUrl ?? null, rawHash, fetchedAt, existing.id);
-    return;
-  }
-
-  db.prepare(
-    `INSERT INTO judgment_sources
-      (id, judgment_id, provider, external_id, source_url, raw_hash, fetched_at, is_preferred)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    newId("source"),
-    judgmentId,
-    record.sourceProvider,
-    record.externalId,
-    record.sourceUrl ?? null,
-    rawHash,
-    fetchedAt,
-    1,
-  );
 }
 
 function getOpenLawOc(db: SqliteDatabase) {
