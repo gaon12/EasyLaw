@@ -15,6 +15,7 @@ import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import {
   matchesJudgmentSearch,
   parseJudgmentSearchQuery,
+  sortJudgments,
 } from "@/lib/judgment-search";
 import { getPublicJudgments } from "@/lib/queries";
 import {
@@ -28,7 +29,17 @@ export const dynamic = "force-dynamic";
 
 const createJudgmentRequest = z.object({
   captchaPayload: z.string().max(12_000).optional(),
-  query: z.string().trim().min(1).max(JUDGMENT_SEARCH_QUERY_MAX_LENGTH),
+  query: z.string().trim().max(JUDGMENT_SEARCH_QUERY_MAX_LENGTH),
+  categories: z
+    .array(z.enum(["judgment", "law"]))
+    .max(2)
+    .optional(),
+  caseType: z
+    .enum(["civil", "criminal", "administrative", "family", "constitutional"])
+    .optional(),
+  yearFrom: z.number().int().min(1900).max(2100).optional(),
+  yearTo: z.number().int().min(1900).max(2100).optional(),
+  sort: z.enum(["newest", "oldest", "title"]).optional(),
 });
 
 export async function GET() {
@@ -73,6 +84,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const filters = parseJudgmentSearchQuery(body.data.query);
+    if (body.data.categories) {
+      filters.categories = body.data.categories;
+    }
+    if (body.data.caseType) {
+      filters.caseType = body.data.caseType;
+    }
+    if (body.data.yearFrom) {
+      filters.yearFrom = body.data.yearFrom;
+    }
+    if (body.data.yearTo) {
+      filters.yearTo = body.data.yearTo;
+    }
     const records = filters.text
       ? await searchExternalJudgments(db, filters.text)
       : [];
@@ -80,8 +103,11 @@ export async function POST(request: NextRequest) {
       upsertJudgmentFromExternal(db, record);
     }
 
-    const judgments = getPublicJudgments(db).filter((judgment) =>
-      matchesJudgmentSearch(judgment, filters),
+    const judgments = sortJudgments(
+      getPublicJudgments(db).filter((judgment) =>
+        matchesJudgmentSearch(judgment, filters),
+      ),
+      body.data.sort,
     );
 
     return applyAnonymousCookie(

@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
 import { LoginRequiredModal } from "@/components/auth-required-link";
 import { BookmarkButton } from "@/components/bookmark-button";
+import { SearchIcon } from "@/components/icons";
 import { LocalTime } from "@/components/local-time";
 import { clientFingerprintHeaders } from "@/lib/client-fingerprint";
 import {
@@ -11,11 +12,29 @@ import {
   CUSTOM_JUDGMENT_TITLE_MAX_LENGTH,
   JUDGMENT_SEARCH_QUERY_MAX_LENGTH,
 } from "@/lib/input-limits";
-import { judgmentSearchTagExamples } from "@/lib/judgment-search";
+import {
+  displayJudgmentCaseType,
+  displayJudgmentCategory,
+  JUDGMENT_SORT_OPTIONS,
+  type JudgmentCaseTypeFilter,
+  type JudgmentCategoryFilter,
+  type JudgmentSearchFilters,
+  type JudgmentSortOption,
+} from "@/lib/judgment-search";
 import type { JudgmentListItem } from "@/lib/types";
 import styles from "./page.module.css";
 
 const JUDGMENT_LIST_PAGE_SIZE = 15;
+const ALL_CATEGORIES: JudgmentCategoryFilter[] = ["judgment", "law"];
+const SKELETON_ROWS = ["s1", "s2", "s3", "s4", "s5"];
+
+const caseTypeOptions: JudgmentCaseTypeFilter[] = [
+  "civil",
+  "criminal",
+  "administrative",
+  "family",
+  "constitutional",
+];
 
 type Judgment = Pick<
   JudgmentListItem,
@@ -90,105 +109,173 @@ function isCustomJudgmentResponse(
   return isRecord(value) && typeof value.href === "string";
 }
 
-function withSearchTag(query: string, tag: string) {
-  const key = tag.slice(0, tag.indexOf(":"));
-  const remainingTokens = query
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((token) => !token.startsWith(`${key}:`));
-  return [...remainingTokens, tag].join(" ");
+function clampYear(year: number) {
+  return Math.min(2100, Math.max(1900, year));
 }
 
 export function JudgmentExplorer({
-  compact = false,
+  initialFilters,
   initialJudgments,
   initialPage = 1,
-  initialQuery = "",
   initialTotalCount = initialJudgments.length,
   initialView,
   initialBookmarkedIds = [],
-  questionMode = false,
   showWorkspace = true,
 }: {
-  compact?: boolean;
   initialBookmarkedIds?: string[];
+  initialFilters?: JudgmentSearchFilters;
   initialJudgments: Judgment[];
   initialPage?: number;
-  initialQuery?: string;
   initialTotalCount?: number;
   initialView?: "recent";
-  questionMode?: boolean;
   showWorkspace?: boolean;
 }) {
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState(initialFilters?.text ?? "");
+  const [categories, setCategories] = useState<JudgmentCategoryFilter[]>(
+    initialFilters?.categories?.length
+      ? initialFilters.categories
+      : ALL_CATEGORIES,
+  );
+  const [sort, setSort] = useState<JudgmentSortOption>(
+    initialFilters?.sort ?? "newest",
+  );
+  const [caseTypeFilter, setCaseTypeFilter] = useState<
+    JudgmentCaseTypeFilter | ""
+  >(
+    initialFilters?.caseType && initialFilters.caseType !== "law"
+      ? initialFilters.caseType
+      : "",
+  );
+  const [yearFrom, setYearFrom] = useState(
+    initialFilters?.yearFrom ? String(initialFilters.yearFrom) : "",
+  );
+  const [yearTo, setYearTo] = useState(
+    initialFilters?.yearTo ? String(initialFilters.yearTo) : "",
+  );
+  const [optionsOpen, setOptionsOpen] = useState(
+    Boolean(
+      initialFilters?.caseType ||
+        initialFilters?.yearFrom ||
+        initialFilters?.yearTo,
+    ),
+  );
   const [judgments, setJudgments] = useState(initialJudgments);
   const [page, setPage] = useState(initialPage);
   const [hasClientResults, setHasClientResults] = useState(false);
   const [message, setMessage] = useState(
-    questionMode
-      ? "질문과 관련된 공개 판결문을 찾아볼 수 있어요."
-      : "확인된 판결문 정보를 기준으로 검색해요.",
+    "확인된 판결문·법령 정보를 기준으로 검색해요.",
   );
-  const [isLoading, setIsLoading] = useState(false);
-  const isLoadingRef = useRef(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const searchSeqRef = useRef(0);
+  const skipAutoSearchRef = useRef(true);
+  const skipYearSearchRef = useRef(true);
+  const savingRef = useRef(false);
   const authRedirectRef = useRef(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [customText, setCustomText] = useState("");
   const [customTextNotice, setCustomTextNotice] = useState("");
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const customDetailsRef = useRef<HTMLDetailsElement>(null);
   const [captchaPrompt, setCaptchaPrompt] = useState<string | null>(null);
   const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
-  async function withLoading(action: () => Promise<void>) {
-    if (isLoadingRef.current || authRedirectRef.current) {
-      return;
+  useEffect(() => {
+    if (
+      window.location.hash === "#custom-judgment" &&
+      customDetailsRef.current
+    ) {
+      customDetailsRef.current.open = true;
+      customDetailsRef.current.scrollIntoView();
     }
-    isLoadingRef.current = true;
-    setIsLoading(true);
-    try {
-      await action();
-    } catch (_error) {
-      setMessage("요청을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
-    } finally {
-      isLoadingRef.current = false;
-      if (!authRedirectRef.current) {
-        setIsLoading(false);
-      }
+  }, []);
+
+  function buildSearchBody():
+    | { error: string }
+    | { body: Record<string, unknown> } {
+    const from = yearFrom.trim();
+    const to = yearTo.trim();
+    if ((from && from.length !== 4) || (to && to.length !== 4)) {
+      return { error: "연도는 4자리 숫자로 입력해 주세요." };
     }
+    const fromYear = from ? clampYear(Number(from)) : undefined;
+    const toYear = to ? clampYear(Number(to)) : undefined;
+    if (fromYear && toYear && fromYear > toYear) {
+      return { error: "시작 연도가 끝 연도보다 클 수 없어요." };
+    }
+    return {
+      body: {
+        query: query.trim(),
+        categories:
+          categories.length === ALL_CATEGORIES.length ? undefined : categories,
+        caseType: caseTypeFilter || undefined,
+        yearFrom: fromYear,
+        yearTo: toYear,
+        sort: sort === "newest" ? undefined : sort,
+      },
+    };
+  }
+
+  function catalogParams(pageNumber?: number) {
+    const params = new URLSearchParams();
+    if (query.trim()) {
+      params.set("q", query.trim());
+    }
+    if (categories.length !== ALL_CATEGORIES.length) {
+      params.set("cat", categories.join(","));
+    }
+    if (caseTypeFilter) {
+      params.set("type", caseTypeFilter);
+    }
+    if (yearFrom.trim().length === 4) {
+      params.set("from", yearFrom.trim());
+    }
+    if (yearTo.trim().length === 4) {
+      params.set("to", yearTo.trim());
+    }
+    if (sort !== "newest") {
+      params.set("sort", sort);
+    }
+    if (initialView && !query.trim()) {
+      params.set("view", initialView);
+    }
+    if (pageNumber && pageNumber > 1) {
+      params.set("page", String(pageNumber));
+    }
+    return params.toString();
   }
 
   async function search(captchaPayload?: string) {
-    if (!query.trim()) {
-      setMessage("검색어를 입력해 주세요.");
+    const built = buildSearchBody();
+    if ("error" in built) {
+      setMessage(built.error);
       return;
     }
 
-    await withLoading(async () => {
-      setMessage("판결문 정보를 확인하고 있어요.");
+    const seq = ++searchSeqRef.current;
+    setIsSearching(true);
+    setMessage("조건에 맞는 문서를 확인하고 있어요.");
+    try {
       const response = await fetch("/api/judgments", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...clientFingerprintHeaders(),
         },
-        body: JSON.stringify({
-          captchaPayload,
-          query,
-        }),
+        body: JSON.stringify({ captchaPayload, ...built.body }),
       });
       const data: unknown = await response.json();
+      if (seq !== searchSeqRef.current) {
+        return;
+      }
 
       if (
         response.status === 403 &&
         stringField(data, "error") === "captcha_required"
       ) {
         setCaptchaPrompt(
-          apiMessage(
-            data,
-            "보안 확인을 완료하면 판결문 검색을 계속할 수 있어요.",
-          ),
+          apiMessage(data, "보안 확인을 완료하면 검색을 계속할 수 있어요."),
         );
         setCaptchaResetKey((current) => current + 1);
         setMessage("보안 확인이 필요해요.");
@@ -218,14 +305,94 @@ export function JudgmentExplorer({
       setPage(1);
       setMessage(
         data.count > 0
-          ? `${data.count}개의 판결문을 찾았어요.`
-          : "검색 조건에 맞는 판결문이 없어요.",
+          ? `${data.count}개의 문서를 찾았어요.`
+          : "검색 조건에 맞는 문서가 없어요.",
+      );
+      const params = catalogParams();
+      window.history.replaceState(
+        null,
+        "",
+        params ? `/catalog?${params}` : "/catalog",
+      );
+    } catch (_error) {
+      if (seq === searchSeqRef.current) {
+        setMessage("요청을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+      }
+    } finally {
+      if (seq === searchSeqRef.current) {
+        setIsSearching(false);
+      }
+    }
+  }
+
+  // 카테고리·정렬·사건 종류는 바꾸는 즉시 새로 조회한다.
+  const categoriesKey = categories.join(",");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 옵션 변경에만 반응한다.
+  useEffect(() => {
+    if (skipAutoSearchRef.current) {
+      skipAutoSearchRef.current = false;
+      return;
+    }
+    void search();
+  }, [categoriesKey, sort, caseTypeFilter]);
+
+  // 연도 입력은 잠시 기다렸다가 조회한다.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 연도 변경에만 반응한다.
+  useEffect(() => {
+    if (skipYearSearchRef.current) {
+      skipYearSearchRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => void search(), 600);
+    return () => clearTimeout(timer);
+  }, [yearFrom, yearTo]);
+
+  function toggleCategory(category: JudgmentCategoryFilter) {
+    setCategories((current) => {
+      if (current.includes(category)) {
+        if (current.length === 1) {
+          setMessage("카테고리는 하나 이상 선택해야 해요.");
+          return current;
+        }
+        return current.filter((entry) => entry !== category);
+      }
+      return ALL_CATEGORIES.filter(
+        (entry) => current.includes(entry) || entry === category,
       );
     });
   }
 
+  const activeFilterCount =
+    (caseTypeFilter ? 1 : 0) + (yearFrom.trim() || yearTo.trim() ? 1 : 0);
+
+  function resetSearchOptions() {
+    setCaseTypeFilter("");
+    setYearFrom("");
+    setYearTo("");
+  }
+
+  async function withSaving(action: () => Promise<void>) {
+    if (savingRef.current || authRedirectRef.current) {
+      return;
+    }
+    savingRef.current = true;
+    setIsSaving(true);
+    try {
+      await action();
+    } catch (_error) {
+      setCustomTextNotice(
+        "요청을 처리하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+      );
+    } finally {
+      savingRef.current = false;
+      if (!authRedirectRef.current) {
+        setIsSaving(false);
+      }
+    }
+  }
+
   async function extractPdfText(file: File) {
-    await withLoading(async () => {
+    await withSaving(async () => {
       setCustomTextNotice("PDF에서 텍스트를 추출하고 있어요.");
       const formData = new FormData();
       formData.append("file", file);
@@ -266,8 +433,8 @@ export function JudgmentExplorer({
   }
 
   async function createCustomJudgment() {
-    await withLoading(async () => {
-      setMessage("비공개 판결문을 저장하고 있어요.");
+    await withSaving(async () => {
+      setCustomTextNotice("비공개 판결문을 저장하고 있어요.");
       const response = await fetch("/api/custom-judgments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -281,49 +448,63 @@ export function JudgmentExplorer({
         return;
       }
       if (!response.ok) {
-        setMessage("제목과 판결문 내용을 확인해 주세요.");
+        setCustomTextNotice("제목과 판결문 내용을 확인해 주세요.");
         return;
       }
       if (!isCustomJudgmentResponse(data)) {
-        setMessage("저장 응답 형식을 확인하지 못했어요. 다시 시도해 주세요.");
+        setCustomTextNotice(
+          "저장 응답 형식을 확인하지 못했어요. 다시 시도해 주세요.",
+        );
         return;
       }
       window.location.assign(data.href);
     });
   }
 
-  const visibleJudgments = compact ? judgments.slice(0, 3) : judgments;
-  const usesServerPaging = !compact && !hasClientResults;
-  const totalCount = usesServerPaging
-    ? initialTotalCount
-    : visibleJudgments.length;
+  const usesServerPaging = !hasClientResults;
+  const totalCount = usesServerPaging ? initialTotalCount : judgments.length;
   const pageCount = Math.max(
     1,
     Math.ceil(totalCount / JUDGMENT_LIST_PAGE_SIZE),
   );
-  const pagedJudgments = compact
-    ? visibleJudgments
-    : usesServerPaging
-      ? visibleJudgments
-      : visibleJudgments.slice(
-          (page - 1) * JUDGMENT_LIST_PAGE_SIZE,
-          page * JUDGMENT_LIST_PAGE_SIZE,
-        );
+  const pagedJudgments = usesServerPaging
+    ? judgments
+    : judgments.slice(
+        (page - 1) * JUDGMENT_LIST_PAGE_SIZE,
+        page * JUDGMENT_LIST_PAGE_SIZE,
+      );
 
   function goToPage(nextPage: number) {
     const safePage = Math.min(pageCount, Math.max(1, nextPage));
     if (usesServerPaging) {
-      window.location.assign(
-        catalogPageHref({
-          page: safePage,
-          query: initialQuery,
-          view: initialView,
-        }),
-      );
+      const params = catalogParams(safePage);
+      window.location.assign(params ? `/catalog?${params}` : "/catalog");
       return;
     }
     setPage(safePage);
   }
+
+  const pager = (
+    <div className={styles.listPager}>
+      <button
+        disabled={page <= 1 || isSearching}
+        onClick={() => goToPage(page - 1)}
+        type="button"
+      >
+        이전
+      </button>
+      <span>
+        {page} / {pageCount}
+      </span>
+      <button
+        disabled={page >= pageCount || isSearching}
+        onClick={() => goToPage(page + 1)}
+        type="button"
+      >
+        다음
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -331,90 +512,171 @@ export function JudgmentExplorer({
         nextPath="/catalog#custom-judgment"
         onClose={() => {
           authRedirectRef.current = false;
-          setIsLoading(false);
+          setIsSaving(false);
           setLoginModalOpen(false);
         }}
         open={loginModalOpen}
       />
-      {!compact && showWorkspace && (
+      {showWorkspace && (
         <div className={styles.workspace}>
-          <h2>판결문 검색</h2>
-          <p>
-            사건번호나 판결문 제목으로 바로 찾고, 필요한 항목은 북마크로 모아둘
-            수 있어요.
-          </p>
-          <div className={styles.workspaceBody}>
-            <section className={styles.workspaceSection}>
-              <div className={styles.workspaceSectionHeader}>
-                <h3>공개 판결문 찾기</h3>
-                <p>
-                  사건번호, 법원명, 판결문 제목으로 공개된 판결문을 검색해요.
-                  필요한 경우 아래 추천 조건을 눌러 검색어에 붙일 수 있어요.
-                </p>
-                <p className={styles.workspaceStatus}>{message}</p>
-                {captchaPrompt && (
-                  <div className={styles.workspaceNotice}>
-                    <p>{captchaPrompt}</p>
-                    <AltchaCaptcha
-                      onVerified={(payload) => void search(payload)}
-                      resetKey={captchaResetKey}
-                    />
-                  </div>
-                )}
-              </div>
-              <label className={styles.label} htmlFor="judgment-query">
-                {questionMode
-                  ? "궁금한 법률 상황"
-                  : "사건번호, 법원명, 판결문 제목"}
-              </label>
-              <input
-                className={styles.input}
-                id="judgment-query"
-                maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={
-                  questionMode
-                    ? "어떤 일이 있었고 무엇이 궁금한지 적어보세요"
-                    : "예: 손해배상, 해고, 대법원"
+          <form
+            className={styles.searchForm}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void search();
+            }}
+          >
+            <input
+              aria-label="판결문·법령 검색어"
+              maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="사건번호, 법원명, 판결문·법령 제목을 입력하세요"
+              value={query}
+            />
+            <button
+              aria-label="검색"
+              className={styles.searchButton}
+              disabled={isSearching}
+              type="submit"
+            >
+              <SearchIcon size={22} />
+            </button>
+          </form>
+          <div className={styles.searchControlRow}>
+            <fieldset className={styles.categoryChips}>
+              <legend className={styles.visuallyHidden}>문서 카테고리</legend>
+              {ALL_CATEGORIES.map((category) => (
+                <label className={styles.categoryChip} key={category}>
+                  <input
+                    checked={categories.includes(category)}
+                    onChange={() => toggleCategory(category)}
+                    type="checkbox"
+                  />
+                  <span>{displayJudgmentCategory(category)}</span>
+                </label>
+              ))}
+            </fieldset>
+            <label className={styles.sortControl}>
+              <span className={styles.visuallyHidden}>정렬 기준</span>
+              <select
+                aria-label="정렬 기준"
+                onChange={(event) =>
+                  setSort(event.target.value as JudgmentSortOption)
                 }
-                value={query}
-              />
-              <fieldset className={styles.searchTagRow}>
-                <legend className={styles.visuallyHidden}>
-                  검색 태그 예시
-                </legend>
-                {judgmentSearchTagExamples.slice(1, 4).map((tag) => (
-                  <button
-                    className={styles.searchTag}
-                    key={tag}
-                    onClick={() =>
-                      setQuery((current) => withSearchTag(current, tag))
+                value={sort}
+              >
+                {JUDGMENT_SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              aria-expanded={optionsOpen}
+              className={styles.searchOptionsToggle}
+              onClick={() => setOptionsOpen((current) => !current)}
+              type="button"
+            >
+              검색 옵션
+              {activeFilterCount > 0 && ` ${activeFilterCount}개 적용`}
+              <span aria-hidden className={styles.searchOptionsCaret}>
+                ▾
+              </span>
+            </button>
+            <p aria-live="polite" className={styles.workspaceStatus}>
+              {message}
+            </p>
+          </div>
+          {optionsOpen && (
+            <div className={styles.searchOptionsPanel}>
+              <label className={styles.searchOptionField}>
+                <span>사건 종류 (판결문)</span>
+                <select
+                  className={styles.input}
+                  onChange={(event) =>
+                    setCaseTypeFilter(
+                      event.target.value as JudgmentCaseTypeFilter | "",
+                    )
+                  }
+                  value={caseTypeFilter}
+                >
+                  <option value="">전체</option>
+                  {caseTypeOptions.map((caseType) => (
+                    <option key={caseType} value={caseType}>
+                      {displayJudgmentCaseType(caseType)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className={styles.searchOptionField}>
+                <span>선고 연도</span>
+                <div className={styles.yearRangeRow}>
+                  <input
+                    aria-label="선고 연도 시작"
+                    className={styles.input}
+                    inputMode="numeric"
+                    maxLength={4}
+                    onChange={(event) =>
+                      setYearFrom(event.target.value.replace(/\D/g, ""))
                     }
+                    placeholder="예: 2020"
+                    value={yearFrom}
+                  />
+                  <span aria-hidden>~</span>
+                  <input
+                    aria-label="선고 연도 끝"
+                    className={styles.input}
+                    inputMode="numeric"
+                    maxLength={4}
+                    onChange={(event) =>
+                      setYearTo(event.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="예: 2026"
+                    value={yearTo}
+                  />
+                </div>
+              </div>
+              {activeFilterCount > 0 && (
+                <div className={styles.searchOptionsActions}>
+                  <button
+                    className={styles.searchOptionsReset}
+                    onClick={resetSearchOptions}
                     type="button"
                   >
-                    {tag}
+                    옵션 초기화
                   </button>
-                ))}
-              </fieldset>
-              <div className={styles.buttonRow}>
-                <button
-                  className={styles.primaryButton}
-                  disabled={isLoading}
-                  onClick={() => void search()}
-                  type="button"
-                >
-                  {isLoading ? "조회 중" : "판결문 확인하기"}
-                </button>
-              </div>
-            </section>
-            <section className={styles.workspaceSection} id="custom-judgment">
-              <div className={styles.workspaceSectionHeader}>
-                <h3>내 판결문으로 시작하기</h3>
-                <p>
-                  공개 목록에 없는 판결문은 직접 붙여넣어 비공개 문서로
-                  저장해요. 저장한 문서는 로그인한 계정만 볼 수 있습니다.
-                </p>
-              </div>
+                </div>
+              )}
+            </div>
+          )}
+          {captchaPrompt && (
+            <div className={styles.workspaceNotice}>
+              <p>{captchaPrompt}</p>
+              <AltchaCaptcha
+                onVerified={(payload) => void search(payload)}
+                resetKey={captchaResetKey}
+              />
+            </div>
+          )}
+          <details
+            className={styles.customJudgmentDetails}
+            id="custom-judgment"
+            ref={customDetailsRef}
+          >
+            <summary>
+              <span className={styles.customJudgmentSummaryText}>
+                <strong>내 판결문 직접 등록</strong>
+                <small>
+                  공개 목록에 없는 판결문은 PDF나 붙여넣기로 저장해요. 저장한
+                  문서는 내 계정에서만 보여요.
+                </small>
+              </span>
+              <span aria-hidden className={styles.searchOptionsCaret}>
+                ▾
+              </span>
+            </summary>
+            <div className={styles.customJudgmentBody}>
               <div className={styles.buttonRow}>
                 <input
                   accept="application/pdf,.pdf"
@@ -431,7 +693,7 @@ export function JudgmentExplorer({
                 />
                 <button
                   className={styles.secondaryButton}
-                  disabled={isLoading}
+                  disabled={isSaving}
                   onClick={() => pdfInputRef.current?.click()}
                   type="button"
                 >
@@ -464,7 +726,7 @@ export function JudgmentExplorer({
                 <button
                   className={styles.secondaryButton}
                   disabled={
-                    isLoading ||
+                    isSaving ||
                     customTitle.trim().length < 2 ||
                     customText.trim().length < 20
                   }
@@ -474,75 +736,38 @@ export function JudgmentExplorer({
                   비공개 판결문 저장
                 </button>
               </div>
-            </section>
-          </div>
+            </div>
+          </details>
         </div>
       )}
 
-      {!compact && visibleJudgments.length > 0 && (
-        <div className={styles.judgmentListHeader}>
-          <span>{totalCount.toLocaleString("ko-KR")}건</span>
-          <div className={styles.listPager}>
-            <button
-              disabled={page <= 1}
-              onClick={() => goToPage(page - 1)}
-              type="button"
-            >
-              이전
-            </button>
-            <span>
-              {page} / {pageCount}
-            </span>
-            <button
-              disabled={page >= pageCount}
-              onClick={() => goToPage(page + 1)}
-              type="button"
-            >
-              다음
-            </button>
-          </div>
+      {isSearching ? (
+        <div aria-hidden className={styles.judgmentList}>
+          {SKELETON_ROWS.map((row) => (
+            <div className={styles.judgmentSkeletonItem} key={row}>
+              <span className={styles.skeletonBadge} />
+              <span className={styles.skeletonTitle} />
+              <span className={styles.skeletonMeta} />
+            </div>
+          ))}
         </div>
-      )}
-      <div className={compact ? styles.catalog : styles.judgmentList}>
-        {pagedJudgments.map((judgment) => (
-          <article
-            className={compact ? styles.judgmentCard : styles.judgmentListItem}
-            key={judgment.id}
-          >
-            {compact ? (
-              <>
-                <div>
-                  <StatusBadge status={judgment.status} />
-                  <h3>{judgment.title}</h3>
-                  <div className={styles.meta}>
-                    <span>{judgment.caseNumber}</span>
-                    <span>{judgment.courtName}</span>
-                    <span>
-                      <LocalTime dateOnly dateTime={judgment.decidedOn} />
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <p className={styles.meta}>
-                    작업 상태: {judgment.latestJobStatus ?? "아직 없음"}
-                  </p>
-                  <div className={styles.buttonRow}>
-                    <a
-                      className={styles.primaryButton}
-                      href={`/p/${encodeURIComponent(judgment.id)}`}
-                    >
-                      판결문 보기
-                    </a>
-                    <BookmarkButton
-                      initialActive={initialBookmarkedIds.includes(judgment.id)}
-                      judgmentId={judgment.id}
-                    />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
+      ) : (
+        <>
+          {judgments.length > 0 && (
+            <div className={styles.judgmentListHeader}>
+              <span>{totalCount.toLocaleString("ko-KR")}건</span>
+              {pager}
+            </div>
+          )}
+          <div className={styles.judgmentList}>
+            {pagedJudgments.map((judgment) => (
+              <article className={styles.judgmentListItem} key={judgment.id}>
                 <div className={styles.judgmentListMain}>
+                  <span className={styles.categoryBadge}>
+                    {judgment.caseType === "law"
+                      ? "법령"
+                      : displayJudgmentCaseType(judgment.caseType)}
+                  </span>
                   <StatusBadge status={judgment.status} />
                   <a href={`/p/${encodeURIComponent(judgment.id)}`}>
                     {judgment.title}
@@ -567,40 +792,20 @@ export function JudgmentExplorer({
                     judgmentId={judgment.id}
                   />
                 </div>
-              </>
-            )}
-          </article>
-        ))}
-      </div>
-      {!compact && totalCount > JUDGMENT_LIST_PAGE_SIZE && (
-        <div className={styles.judgmentListFooter}>
-          <div className={styles.listPager}>
-            <button
-              disabled={page <= 1}
-              onClick={() => goToPage(page - 1)}
-              type="button"
-            >
-              이전
-            </button>
-            <span>
-              {page} / {pageCount}
-            </span>
-            <button
-              disabled={page >= pageCount}
-              onClick={() => goToPage(page + 1)}
-              type="button"
-            >
-              다음
-            </button>
+              </article>
+            ))}
           </div>
-        </div>
+          {totalCount > JUDGMENT_LIST_PAGE_SIZE && (
+            <div className={styles.judgmentListFooter}>{pager}</div>
+          )}
+          {judgments.length === 0 && (
+            <p className={styles.notice}>
+              검색 조건에 맞는 문서가 아직 없어요.
+            </p>
+          )}
+        </>
       )}
-      {visibleJudgments.length === 0 && (
-        <p className={styles.notice}>검색 조건에 맞는 판결문이 아직 없어요.</p>
-      )}
-      {(compact || !showWorkspace) && (
-        <p className={styles.notice}>{message}</p>
-      )}
+      {!showWorkspace && <p className={styles.notice}>{message}</p>}
     </>
   );
 }
@@ -623,27 +828,4 @@ function StatusBadge({ status }: { status: Judgment["status"] }) {
           : "생성 대기"}
     </span>
   );
-}
-
-function catalogPageHref({
-  page,
-  query,
-  view,
-}: {
-  page: number;
-  query: string;
-  view?: "recent";
-}) {
-  const params = new URLSearchParams();
-  if (query.trim()) {
-    params.set("q", query.trim());
-  }
-  if (view) {
-    params.set("view", view);
-  }
-  if (page > 1) {
-    params.set("page", String(page));
-  }
-  const queryString = params.toString();
-  return queryString ? `/catalog?${queryString}` : "/catalog";
 }

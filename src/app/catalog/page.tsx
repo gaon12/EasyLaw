@@ -3,10 +3,13 @@ import { AppShell } from "@/components/site-chrome";
 import { listBookmarkedJudgmentIds } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
 import { translate } from "@/lib/i18n";
-import { JUDGMENT_SEARCH_QUERY_MAX_LENGTH } from "@/lib/input-limits";
 import {
   matchesJudgmentSearch,
+  parseJudgmentCaseType,
+  parseJudgmentCategories,
   parseJudgmentSearchQuery,
+  parseJudgmentSort,
+  sortJudgments,
 } from "@/lib/judgment-search";
 import { pageMetadata } from "@/lib/metadata";
 import { getPublicJudgments } from "@/lib/queries";
@@ -20,16 +23,16 @@ export const dynamic = "force-dynamic";
 const CATALOG_PAGE_SIZE = 15;
 
 export const metadata = pageMetadata({
-  title: "판결문 검색",
+  title: "판결문·법령 검색",
   description:
-    "사건번호, 법원명, 판결문 제목으로 공개 판결문을 검색하고 쉬운 설명을 확인하세요.",
+    "사건번호, 법원명, 제목으로 공개 판결문과 법령을 검색하고 쉬운 설명을 확인하세요.",
   path: "/catalog",
 });
 
 export default async function CatalogPage({
   searchParams,
 }: PageProps<"/catalog">) {
-  const { page, q, view } = await searchParams;
+  const { cat, from, page, q, sort, to, type, view } = await searchParams;
   const initialQuery = typeof q === "string" ? q : "";
   const isRecentView = view === "recent" && !initialQuery;
   const currentPage = parseCatalogPage(page);
@@ -40,11 +43,27 @@ export default async function CatalogPage({
     ? listBookmarkedJudgmentIds(db, user.id)
     : [];
   const filters = parseJudgmentSearchQuery(initialQuery);
-  const filteredJudgments = initialQuery.trim()
-    ? allJudgments.filter((judgment) =>
-        matchesJudgmentSearch(judgment, filters),
-      )
-    : allJudgments;
+  const categories = parseJudgmentCategories(cat);
+  if (categories) {
+    filters.categories = categories;
+  }
+  const caseType = parseJudgmentCaseType(type);
+  if (caseType) {
+    filters.caseType = caseType;
+  }
+  const yearFrom = parseCatalogYear(from);
+  if (yearFrom) {
+    filters.yearFrom = yearFrom;
+  }
+  const yearTo = parseCatalogYear(to);
+  if (yearTo) {
+    filters.yearTo = yearTo;
+  }
+  filters.sort = parseJudgmentSort(sort);
+  const filteredJudgments = sortJudgments(
+    allJudgments.filter((judgment) => matchesJudgmentSearch(judgment, filters)),
+    filters.sort,
+  );
   const pageCount = Math.max(
     1,
     Math.ceil(filteredJudgments.length / CATALOG_PAGE_SIZE),
@@ -77,28 +96,14 @@ export default async function CatalogPage({
             </div>
             <span className={styles.badge}>확인된 정보 우선</span>
           </div>
-          {initialQuery && (
-            <form action="/catalog" className={styles.searchForm}>
-              <input
-                aria-label="판결문 검색어"
-                defaultValue={initialQuery}
-                maxLength={JUDGMENT_SEARCH_QUERY_MAX_LENGTH}
-                name="q"
-                placeholder="사건번호, 법원명, 판결문 제목"
-              />
-              <button className={styles.primaryButton} type="submit">
-                다시 검색
-              </button>
-            </form>
-          )}
           <JudgmentExplorer
             initialPage={safePage}
             initialBookmarkedIds={initialBookmarkedIds}
+            initialFilters={filters}
             initialJudgments={judgments}
-            initialQuery={initialQuery}
             initialTotalCount={filteredJudgments.length}
             initialView={isRecentView ? "recent" : undefined}
-            showWorkspace={!initialQuery && !isRecentView}
+            showWorkspace={!isRecentView}
           />
         </section>
       </main>
@@ -112,4 +117,12 @@ function parseCatalogPage(value: unknown) {
   }
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function parseCatalogYear(value: unknown) {
+  if (typeof value !== "string" || !/^\d{4}$/.test(value)) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return parsed >= 1900 && parsed <= 2100 ? parsed : undefined;
 }

@@ -8,12 +8,83 @@ export type JudgmentCaseTypeFilter =
   | "constitutional"
   | "law";
 
+export type JudgmentCategoryFilter = "judgment" | "law";
+
+export type JudgmentSortOption = "newest" | "oldest" | "title";
+
+export const JUDGMENT_SORT_OPTIONS: Array<{
+  value: JudgmentSortOption;
+  label: string;
+}> = [
+  { value: "newest", label: "최신순" },
+  { value: "oldest", label: "오래된순" },
+  { value: "title", label: "제목순" },
+];
+
 export type JudgmentSearchFilters = {
   text: string;
   yearFrom?: number;
   yearTo?: number;
   caseType?: JudgmentCaseTypeFilter;
+  categories?: JudgmentCategoryFilter[];
+  sort?: JudgmentSortOption;
 };
+
+/** 문서의 상위 카테고리(판결문/법령)를 반환한다. */
+export function judgmentCategory(caseType: string): JudgmentCategoryFilter {
+  return caseType === "law" ? "law" : "judgment";
+}
+
+export function displayJudgmentCategory(category: JudgmentCategoryFilter) {
+  return category === "law" ? "법령" : "판결문";
+}
+
+export function parseJudgmentCategories(
+  value: unknown,
+): JudgmentCategoryFilter[] | undefined {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [];
+  const categories = [...new Set(raw)].filter(
+    (entry): entry is JudgmentCategoryFilter =>
+      entry === "judgment" || entry === "law",
+  );
+  return categories.length > 0 ? categories : undefined;
+}
+
+export function parseJudgmentSort(
+  value: unknown,
+): JudgmentSortOption | undefined {
+  return value === "newest" || value === "oldest" || value === "title"
+    ? value
+    : undefined;
+}
+
+export function parseJudgmentCaseType(
+  value: unknown,
+): JudgmentCaseTypeFilter | undefined {
+  return typeof value === "string" && isJudgmentCaseTypeFilter(value)
+    ? value
+    : undefined;
+}
+
+export function sortJudgments<
+  T extends Pick<JudgmentListItem, "decidedOn" | "title">,
+>(judgments: T[], sort: JudgmentSortOption = "newest"): T[] {
+  const sorted = [...judgments];
+  if (sort === "title") {
+    sorted.sort((a, b) => a.title.localeCompare(b.title, "ko"));
+    return sorted;
+  }
+  sorted.sort((a, b) =>
+    sort === "oldest"
+      ? a.decidedOn.localeCompare(b.decidedOn)
+      : b.decidedOn.localeCompare(a.decidedOn),
+  );
+  return sorted;
+}
 
 const caseTypeAliases: Record<string, JudgmentCaseTypeFilter> = {
   civil: "civil",
@@ -31,15 +102,6 @@ const caseTypeAliases: Record<string, JudgmentCaseTypeFilter> = {
   법령: "law",
   법률: "law",
 };
-
-export const judgmentSearchTagExamples = [
-  "연도:2024-2026",
-  "종류:민사",
-  "종류:형사",
-  "종류:행정",
-  "종류:헌재",
-  "종류:법령",
-] as const;
 
 export function parseJudgmentSearchQuery(
   rawQuery: string,
@@ -84,6 +146,14 @@ export function matchesJudgmentSearch(
   judgment: JudgmentListItem,
   filters: JudgmentSearchFilters,
 ) {
+  if (
+    filters.categories &&
+    filters.categories.length > 0 &&
+    !filters.categories.includes(judgmentCategory(judgment.caseType))
+  ) {
+    return false;
+  }
+
   if (filters.caseType && judgment.caseType !== filters.caseType) {
     return false;
   }
