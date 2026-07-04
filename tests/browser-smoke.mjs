@@ -820,7 +820,9 @@ try {
     waitUntil: "networkidle",
   });
   try {
-    await anonymousPage.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
+    await anonymousPage
+      .getByRole("heading", { name: "AI 법률 질문" })
+      .waitFor();
   } catch (error) {
     console.error(
       `research page status: ${researchResponse?.status() ?? "unknown"}`,
