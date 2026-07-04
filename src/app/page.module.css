@@ -174,19 +174,57 @@
   background: var(--bg-muted);
 }
 
-.preferencePanel {
-  width: 220px;
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 8px);
-  right: 0;
+.preferenceBackdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
   display: grid;
-  gap: 16px;
-  padding: 16px;
+  place-items: center;
+  padding: 24px;
+  background: oklch(0.2 0.03 260 / 0.46);
+}
+
+.preferencePanel {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-16);
   background: var(--bg-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-4);
+}
+
+.preferenceHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.preferenceHeader h2 {
+  margin-top: 8px;
+  color: var(--fg-strong);
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.preferenceCloseButton {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--fg-secondary);
+  cursor: pointer;
+}
+
+.preferenceCloseButton:hover {
+  background: var(--bg-muted);
+  color: var(--fg-strong);
 }
 
 .preferencePanel label,
@@ -223,7 +261,8 @@
   margin-bottom: 2px;
 }
 
-.preferencePanel button {
+.preferenceSizeButton,
+.preferenceSizeButtonActive {
   min-height: 36px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-8);
@@ -233,7 +272,7 @@
   font-weight: 700;
 }
 
-.preferencePanel button[aria-pressed="true"] {
+.preferenceSizeButtonActive {
   border-color: transparent;
   background: var(--bg-brand);
   color: white;
@@ -938,6 +977,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 30px;
+  white-space: nowrap;
   border-radius: var(--radius-full);
   padding: 0 12px;
   font-size: 13px;
@@ -2756,13 +2796,17 @@
   gap: 12px;
 }
 
+.judgmentResultsArea {
+  margin-top: 28px;
+}
+
 .judgmentListHeader {
-  margin-bottom: 12px;
+  margin-bottom: 28px;
 }
 
 .judgmentListFooter {
   justify-content: flex-end;
-  margin-top: 12px;
+  margin-top: 24px;
 }
 
 .judgmentListHeader > span {
@@ -2797,12 +2841,13 @@
 .judgmentListMain {
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
   gap: 5px 10px;
   align-items: center;
 }
 
 .judgmentListMain a {
+  grid-column: 1 / -1;
   overflow: hidden;
   color: var(--fg-strong);
   font-size: 15px;
@@ -2817,7 +2862,7 @@
 }
 
 .judgmentListMain > span:last-child {
-  grid-column: 2;
+  grid-column: 1 / -1;
   overflow: hidden;
   color: var(--fg-secondary);
   font-size: 13px;
@@ -3875,6 +3920,29 @@
   color: var(--fg-tertiary);
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+.pageJumpForm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pageJumpForm input {
+  width: 76px;
+  min-height: 36px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-8);
+  padding: 0 10px;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pageJumpForm input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .tableCellLine {
@@ -6483,8 +6551,7 @@
     gap: 8px;
   }
 
-  .accountPanel,
-  .preferencePanel {
+  .accountPanel {
     width: min(220px, calc(100vw - 24px));
     right: 0;
   }
@@ -6630,6 +6697,15 @@
 
   .listPager {
     justify-content: space-between;
+  }
+
+  .pageJumpForm {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+
+  .preferenceBackdrop {
+    padding: 12px;
   }
 
   .viewerMain {

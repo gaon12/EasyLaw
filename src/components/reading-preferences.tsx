@@ -1,9 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "@/app/page.module.css";
-import { SettingsIcon } from "@/components/icons";
+import { SettingsIcon, XIcon } from "@/components/icons";
 import type { SupportedLocale } from "@/lib/i18n";
 import { supportedLocales, translations } from "@/lib/i18n";
 
@@ -23,7 +23,6 @@ export function ReadingPreferences() {
   const [locale, setLocale] = useState<SupportedLocale>("ko");
   const [textSize, setTextSize] = useState<TextSize>("normal");
   const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const storedLocale = localStorage.getItem(localeKey);
@@ -45,28 +44,20 @@ export function ReadingPreferences() {
       return;
     }
 
-    function handlePointerDown(event: PointerEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
       }
     }
 
-    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
 
   return (
-    <div className={styles.preferenceMenu} ref={menuRef}>
+    <div className={styles.preferenceMenu}>
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -80,41 +71,68 @@ export function ReadingPreferences() {
         <span>보기</span>
       </button>
       {open && (
-        <div className={styles.preferencePanel}>
-          <label>
-            <span className={styles.preferenceLabel}>언어</span>
-            <select
-              aria-label="언어"
-              onChange={(event) => {
-                const nextLocale = event.target.value as SupportedLocale;
-                setLocale(nextLocale);
-                localStorage.setItem(localeKey, nextLocale);
-                applyLocale(nextLocale);
-              }}
-              value={locale}
-            >
-              <option value="ko">한국어</option>
-              <option value="en">English</option>
-              <option value="ja">日本語</option>
-            </select>
-          </label>
-          <fieldset>
-            <legend className={styles.preferenceLabel}>글자</legend>
-            {textSizeOptions.map((option) => (
+        <div className={styles.preferenceBackdrop}>
+          <section
+            aria-labelledby="reading-preferences-title"
+            aria-modal="true"
+            className={styles.preferencePanel}
+            role="dialog"
+          >
+            <div className={styles.preferenceHeader}>
+              <div>
+                <span className={styles.badge}>보기 설정</span>
+                <h2 id="reading-preferences-title">화면 표시 방식</h2>
+              </div>
               <button
-                aria-pressed={textSize === option.value}
-                key={option.value}
-                onClick={() => {
-                  setTextSize(option.value);
-                  localStorage.setItem(textSizeKey, option.value);
-                  applyTextSize(option.value);
-                }}
+                aria-label="보기 설정 닫기"
+                className={styles.preferenceCloseButton}
+                onClick={() => setOpen(false)}
+                title="닫기"
                 type="button"
               >
-                {option.label}
+                <XIcon size={18} />
               </button>
-            ))}
-          </fieldset>
+            </div>
+            <label>
+              <span className={styles.preferenceLabel}>언어</span>
+              <select
+                aria-label="언어"
+                onChange={(event) => {
+                  const nextLocale = event.target.value as SupportedLocale;
+                  setLocale(nextLocale);
+                  localStorage.setItem(localeKey, nextLocale);
+                  applyLocale(nextLocale);
+                }}
+                value={locale}
+              >
+                <option value="ko">한국어</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+              </select>
+            </label>
+            <fieldset>
+              <legend className={styles.preferenceLabel}>글자 크기</legend>
+              {textSizeOptions.map((option) => (
+                <button
+                  aria-pressed={textSize === option.value}
+                  className={
+                    textSize === option.value
+                      ? styles.preferenceSizeButtonActive
+                      : styles.preferenceSizeButton
+                  }
+                  key={option.value}
+                  onClick={() => {
+                    setTextSize(option.value);
+                    localStorage.setItem(textSizeKey, option.value);
+                    applyTextSize(option.value);
+                  }}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </fieldset>
+          </section>
         </div>
       )}
     </div>

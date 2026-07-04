@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { AltchaCaptcha } from "@/components/altcha-captcha";
 import { LoginRequiredModal } from "@/components/auth-required-link";
@@ -161,6 +162,7 @@ export function JudgmentExplorer({
   );
   const [judgments, setJudgments] = useState(initialJudgments);
   const [page, setPage] = useState(initialPage);
+  const [pageInput, setPageInput] = useState(String(initialPage));
   const [hasClientResults, setHasClientResults] = useState(false);
   const [message, setMessage] = useState(
     "확인된 판결문·법령 정보를 기준으로 검색해요.",
@@ -474,14 +476,32 @@ export function JudgmentExplorer({
         page * JUDGMENT_LIST_PAGE_SIZE,
       );
 
+  useEffect(() => {
+    setPageInput(String(page));
+  }, [page]);
+
   function goToPage(nextPage: number) {
     const safePage = Math.min(pageCount, Math.max(1, nextPage));
+    setPageInput(String(safePage));
     if (usesServerPaging) {
+      if (safePage === page) {
+        return;
+      }
       const params = catalogParams(safePage);
       window.location.assign(params ? `/catalog?${params}` : "/catalog");
       return;
     }
     setPage(safePage);
+  }
+
+  function submitPageJump(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const requestedPage = Number.parseInt(pageInput, 10);
+    if (!Number.isInteger(requestedPage)) {
+      setPageInput(String(page));
+      return;
+    }
+    goToPage(requestedPage);
   }
 
   const pager = (
@@ -496,6 +516,26 @@ export function JudgmentExplorer({
       <span>
         {page} / {pageCount}
       </span>
+      <form className={styles.pageJumpForm} onSubmit={submitPageJump}>
+        <label>
+          <span className={styles.visuallyHidden}>이동할 페이지</span>
+          <input
+            aria-label="이동할 페이지"
+            disabled={isSearching}
+            inputMode="numeric"
+            max={pageCount}
+            min={1}
+            onChange={(event) =>
+              setPageInput(event.target.value.replace(/\D/g, ""))
+            }
+            type="number"
+            value={pageInput}
+          />
+        </label>
+        <button disabled={isSearching} type="submit">
+          이동
+        </button>
+      </form>
       <button
         disabled={page >= pageCount || isSearching}
         onClick={() => goToPage(page + 1)}
@@ -752,7 +792,10 @@ export function JudgmentExplorer({
           ))}
         </div>
       ) : (
-        <>
+        <section
+          aria-label="판결문·법령 검색 결과"
+          className={styles.judgmentResultsArea}
+        >
           {judgments.length > 0 && (
             <div className={styles.judgmentListHeader}>
               <span>{totalCount.toLocaleString("ko-KR")}건</span>
@@ -803,7 +846,7 @@ export function JudgmentExplorer({
               검색 조건에 맞는 문서가 아직 없어요.
             </p>
           )}
-        </>
+        </section>
       )}
       {!showWorkspace && <p className={styles.notice}>{message}</p>}
     </>

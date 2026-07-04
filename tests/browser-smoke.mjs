@@ -895,6 +895,7 @@ try {
   await anonymousPage
     .getByLabel("언어와 글자 크기 설정", { exact: true })
     .click();
+  await anonymousPage.getByRole("dialog", { name: "화면 표시 방식" }).waitFor();
   const languageOptions = await anonymousPage
     .getByLabel("언어", { exact: true })
     .locator("option")
@@ -925,12 +926,13 @@ try {
   if (Number.parseFloat(bodyZoom) <= 1) {
     throw new Error("Text size preference did not scale the page.");
   }
-  await anonymousPage
-    .getByLabel("언어와 글자 크기 설정", { exact: true })
-    .click();
-  await anonymousPage.mouse.click(20, 20);
-  if ((await anonymousPage.getByLabel("언어", { exact: true }).count()) !== 0) {
-    throw new Error("Reading preferences did not close after outside click.");
+  await anonymousPage.getByLabel("보기 설정 닫기").click();
+  if (
+    (await anonymousPage
+      .getByRole("dialog", { name: "화면 표시 방식" })
+      .count()) !== 0
+  ) {
+    throw new Error("Reading preferences modal did not close.");
   }
 
   await anonymousPage.setViewportSize({ width: 390, height: 844 });
@@ -1075,6 +1077,10 @@ try {
   await page.getByRole("heading", { name: "판결문·법령 검색 결과" }).waitFor();
   await page.getByRole("button", { name: "이전" }).waitFor();
   await page.getByRole("button", { name: "다음" }).waitFor();
+  const firstPageJump = page.getByLabel("이동할 페이지").first();
+  await firstPageJump.fill("1");
+  await page.getByRole("button", { name: "이동" }).first().click();
+  await page.locator("main article").first().waitFor();
 
   await page.locator('a[href="/catalog"]').first().click();
   await page.locator("main article").first().waitFor();
