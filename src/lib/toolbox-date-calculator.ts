@@ -1,3 +1,5 @@
+import { periodBounds } from "./calendar-periods";
+import { koreanCalendarDay, koreanCalendarDays } from "./korean-holidays";
 import type { McpToolCallResult } from "./mcp-client";
 
 export const dateCalculatorInputSchema = {
@@ -12,8 +14,20 @@ export const dateCalculatorInputSchema = {
       type: "string",
     },
     endDate: {
-      description: "diff_days의 종료 날짜(YYYY-MM-DD).",
+      description: "diff_days 또는 list_period의 종료 날짜(YYYY-MM-DD).",
       type: "string",
+    },
+    half: {
+      description: "list_half의 반기(1 또는 2).",
+      type: "integer",
+    },
+    month: {
+      description: "list_month의 월(1-12).",
+      type: "integer",
+    },
+    quarter: {
+      description: "list_quarter의 분기(1-4).",
+      type: "integer",
     },
     operation: {
       enum: [
@@ -23,8 +37,18 @@ export const dateCalculatorInputSchema = {
         "add_years",
         "diff_days",
         "weekday",
+        "is_holiday",
+        "list_period",
+        "list_month",
+        "list_quarter",
+        "list_half",
+        "list_year",
       ],
       type: "string",
+    },
+    year: {
+      description: "list_month/list_quarter/list_half/list_year의 연도.",
+      type: "integer",
     },
   },
   required: ["operation"],
@@ -45,12 +69,43 @@ export function calculateDate(
       });
     }
 
-    const date = readIsoDate(args.date, "date");
+    const date =
+      typeof args.date === "string" ? readIsoDate(args.date, "date") : null;
+    const period = periodForOperation(operation, args, date);
+    if (period) {
+      const days = koreanCalendarDays(period.startDate, period.endDate);
+      return toolJsonResult({
+        endDate: formatIsoDate(period.endDate),
+        holidays: days
+          .filter((day) => day.isHoliday)
+          .map(({ date, holidayNames, weekday }) => ({
+            date,
+            names: holidayNames,
+            weekday,
+          })),
+        nonWorkingDays: days.filter((day) => day.isHoliday || day.isWeekend),
+        operation,
+        startDate: formatIsoDate(period.startDate),
+        weekends: days.filter((day) => day.isWeekend),
+      });
+    }
+
+    if (!date) {
+      return toolError("date가 필요합니다.");
+    }
     if (operation === "weekday") {
       return toolJsonResult({
         date: formatIsoDate(date),
+        isWeekend: isWeekend(date),
         operation,
         weekday: weekdayLabel(date),
+      });
+    }
+
+    if (operation === "is_holiday") {
+      return toolJsonResult({
+        ...koreanCalendarDay(date),
+        operation,
       });
     }
 
@@ -74,9 +129,7 @@ export function calculateDate(
             ? addMonths(date, amount * 12)
             : null;
     if (!resultDate) {
-      return toolError(
-        "operation은 today, add_days, add_months, add_years, diff_days, weekday 중 하나여야 합니다.",
-      );
+      return toolError("지원하지 않는 날짜 operation입니다.");
     }
     return toolJsonResult({
       amount,
@@ -90,6 +143,30 @@ export function calculateDate(
       error instanceof Error ? error.message : "날짜 계산에 실패했습니다.",
     );
   }
+}
+
+function periodForOperation(
+  operation: string,
+  args: Record<string, unknown>,
+  date: Date | null,
+) {
+  if (operation === "list_period") {
+    if (!date) {
+      throw new Error("list_period에는 date가 필요합니다.");
+    }
+    return {
+      endDate: readIsoDate(args.endDate, "endDate"),
+      startDate: date,
+    };
+  }
+  return periodBounds({
+    date: date ?? undefined,
+    half: optionalInteger(args.half),
+    month: optionalInteger(args.month),
+    operation,
+    quarter: optionalInteger(args.quarter),
+    year: optionalInteger(args.year),
+  });
 }
 
 function toolJsonResult(
@@ -145,6 +222,12 @@ function readIntegerAmount(value: unknown) {
   return value;
 }
 
+function optionalInteger(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value)
+    ? value
+    : undefined;
+}
+
 function addDays(date: Date, days: number) {
   return new Date(
     Date.UTC(
@@ -166,6 +249,10 @@ function addMonths(date: Date, months: number) {
 function differenceInDays(startDate: Date, endDate: Date) {
   const dayMs = 24 * 60 * 60 * 1000;
   return Math.round((endDate.getTime() - startDate.getTime()) / dayMs);
+}
+
+function isWeekend(date: Date) {
+  return date.getUTCDay() === 0 || date.getUTCDay() === 6;
 }
 
 function formatIsoDate(date: Date) {

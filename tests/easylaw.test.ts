@@ -1127,6 +1127,53 @@ test("the MCP endpoint serves corpus search and document tools", async () => {
     assert.equal(dateResult.isError, false);
     assert.equal(dateResult.structuredContent.resultDate, "2026-07-18");
 
+    const holidayChecked = await handleMcpRequest(db, {
+      id: 33,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { date: "2026-03-02", operation: "is_holiday" },
+        name: "calculate_date",
+      },
+    });
+    assert.ok(holidayChecked.kind === "json");
+    const holidayResult = holidayChecked.body.result as {
+      isError: boolean;
+      structuredContent: { holidayNames: string[]; isHoliday: boolean };
+    };
+    assert.equal(holidayResult.isError, false);
+    assert.equal(holidayResult.structuredContent.isHoliday, true);
+    assert.ok(
+      holidayResult.structuredContent.holidayNames.some((name) =>
+        name.includes("대체공휴일"),
+      ),
+    );
+
+    const quarterListed = await handleMcpRequest(db, {
+      id: 34,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { operation: "list_quarter", quarter: 1, year: 2026 },
+        name: "calculate_date",
+      },
+    });
+    assert.ok(quarterListed.kind === "json");
+    const quarterResult = quarterListed.body.result as {
+      isError: boolean;
+      structuredContent: {
+        holidays: Array<{ date: string }>;
+        weekends: Array<{ date: string }>;
+      };
+    };
+    assert.equal(quarterResult.isError, false);
+    assert.ok(
+      quarterResult.structuredContent.holidays.some(
+        (holiday) => holiday.date === "2026-03-02",
+      ),
+    );
+    assert.ok(quarterResult.structuredContent.weekends.length > 0);
+
     const fetched = await handleMcpRequest(db, {
       id: 4,
       jsonrpc: "2.0",
