@@ -1388,6 +1388,77 @@ test("manual judgment collection stores fetched public judgments", async () => {
   }
 });
 
+test("judgment collection hydrates page records in parallel", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    let activeDetails = 0;
+    let maxActiveDetails = 0;
+    const requestedDetails: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      if (url.pathname.endsWith("/lawService.do")) {
+        activeDetails += 1;
+        maxActiveDetails = Math.max(maxActiveDetails, activeDetails);
+        const id = url.searchParams.get("ID") ?? "";
+        requestedDetails.push(id);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        activeDetails -= 1;
+        return new Response(
+          JSON.stringify({ PrecService: { 판례내용: `병렬 상세 본문 ${id}` } }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+
+      if (target !== "prec") {
+        return new Response(JSON.stringify({}), {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+
+      const page = url.searchParams.get("page") ?? "1";
+      const prec =
+        page === "1"
+          ? Array.from({ length: 5 }, (_, index) => {
+              const id = `parallel-${index + 1}`;
+              return {
+                caseNumber: `2026Da30${index + 1}`,
+                courtName: "Supreme Court",
+                decidedOn: "20260704",
+                detailLink: `/DRF/lawService.do?target=prec&ID=${id}`,
+                precSeq: id,
+                title: `Parallel collection judgment ${index + 1}`,
+              };
+            })
+          : [];
+      return new Response(JSON.stringify({ PrecSearch: { prec } }), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
+
+    const result = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.equal(result.importedCount, 5);
+    assert.equal(requestedDetails.length, 5);
+    assert.ok(
+      maxActiveDetails > 1,
+      "detail hydration should not run one record at a time",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
 test("manual judgment collection refreshes existing public laws", async () => {
   const { db, cleanup } = withDb();
   const originalFetch = globalThis.fetch;

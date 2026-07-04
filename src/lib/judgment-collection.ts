@@ -15,6 +15,8 @@ import type { ExternalJudgmentRecord } from "./types";
 const SERVICE = "judgment-collection";
 const COLLECTION_SCOPE_LABEL = "전체 판례·헌재·법령·행정규칙·자치법규";
 const COLLECTION_PAGE_SIZE = 100;
+const COLLECTION_HYDRATE_CONCURRENCY = 100;
+const COLLECTION_PROGRESS_BATCH_SIZE = 25;
 const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
 const MAX_INTERVAL_MINUTES = 10_080;
@@ -121,6 +123,15 @@ type ResumeState = {
   counts: { createdCount: number; importedCount: number; updatedCount: number };
   cursorPage: number;
   cursorTarget: string | null;
+};
+
+type CollectionCandidate = {
+  existing: boolean;
+  record: ExternalJudgmentRecord;
+};
+
+type HydratedCollectionCandidate = CollectionCandidate & {
+  record: ExternalJudgmentRecord;
 };
 
 export function getJudgmentCollectionStatus(
@@ -575,8 +586,8 @@ async function collectAndStoreOpenLawRecords(
   const resumeTargetIndex = resume?.cursorTarget
     ? Math.max(
         0,
-        openLawCollectionTargets.findIndex(
-          (target) => target === resume.cursorTarget,
+        (openLawCollectionTargets as readonly string[]).indexOf(
+          resume.cursorTarget,
         ),
       )
     : 0;
@@ -622,6 +633,7 @@ async function collectAndStoreOpenLawRecords(
 
       let addedCount = 0;
       let existingCount = 0;
+      const candidates: CollectionCandidate[] = [];
       for (const record of pageRecords) {
         const key = `${record.sourceProvider}:${record.externalId}`;
         if (seen.has(key)) {
@@ -638,16 +650,41 @@ async function collectAndStoreOpenLawRecords(
           continue;
         }
 
-        const hydrated = await hydrateOpenLawRecordOriginalText(db, record);
-        upsertJudgmentFromExternal(db, hydrated);
-        importedCount += 1;
-        if (existing) {
-          existingCount += 1;
-          updatedCount += 1;
-        } else {
-          addedCount += 1;
-          createdCount += 1;
-        }
+        candidates.push({ existing: Boolean(existing), record });
+      }
+
+      if (candidates.length > 0) {
+        let completedHydrations = 0;
+        const hydratedCandidates = await mapWithConcurrency(
+          candidates,
+          COLLECTION_HYDRATE_CONCURRENCY,
+          async (candidate) => {
+            const hydrated = await hydrateOpenLawRecordOriginalText(
+              db,
+              candidate.record,
+            );
+            completedHydrations += 1;
+            if (
+              completedHydrations === candidates.length ||
+              completedHydrations % COLLECTION_PROGRESS_BATCH_SIZE === 0
+            ) {
+              updateRunProgress(db, runId, {
+                current: importedCount + completedHydrations,
+                message: `본문 병렬 확인 중 ${completedHydrations}/${candidates.length}건`,
+                stage: "saving",
+                total: estimatedTotal,
+              });
+            }
+            return { ...candidate, record: hydrated };
+          },
+        );
+
+        const pageCounts = saveHydratedCandidates(db, hydratedCandidates);
+        importedCount += pageCounts.importedCount;
+        createdCount += pageCounts.createdCount;
+        updatedCount += pageCounts.updatedCount;
+        addedCount += pageCounts.createdCount;
+        existingCount += pageCounts.updatedCount;
         updateSavingProgress(db, runId, {
           createdCount,
           current: importedCount,
@@ -679,6 +716,50 @@ async function collectAndStoreOpenLawRecords(
   }
 
   return { createdCount, importedCount, updatedCount };
+}
+
+function saveHydratedCandidates(
+  db: SqliteDatabase,
+  candidates: HydratedCollectionCandidate[],
+) {
+  return db.transaction((items: HydratedCollectionCandidate[]) => {
+    let createdCount = 0;
+    let importedCount = 0;
+    let updatedCount = 0;
+    for (const candidate of items) {
+      upsertJudgmentFromExternal(db, candidate.record);
+      importedCount += 1;
+      if (candidate.existing) {
+        updatedCount += 1;
+      } else {
+        createdCount += 1;
+      }
+    }
+    return { createdCount, importedCount, updatedCount };
+  })(candidates);
+}
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) {
+        return;
+      }
+      results[index] = await mapper(items[index]);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 function getJudgmentSource(
