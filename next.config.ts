@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["7zip-bin-full", "better-sqlite3"],
   async headers() {
     return [
       {

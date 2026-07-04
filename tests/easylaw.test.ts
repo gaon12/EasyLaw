@@ -7,6 +7,7 @@ import { sha, solveChallenge } from "altcha/lib";
 import { zipSync } from "fflate";
 import { NextRequest } from "next/server";
 import { generate } from "otplib";
+import nextConfig from "../next.config";
 import {
   assertManagementAccess,
   consumeMagicLink,
@@ -112,6 +113,13 @@ process.env.EASYLAW_TEST_MODE = "1";
 process.env.EASYLAW_TEST_DATA_DIR = testDataDir;
 process.env.EASYLAW_TEST_SETUP_CODE = "TEST-SETUP-01";
 process.env.EASYLAW_TEST_EMAIL_CODE = "123456";
+
+test("server config keeps native database and archive packages external", () => {
+  assert.deepEqual(nextConfig.serverExternalPackages, [
+    "7zip-bin-full",
+    "better-sqlite3",
+  ]);
+});
 
 function withDb() {
   const dir = mkdtempSync(path.join(tmpdir(), "easylaw-test-"));
