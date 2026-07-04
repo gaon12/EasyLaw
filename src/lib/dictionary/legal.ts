@@ -4,7 +4,9 @@ import { getSetting } from "../settings";
 import {
   completeDictionaryImport,
   failDictionaryImport,
+  findRunningDictionaryImport,
   startDictionaryImport,
+  updateDictionaryImportCursor,
   updateDictionaryImportProgress,
   upsertDictionaryTerms,
 } from "./repository";
@@ -43,6 +45,7 @@ const LEGAL_TERM_DETAIL_BATCH_SIZE = 20;
 const LEGAL_TERM_PAGE_CONCURRENCY = 2;
 const LEGAL_TERM_DETAIL_CONCURRENCY = 4;
 const OPEN_LAW_LEGAL_TERM_TIMEOUT_MS = 15_000;
+const LEGAL_TERM_IMPORT_SLICE_MS = 20_000;
 
 type LegalTermReference = {
   id: string | null;
@@ -60,13 +63,35 @@ type LegalTermPage = {
   totalCount: number | null;
 };
 
-export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
+type LegalTermImportOptions = {
+  maxDurationMs?: number;
+  maxPagesPerSlice?: number;
+};
+
+type LegalTermImportSlice = {
+  done: boolean;
+  importedCount: number;
+  nextPage: number;
+  timedOut?: boolean;
+};
+
+export async function updateOpenLawLegalDictionary(
+  db: SqliteDatabase,
+  options: LegalTermImportOptions = {},
+) {
   const oc = getOpenLawOc(db);
   const sourceUrl = `${OPEN_LAW_LEGAL_TERM_SEARCH_API_URL}?target=lstrm`;
-  const importId = startDictionaryImport(db, {
-    source: "legal",
-    sourceUrl,
-  });
+  const running = findRunningDictionaryImport(db, "legal");
+  const importId =
+    running?.id ??
+    startDictionaryImport(db, {
+      source: "legal",
+      sourceUrl,
+    });
+  const resume = {
+    importedCount: running?.importedCount ?? 0,
+    nextPage: running?.cursorPage ?? 1,
+  };
 
   if (!oc) {
     const message =
@@ -82,18 +107,40 @@ export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
     return { importId, message, ok: false as const, source: "legal" as const };
   }
 
-  logIntegrationEvent(db, {
-    action: "legal.open-law.download",
-    message: "법령용어 사전을 가져오기 시작했습니다.",
-    metadata: { importId },
-    service: "dictionary",
-    status: "success",
-  });
+  if (!running) {
+    logIntegrationEvent(db, {
+      action: "legal.open-law.download",
+      message: "법령용어 사전을 가져오기 시작했습니다.",
+      metadata: { importId },
+      service: "dictionary",
+      status: "success",
+    });
+  }
 
   try {
-    const importedCount = await importOpenLawLegalTerms(db, oc, (progress) => {
-      updateDictionaryImportProgress(db, importId, progress);
-    });
+    const result = await importOpenLawLegalTerms(
+      db,
+      oc,
+      importId,
+      resume,
+      (progress) => {
+        updateDictionaryImportProgress(db, importId, progress);
+      },
+      options,
+    );
+    if (!result.done) {
+      return {
+        done: false as const,
+        importId,
+        importedCount: result.importedCount,
+        nextPage: result.nextPage,
+        ok: true as const,
+        source: "legal" as const,
+        timedOut: result.timedOut ?? false,
+      };
+    }
+
+    const importedCount = result.importedCount;
     updateDictionaryImportProgress(db, importId, {
       current: importedCount,
       importedCount,
@@ -113,6 +160,7 @@ export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
       status: importedCount > 0 ? "success" : "skipped",
     });
     return {
+      done: true as const,
       importId,
       importedCount,
       ok: true as const,
@@ -136,6 +184,8 @@ export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
 async function importOpenLawLegalTerms(
   db: SqliteDatabase,
   oc: string,
+  importId: string,
+  resume: { importedCount: number; nextPage: number },
   onProgress: (progress: {
     current: number;
     importedCount?: number;
@@ -143,16 +193,36 @@ async function importOpenLawLegalTerms(
     stage: "downloading" | "saving" | "scanning";
     total: number;
   }) => void,
+  options: LegalTermImportOptions,
 ) {
-  let importedCount = 0;
+  const startedAt = Date.now();
+  const deadline =
+    startedAt + (options.maxDurationMs ?? LEGAL_TERM_IMPORT_SLICE_MS);
+  let importedCount = resume.importedCount;
+  let nextPage = Math.max(1, resume.nextPage);
+  let processedPages = 0;
 
   onProgress({
-    current: 0,
-    message: "1쪽 법령용어를 가져오고 있어요.",
+    current: nextPage - 1,
+    importedCount,
+    message: `${nextPage.toLocaleString("ko-KR")}쪽 법령용어를 가져오고 있어요.`,
     stage: "downloading",
-    total: 1,
+    total: Math.max(1, nextPage),
   });
-  const firstPayload = await fetchOpenLawLegalTermPage(oc, 1);
+  const firstPayload = await fetchOpenLawLegalTermPage(oc, 1).catch((error) => {
+    if (isTimeoutError(error)) {
+      return null;
+    }
+    throw error;
+  });
+  if (firstPayload === null) {
+    return {
+      done: false,
+      importedCount,
+      nextPage,
+      timedOut: true,
+    } satisfies LegalTermImportSlice;
+  }
   const firstListPage = parseLegalTermListPage(firstPayload);
   const totalPages = firstListPage.totalCount
     ? Math.min(pageTotal(firstListPage.totalCount), MAX_LEGAL_TERM_PAGES)
@@ -161,42 +231,84 @@ async function importOpenLawLegalTerms(
   if (!totalPages) {
     return importLegalTermPagesSequentially({
       db,
+      deadline,
       firstListPage,
+      importId,
       importedCount,
+      maxPagesPerSlice: options.maxPagesPerSlice,
+      nextPage,
       oc,
       onProgress,
+      processedPages,
     });
   }
 
-  let completedPages = 0;
-  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
-  await mapWithConcurrency(pages, LEGAL_TERM_PAGE_CONCURRENCY, async (page) => {
+  while (nextPage <= totalPages) {
+    if (
+      shouldPauseImport(deadline) ||
+      reachedPageSliceLimit(processedPages, options.maxPagesPerSlice)
+    ) {
+      return { done: false, importedCount, nextPage };
+    }
+    const sliceRemaining =
+      typeof options.maxPagesPerSlice === "number"
+        ? Math.max(1, options.maxPagesPerSlice - processedPages)
+        : Number.POSITIVE_INFINITY;
+    const pages = Array.from(
+      {
+        length: Math.min(
+          LEGAL_TERM_PAGE_CONCURRENCY,
+          totalPages - nextPage + 1,
+          sliceRemaining,
+        ),
+      },
+      (_, index) => nextPage + index,
+    );
     onProgress({
-      current: completedPages,
+      current: nextPage - 1,
       importedCount,
-      message: `${page.toLocaleString("ko-KR")}쪽 법령용어를 가져오고 있어요.`,
+      message: `${nextPage.toLocaleString("ko-KR")}쪽부터 법령용어를 가져오고 있어요.`,
       stage: "downloading",
       total: totalPages,
     });
-    const pageData =
-      page === 1
-        ? await hydrateLegalTermPage(oc, firstListPage)
-        : await fetchLegalTermPage(oc, page);
+    const pageResults = await mapWithConcurrency(
+      pages,
+      LEGAL_TERM_PAGE_CONCURRENCY,
+      async (page) =>
+        page === 1
+          ? await hydrateLegalTermPage(oc, firstListPage)
+          : await fetchLegalTermPage(oc, page),
+    ).catch((error) => {
+      if (isTimeoutError(error)) {
+        return null;
+      }
+      throw error;
+    });
+    if (pageResults === null) {
+      return {
+        done: false,
+        importedCount,
+        nextPage,
+        timedOut: true,
+      } satisfies LegalTermImportSlice;
+    }
     importedCount += upsertDictionaryTerms(db, {
       source: "legal",
-      terms: pageData.terms,
+      terms: pageResults.flatMap((page) => page.terms),
     });
-    completedPages += 1;
+    processedPages += pages.length;
+    nextPage = pages[pages.length - 1] + 1;
+    updateDictionaryImportCursor(db, { importId, nextPage });
     onProgress({
-      current: completedPages,
+      current: nextPage - 1,
       importedCount,
       message: `${importedCount.toLocaleString("ko-KR")}개 법령용어 정의를 저장했어요.`,
       stage: "saving",
       total: totalPages,
     });
-  });
+  }
 
-  return importedCount;
+  return { done: true, importedCount, nextPage };
 }
 
 function pageTotal(totalCount: number) {
@@ -205,8 +317,12 @@ function pageTotal(totalCount: number) {
 
 async function importLegalTermPagesSequentially(input: {
   db: SqliteDatabase;
+  deadline: number;
   firstListPage: LegalTermListPage;
+  importId: string;
   importedCount: number;
+  maxPagesPerSlice?: number;
+  nextPage: number;
   oc: string;
   onProgress: (progress: {
     current: number;
@@ -215,15 +331,45 @@ async function importLegalTermPagesSequentially(input: {
     stage: "downloading" | "saving" | "scanning";
     total: number;
   }) => void;
+  processedPages: number;
 }) {
   let importedCount = input.importedCount;
-  let page = 1;
-  let pageData = await hydrateLegalTermPage(input.oc, input.firstListPage);
+  let page = input.nextPage;
+  let processedPages = input.processedPages;
 
   while (page <= MAX_LEGAL_TERM_PAGES) {
+    if (
+      shouldPauseImport(input.deadline) ||
+      reachedPageSliceLimit(processedPages, input.maxPagesPerSlice)
+    ) {
+      return { done: false, importedCount, nextPage: page };
+    }
+    const pageData = await (page === 1
+      ? hydrateLegalTermPage(input.oc, input.firstListPage)
+      : fetchLegalTermPage(input.oc, page)
+    ).catch((error) => {
+      if (isTimeoutError(error)) {
+        return null;
+      }
+      throw error;
+    });
+    if (pageData === null) {
+      return {
+        done: false,
+        importedCount,
+        nextPage: page,
+        timedOut: true,
+      } satisfies LegalTermImportSlice;
+    }
     importedCount += upsertDictionaryTerms(input.db, {
       source: "legal",
       terms: pageData.terms,
+    });
+    processedPages += 1;
+    const nextPage = page + 1;
+    updateDictionaryImportCursor(input.db, {
+      importId: input.importId,
+      nextPage,
     });
     input.onProgress({
       current: page,
@@ -236,7 +382,7 @@ async function importLegalTermPagesSequentially(input: {
     if (pageData.references.length === 0) {
       break;
     }
-    page += 1;
+    page = nextPage;
     input.onProgress({
       current: page - 1,
       importedCount,
@@ -244,10 +390,29 @@ async function importLegalTermPagesSequentially(input: {
       stage: "downloading",
       total: page,
     });
-    pageData = await fetchLegalTermPage(input.oc, page);
   }
 
-  return importedCount;
+  return { done: true, importedCount, nextPage: page };
+}
+
+function shouldPauseImport(deadline: number) {
+  return Date.now() + 1_000 >= deadline;
+}
+
+function reachedPageSliceLimit(
+  processedPages: number,
+  maxPagesPerSlice: number | undefined,
+) {
+  return (
+    typeof maxPagesPerSlice === "number" && processedPages >= maxPagesPerSlice
+  );
+}
+
+function isTimeoutError(error: unknown) {
+  return (
+    error instanceof DOMException &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  );
 }
 
 function parseLegalTermListPage(payload: unknown): LegalTermListPage {

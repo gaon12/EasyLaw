@@ -49,7 +49,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isDictionaryUpdateResponse(
   value: unknown,
-): value is { importedCount: number } {
+): value is { done?: boolean; importedCount: number; timedOut?: boolean } {
   return isRecord(value) && typeof value.importedCount === "number";
 }
 
@@ -153,38 +153,85 @@ export function DictionaryUpdateButton() {
       "사전 데이터를 가져오고 있어요. 완료되면 검색과 용어 설명에 바로 반영됩니다.",
     );
     try {
-      const response = await fetch("/api/admin/dictionary/update", {
-        body: JSON.stringify({ source }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      const data: unknown = await response.json();
-      if (!response.ok) {
-        setStatus("error");
+      for (;;) {
+        const response = await fetch("/api/admin/dictionary/update", {
+          body: JSON.stringify({ source }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        const data: unknown = await response.json();
+        if (!response.ok) {
+          setStatus("error");
+          setProgress(100);
+          setMessage(responseMessage(data, "사전 업데이트에 실패했어요."));
+          return;
+        }
+        if (!isDictionaryUpdateResponse(data)) {
+          setStatus("error");
+          setProgress(100);
+          setMessage("사전 업데이트 응답 형식을 확인하지 못했어요.");
+          return;
+        }
+        if (data.done === false) {
+          setMessage(
+            data.timedOut
+              ? "응답이 늦어져 저장된 위치부터 다시 이어가고 있어요."
+              : "저장된 위치부터 다음 묶음을 이어가고 있어요.",
+          );
+          await delay(500);
+          continue;
+        }
+        setStageIndex(updateStages.length - 1);
         setProgress(100);
-        setMessage(responseMessage(data, "사전 업데이트에 실패했어요."));
+        if (data.importedCount > 0) {
+          setStatus("success");
+          setMessage(
+            `${data.importedCount.toLocaleString("ko-KR")}개의 뜻풀이를 반영했어요.`,
+          );
+        } else {
+          setStatus("empty");
+          setMessage(
+            "가져오기는 끝났지만 새로 반영된 뜻풀이가 없어요. 최근 작업 기록에서 원본 데이터 상태를 확인해 주세요.",
+          );
+        }
         return;
-      }
-      if (!isDictionaryUpdateResponse(data)) {
-        setStatus("error");
-        setProgress(100);
-        setMessage("사전 업데이트 응답 형식을 확인하지 못했어요.");
-        return;
-      }
-      setStageIndex(updateStages.length - 1);
-      setProgress(100);
-      if (data.importedCount > 0) {
-        setStatus("success");
-        setMessage(
-          `${data.importedCount.toLocaleString("ko-KR")}개의 뜻풀이를 반영했어요.`,
-        );
-      } else {
-        setStatus("empty");
-        setMessage(
-          "가져오기는 끝났지만 새로 반영된 뜻풀이가 없어요. 최근 작업 기록에서 원본 데이터 상태를 확인해 주세요.",
-        );
       }
     } catch (_error) {
+      if (source === "legal") {
+        // 서버나 프록시가 긴 요청을 끊은 경우, 서버에 저장된 cursor_page에서
+        // 다음 POST가 다시 시작한다.
+        for (let retry = 0; retry < 5; retry += 1) {
+          try {
+            await delay(800);
+            const response = await fetch("/api/admin/dictionary/update", {
+              body: JSON.stringify({ source }),
+              headers: { "Content-Type": "application/json" },
+              method: "POST",
+            });
+            const data: unknown = await response.json();
+            if (response.ok && isDictionaryUpdateResponse(data)) {
+              if (data.done === false) {
+                retry -= 1;
+                setMessage(
+                  "저장된 위치부터 법령용어 업데이트를 이어가고 있어요.",
+                );
+                continue;
+              }
+              setStageIndex(updateStages.length - 1);
+              setProgress(100);
+              setStatus(data.importedCount > 0 ? "success" : "empty");
+              setMessage(
+                data.importedCount > 0
+                  ? `${data.importedCount.toLocaleString("ko-KR")}개의 뜻풀이를 반영했어요.`
+                  : "가져오기는 끝났지만 새로 반영된 뜻풀이가 없어요. 최근 작업 기록에서 원본 데이터 상태를 확인해 주세요.",
+              );
+              return;
+            }
+          } catch (_retryError) {
+            setMessage("연결이 끊겨 저장된 위치부터 다시 시도하고 있어요.");
+          }
+        }
+      }
       setStatus("error");
       setProgress(100);
       setMessage("업데이트 요청이 끊겼어요. 잠시 뒤 다시 시도해 주세요.");
@@ -363,6 +410,10 @@ function isProgressStage(value: unknown): value is ProgressStage {
     value === "finalizing" ||
     value === "done"
   );
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function progressStageIndex(stage: ProgressStage) {

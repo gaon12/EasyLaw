@@ -148,6 +148,14 @@ export const corpusMigrations = [
         ADD COLUMN last_progress_at TEXT;
     `,
   },
+  {
+    id: 5,
+    name: "dictionary_import_resume_cursor",
+    sql: `
+      ALTER TABLE corpus.dictionary_imports
+        ADD COLUMN cursor_page INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
 ] as const;
 
 export const migrations = [

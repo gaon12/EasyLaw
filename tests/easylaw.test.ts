@@ -3195,7 +3195,7 @@ test("open law legal terms import fetches list pages in parallel", async () => {
           activeListPages -= 1;
         }
         const firstIndex = (page - 1) * 100;
-        const count = page === 3 ? 1 : 100;
+        const count = page === 5 ? 1 : 100;
         const lstrm = Array.from({ length: count }, (_, index) => {
           const termIndex = firstIndex + index + 1;
           return {
@@ -3204,7 +3204,7 @@ test("open law legal terms import fetches list pages in parallel", async () => {
           };
         });
         return new Response(
-          JSON.stringify({ LsTrmSearch: { lstrm, totalCnt: "201" } }),
+          JSON.stringify({ LsTrmSearch: { lstrm, totalCnt: "401" } }),
           {
             headers: { "Content-Type": "application/json" },
             status: 200,
@@ -3233,11 +3233,94 @@ test("open law legal terms import fetches list pages in parallel", async () => {
     const result = await updateOpenLawLegalDictionary(db);
     assert.equal(result.ok, true);
     assert.ok(result.ok);
-    assert.equal(result.importedCount, 201);
+    assert.equal(result.importedCount, 401);
     assert.ok(
       maxActiveListPages > 1,
       "legal term list pages should not be fetched one at a time",
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("open law legal terms import resumes from the saved page cursor", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    const requestedSearchPages: string[] = [];
+    const requestedDetailIds: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/lawSearch.do")) {
+        const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
+        requestedSearchPages.push(String(page));
+        const firstIndex = (page - 1) * 100;
+        const count = page === 3 ? 1 : 100;
+        const lstrm = Array.from({ length: count }, (_, index) => {
+          const termIndex = firstIndex + index + 1;
+          return {
+            법령용어ID: `resume-legal-term-${termIndex}`,
+            법령용어명: `재개 용어 ${termIndex}`,
+          };
+        });
+        return new Response(
+          JSON.stringify({ LsTrmSearch: { lstrm, totalCnt: "201" } }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
+      const ids = (url.searchParams.get("trmSeqs") ?? "")
+        .split(",")
+        .filter(Boolean);
+      requestedDetailIds.push(...ids);
+      return new Response(
+        JSON.stringify({
+          LsTrmService: {
+            법령용어일련번호: ids,
+            법령용어명_한글: ids.map((id) => `용어 ${id}`),
+            법령용어정의: ids.map((id) => `${id} 정의`),
+          },
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    };
+
+    const first = await updateOpenLawLegalDictionary(db, {
+      maxPagesPerSlice: 1,
+    });
+    assert.equal(first.ok, true);
+    assert.ok(first.ok);
+    assert.equal(first.done, false);
+    assert.equal(first.importedCount, 100);
+    assert.equal(getDictionaryImportProgress(db, "legal")?.current, 1);
+
+    const second = await updateOpenLawLegalDictionary(db, {
+      maxPagesPerSlice: 1,
+    });
+    assert.equal(second.ok, true);
+    assert.ok(second.ok);
+    assert.equal(second.done, false);
+    assert.equal(second.importedCount, 200);
+    assert.equal(getDictionaryImportProgress(db, "legal")?.current, 2);
+
+    const third = await updateOpenLawLegalDictionary(db, {
+      maxPagesPerSlice: 1,
+    });
+    assert.equal(third.ok, true);
+    assert.ok(third.ok);
+    assert.equal(third.done, true);
+    assert.equal(third.importedCount, 201);
+    assert.equal(getDictionaryImportProgress(db, "legal")?.status, "completed");
+    assert.deepEqual(requestedSearchPages, ["1", "1", "2", "1", "3"]);
+    assert.equal(new Set(requestedDetailIds).size, 201);
   } finally {
     globalThis.fetch = originalFetch;
     cleanup();

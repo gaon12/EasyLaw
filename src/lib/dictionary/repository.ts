@@ -36,6 +36,12 @@ export type DictionaryImportProgress = {
   total: number;
 };
 
+export type RunningDictionaryImport = {
+  cursorPage: number;
+  id: string;
+  importedCount: number;
+};
+
 const progressStagePercent: Record<DictionaryImportProgressStage, number> = {
   done: 100,
   downloading: 5,
@@ -338,6 +344,48 @@ export function startDictionaryImport(
     createdAt,
   );
   return importId;
+}
+
+export function findRunningDictionaryImport(
+  db: SqliteDatabase,
+  source: DictionarySource,
+): RunningDictionaryImport | null {
+  const row = db
+    .prepare<
+      [DictionarySource],
+      {
+        cursor_page: number;
+        id: string;
+        imported_count: number;
+      }
+    >(
+      `SELECT id, imported_count, cursor_page
+       FROM dictionary_imports
+       WHERE source = ? AND status = 'running'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+    )
+    .get(source);
+
+  return row
+    ? {
+        cursorPage: Math.max(1, row.cursor_page),
+        id: row.id,
+        importedCount: row.imported_count,
+      }
+    : null;
+}
+
+export function updateDictionaryImportCursor(
+  db: SqliteDatabase,
+  input: { importId: string; nextPage: number },
+) {
+  db.prepare(
+    `UPDATE dictionary_imports
+     SET cursor_page = ?,
+       last_progress_at = ?
+     WHERE id = ?`,
+  ).run(Math.max(1, input.nextPage), nowIso(), input.importId);
 }
 
 export function completeDictionaryImport(
