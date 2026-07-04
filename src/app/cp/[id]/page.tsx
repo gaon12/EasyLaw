@@ -5,6 +5,8 @@ import { OrgShareControl } from "@/components/org-share-control";
 import { AppShell } from "@/components/site-chrome";
 import { isJudgmentBookmarked } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
+import { buildDocumentReferenceLinks } from "@/lib/document-reference-links";
+import { extractDocumentReferenceCandidates } from "@/lib/document-references";
 import { extractRelatedCaseReferences } from "@/lib/judgment-relations";
 import { pageMetadata } from "@/lib/metadata";
 import { getUserOrganizations } from "@/lib/organizations";
@@ -43,6 +45,13 @@ export default async function CustomJudgmentPage({
     judgment.originalText,
     judgment.caseNumber,
   );
+  const documentReferences = buildDocumentReferenceLinks(
+    db,
+    extractDocumentReferenceCandidates(
+      judgment.originalText,
+      judgment.caseNumber,
+    ),
+  );
   const linkedJudgments = new Map(
     getPublicJudgmentsByCaseNumbers(
       db,
@@ -70,6 +79,7 @@ export default async function CustomJudgmentPage({
           judgmentId: judgment.id,
           userId: user.id,
         })}
+        documentReferences={documentReferences}
         judgment={judgment}
         privateDocument
         relatedJudgments={relatedReferences.map((reference) => {

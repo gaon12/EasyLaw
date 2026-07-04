@@ -4,6 +4,8 @@ import { JudgmentDetailView } from "@/components/judgment-detail";
 import { AppShell } from "@/components/site-chrome";
 import { isJudgmentBookmarked } from "@/lib/bookmarks";
 import { getDatabase } from "@/lib/db";
+import { buildDocumentReferenceLinks } from "@/lib/document-reference-links";
+import { extractDocumentReferenceCandidates } from "@/lib/document-references";
 import {
   ensurePublicJudgmentOriginalText,
   syncExternalCatalog,
@@ -60,6 +62,13 @@ export default async function PublicJudgmentPage({
     judgment.originalText,
     judgment.caseNumber,
   );
+  const documentReferences = buildDocumentReferenceLinks(
+    db,
+    extractDocumentReferenceCandidates(
+      judgment.originalText,
+      judgment.caseNumber,
+    ),
+  );
   const linkedJudgments = new Map(
     getPublicJudgmentsByCaseNumbers(
       db,
@@ -78,6 +87,7 @@ export default async function PublicJudgmentPage({
       <JudgmentDetailView
         analysis={getLatestAnalysis(db, judgment.id)}
         bookmarkInitialActive={bookmarkInitialActive}
+        documentReferences={documentReferences}
         judgment={judgment}
         relatedJudgments={relatedReferences.map((reference) => {
           const linkedJudgment = linkedJudgments.get(reference.caseNumber);

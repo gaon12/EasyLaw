@@ -1,8 +1,10 @@
 import styles from "@/app/page.module.css";
 import { BookmarkButton } from "@/components/bookmark-button";
+import { DocumentReferenceText } from "@/components/document-reference-text";
 import { CheckIcon } from "@/components/icons";
 import { JudgmentReaderTabs } from "@/components/judgment-reader-tabs";
 import { LocalTime } from "@/components/local-time";
+import type { DocumentReferenceLink } from "@/lib/document-references";
 import { parseJudgmentDocument } from "@/lib/judgment-document";
 import { displayJudgmentCaseType } from "@/lib/judgment-search";
 import type { EasyReadAnalysis, JudgmentDetail } from "@/lib/types";
@@ -10,12 +12,14 @@ import type { EasyReadAnalysis, JudgmentDetail } from "@/lib/types";
 export function JudgmentDetailView({
   analysis,
   bookmarkInitialActive = false,
+  documentReferences = [],
   judgment,
   privateDocument = false,
   relatedJudgments = [],
 }: {
   analysis: EasyReadAnalysis | null;
   bookmarkInitialActive?: boolean;
+  documentReferences?: DocumentReferenceLink[];
   judgment: JudgmentDetail;
   privateDocument?: boolean;
   relatedJudgments?: Array<{
@@ -171,7 +175,10 @@ export function JudgmentDetailView({
                                 }
                                 key={`${section.id}-${index}`}
                               >
-                                {block.text}
+                                <DocumentReferenceText
+                                  references={documentReferences}
+                                  text={block.text}
+                                />
                               </p>
                             ),
                           )}

@@ -228,6 +228,36 @@ export function getPublicJudgmentsByCaseNumbers(
     .map(mapJudgmentDetail);
 }
 
+export function getPublicLawJudgmentsByTitles(
+  db: SqliteDatabase,
+  titles: string[],
+) {
+  const uniqueTitles = [...new Set(titles)].filter(Boolean);
+  if (uniqueTitles.length === 0) {
+    return [];
+  }
+
+  const rows = db
+    .prepare<unknown[], JudgmentDetailRow>(
+      `${judgmentDetailSql}
+       WHERE ${publicJudgmentVisibilitySql}
+         AND judgments.case_type = 'law'
+         AND judgments.title IN (${uniqueTitles.map(() => "?").join(", ")})
+       ORDER BY judgments.title ASC, judgments.decided_on DESC`,
+    )
+    .all(...uniqueTitles);
+  const seenTitles = new Set<string>();
+  const latestRows: JudgmentDetailRow[] = [];
+  for (const row of rows) {
+    if (seenTitles.has(row.title)) {
+      continue;
+    }
+    seenTitles.add(row.title);
+    latestRows.push(row);
+  }
+  return latestRows.map(mapJudgmentDetail);
+}
+
 export function getCustomJudgmentById(
   db: SqliteDatabase,
   id: string,

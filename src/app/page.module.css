@@ -2070,6 +2070,155 @@
   font-size: 13px;
 }
 
+.documentReferenceButton {
+  border: 0;
+  border-radius: 3px;
+  padding: 0 2px;
+  background: transparent;
+  color: var(--fg-brand);
+  font: inherit;
+  font-weight: 700;
+  line-height: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.documentReferenceButton:hover,
+.documentReferenceButton:focus-visible {
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand-strong);
+  outline: 2px solid color-mix(in oklch, var(--bg-brand) 24%, transparent);
+  outline-offset: 2px;
+}
+
+.documentReferenceBackdrop {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 55%);
+}
+
+.documentReferenceDismiss {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.documentReferenceModal {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+  width: min(520px, 100%);
+  max-height: min(640px, calc(100vh - 40px));
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  padding: 22px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.documentReferenceModal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.documentReferenceModal header div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.documentReferenceModal header span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 0 10px;
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.documentReferenceModal header button {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  cursor: pointer;
+}
+
+.documentReferenceModal h3 {
+  margin: 0;
+  color: var(--fg-strong);
+  font-size: 21px;
+  line-height: 1.4;
+}
+
+.documentReferenceModal dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.documentReferenceModal dl div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.documentReferenceModal dt {
+  color: var(--fg-tertiary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.documentReferenceModal dd {
+  margin: 0;
+  color: var(--fg-default);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.documentReferenceModal p {
+  margin: 0;
+  border-radius: var(--radius-8);
+  padding: 12px;
+  background: var(--bg-muted);
+  color: var(--fg-default);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.documentReferenceModal > a {
+  display: inline-flex;
+  min-height: 42px;
+  width: fit-content;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 0 16px;
+  background: var(--bg-brand);
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .aiSources {
   margin: 0 24px;
   padding: 18px 0 20px;
@@ -3483,14 +3632,16 @@
 
 .judgmentDocumentSection h3,
 .judgmentDocumentOrder h3 {
+  margin: 0;
   color: var(--fg-strong);
   font-size: 24px;
   line-height: 1.35;
 }
 
 .judgmentDocumentOrder {
+  gap: 16px;
   border-radius: var(--radius-8);
-  padding: 18px;
+  padding: 24px 22px 26px;
   border: 1px solid color-mix(in oklch, var(--bg-brand) 20%, transparent);
   background: var(--bg-brand-subtle);
 }

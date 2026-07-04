@@ -42,6 +42,7 @@ import {
   updateDictionarySource,
   updateOpenLawLegalDictionary,
 } from "../src/lib/dictionary";
+import { extractDocumentReferenceCandidates } from "../src/lib/document-references";
 import { sampleAnalysis } from "../src/lib/easyread";
 import { processGenerationJob } from "../src/lib/easyread-generation";
 import {
@@ -91,6 +92,7 @@ import {
   getOrganizationSharedJudgments,
   getPublicJudgmentByIdentifier,
   getPublicJudgments,
+  getPublicLawJudgmentsByTitles,
 } from "../src/lib/queries";
 import {
   defaultReaderView,
@@ -2324,6 +2326,67 @@ test("judgment relation parser extracts lower court case numbers", () => {
       label: "원심판결",
     },
   ]);
+});
+
+test("document reference parser extracts law titles and case numbers", () => {
+  const references = extractDocumentReferenceCandidates(
+    "「상고심절차에 관한 특례법」 제4조와 구 지방세법 제106조 및 2023나4119 판결을 보았다. 현재 사건은 2024다222212이다.",
+    "2024다222212",
+  );
+
+  assert.deepEqual(references, [
+    {
+      kind: "case",
+      lookupText: "2023나4119",
+      text: "2023나4119",
+    },
+    {
+      kind: "law",
+      lookupText: "상고심절차에 관한 특례법",
+      text: "상고심절차에 관한 특례법",
+    },
+    {
+      kind: "law",
+      lookupText: "지방세법",
+      text: "구 지방세법",
+    },
+  ]);
+});
+
+test("public law lookup returns the latest public law by title", () => {
+  const { cleanup, db } = withDb();
+  try {
+    upsertJudgmentFromExternal(db, {
+      caseNumber: "LAW-OLD",
+      caseType: "law",
+      courtName: "국가법령정보센터",
+      decidedOn: "2024-01-01",
+      externalId: "law-old",
+      sourceProvider: "test-open-law",
+      summary: "이전 기준 법령",
+      title: "상고심절차에 관한 특례법",
+    });
+    const latestId = upsertJudgmentFromExternal(db, {
+      caseNumber: "LAW-NEW",
+      caseType: "law",
+      courtName: "국가법령정보센터",
+      decidedOn: "2025-01-01",
+      externalId: "law-new",
+      sourceProvider: "test-open-law",
+      summary: "최신 기준 법령",
+      title: "상고심절차에 관한 특례법",
+    });
+
+    const laws = getPublicLawJudgmentsByTitles(db, [
+      "상고심절차에 관한 특례법",
+    ]);
+
+    assert.equal(laws.length, 1);
+    assert.equal(laws[0].id, latestId);
+    assert.equal(laws[0].caseNumber, "LAW-NEW");
+  } finally {
+    cleanup();
+  }
 });
 
 test("public request origin respects reverse proxy headers", () => {
