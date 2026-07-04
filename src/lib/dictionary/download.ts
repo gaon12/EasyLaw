@@ -3,7 +3,7 @@ import { createReadStream, createWriteStream } from "node:fs";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { path7z } from "7zip-bin-full";
 import {
@@ -21,6 +21,13 @@ type JsonZipEntry = {
   size: number;
 };
 
+type DictionaryZipProgress = {
+  current: number;
+  message: string;
+  stage: "downloading" | "saving" | "scanning";
+  total: number;
+};
+
 export async function processJsonZipEntries(
   input: {
     body?: URLSearchParams;
@@ -28,18 +35,41 @@ export async function processJsonZipEntries(
     url: string;
   },
   onEntry: (entry: unknown, filename: string) => void,
+  onProgress?: (progress: DictionaryZipProgress) => void,
 ) {
   const tempDir = await mkdtemp(path.join(tmpdir(), "easylaw-dict-"));
   const archivePath = path.join(tempDir, "dictionary.zip");
   const entryPath = path.join(tempDir, "entry.json");
   try {
-    await downloadZipToFile(input, archivePath);
+    await downloadZipToFile(input, archivePath, onProgress);
+    onProgress?.({
+      current: 0,
+      message: "압축 파일의 JSON 목록을 확인하고 있어요.",
+      stage: "scanning",
+      total: 1,
+    });
     const entries = await listJsonEntries(archivePath);
     validateJsonEntries(entries);
+    const totalSize = totalEntrySize(entries);
+    let processedSize = 0;
 
     for (const entry of entries) {
       await extractJsonEntry(archivePath, entry.path, entryPath);
-      await processJsonFile(entryPath, entry.path, onEntry);
+      await processJsonFile(entryPath, entry.path, onEntry, (current) => {
+        onProgress?.({
+          current: processedSize + current,
+          message: `뜻풀이 저장 ${formatBytes(processedSize + current)}/${formatBytes(totalSize)}`,
+          stage: "saving",
+          total: totalSize,
+        });
+      });
+      processedSize += entry.size;
+      onProgress?.({
+        current: processedSize,
+        message: `뜻풀이 저장 ${formatBytes(processedSize)}/${formatBytes(totalSize)}`,
+        stage: "saving",
+        total: totalSize,
+      });
     }
   } finally {
     await rm(tempDir, { force: true, recursive: true });
@@ -53,6 +83,7 @@ async function downloadZipToFile(
     url: string;
   },
   archivePath: string,
+  onProgress?: (progress: DictionaryZipProgress) => void,
 ) {
   const response = await fetch(input.url, {
     body: input.body,
@@ -72,8 +103,24 @@ async function downloadZipToFile(
   }
 
   const responseBody = response.body as Parameters<typeof Readable.fromWeb>[0];
+  let downloadedBytes = 0;
+  const progressStream = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      downloadedBytes += chunk.length;
+      onProgress?.({
+        current: downloadedBytes,
+        message: contentLength
+          ? `사전 데이터 다운로드 ${formatBytes(downloadedBytes)}/${formatBytes(contentLength)}`
+          : `사전 데이터 다운로드 ${formatBytes(downloadedBytes)}`,
+        stage: "downloading",
+        total: Math.max(1, contentLength || downloadedBytes),
+      });
+      callback(null, chunk);
+    },
+  });
   await pipeline(
     Readable.fromWeb(responseBody),
+    progressStream,
     createWriteStream(archivePath),
   );
   if ((await stat(archivePath)).size > maxZipBytes) {
@@ -117,6 +164,13 @@ function validateJsonEntries(entries: JsonZipEntry[]) {
   }
 }
 
+function totalEntrySize(entries: JsonZipEntry[]) {
+  return Math.max(
+    1,
+    entries.reduce((sum, entry) => sum + entry.size, 0),
+  );
+}
+
 async function extractJsonEntry(
   archivePath: string,
   entryName: string,
@@ -132,24 +186,35 @@ async function processJsonFile(
   filePath: string,
   filename: string,
   onEntry: (entry: unknown, filename: string) => void,
+  onProgress: (current: number) => void,
 ) {
   if ((await firstJsonCharacter(filePath)) === "[") {
-    await processJsonArrayFile(filePath, filename, onEntry);
+    await processJsonArrayFile(filePath, filename, onEntry, onProgress);
     return;
   }
 
   const content = await readFile(filePath, "utf8");
   onEntry(JSON.parse(content), filename);
+  onProgress(Buffer.byteLength(content, "utf8"));
 }
 
 async function processJsonArrayFile(
   filePath: string,
   filename: string,
   onEntry: (entry: unknown, filename: string) => void,
+  onProgress: (current: number) => void,
 ) {
-  const stream = createReadStream(filePath).pipe(
-    streamArray.withParserAsStream(),
-  );
+  let processedBytes = 0;
+  const progressStream = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      processedBytes += chunk.length;
+      onProgress(processedBytes);
+      callback(null, chunk);
+    },
+  });
+  const stream = createReadStream(filePath)
+    .pipe(progressStream)
+    .pipe(streamArray.withParserAsStream());
   for await (const item of stream as AsyncIterable<StreamArrayItem>) {
     onEntry(item.value, filename);
   }
@@ -230,4 +295,14 @@ async function run7zToFile(args: string[], outputPath: string) {
 function format7zError(args: string[], code: number | null, stderr: string) {
   const message = stderr.trim() || "7z 실행 중 오류가 발생했습니다.";
   return `7z ${args[0]} failed with code ${code ?? "unknown"}: ${message}`;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${Math.round(bytes / 1024 / 1024).toLocaleString("ko-KR")}MB`;
+  }
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024).toLocaleString("ko-KR")}KB`;
+  }
+  return `${bytes.toLocaleString("ko-KR")}B`;
 }

@@ -4,11 +4,34 @@ import { useEffect, useRef, useState } from "react";
 import styles from "@/app/page.module.css";
 
 type UpdateSource = "all" | "basic" | "standard" | "legal";
+type ProgressStage =
+  | "preparing"
+  | "downloading"
+  | "scanning"
+  | "saving"
+  | "finalizing"
+  | "done";
+
+type DictionaryProgress = {
+  current: number;
+  failureReason: string | null;
+  importedCount: number;
+  message: string;
+  percent: number;
+  source: Exclude<UpdateSource, "all">;
+  stage: ProgressStage;
+  status: string;
+  total: number;
+};
+
+type ProgressResponse = {
+  progress: DictionaryProgress | null;
+};
 
 const updateStages = [
   "업데이트 요청 준비",
   "사전 데이터 가져오기",
-  "자료 확인",
+  "자료 목록 확인",
   "뜻풀이 저장",
   "마무리",
 ] as const;
@@ -47,6 +70,8 @@ export function DictionaryUpdateButton() {
   const [modalOpen, setModalOpen] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [progressDetail, setProgressDetail] = useState("준비 중");
+  const hasSeenRunningProgressRef = useRef(false);
   const isRunningRef = useRef(false);
 
   useEffect(() => {
@@ -54,15 +79,63 @@ export function DictionaryUpdateButton() {
       return;
     }
 
-    const interval = window.setInterval(() => {
-      setProgress((current) => Math.min(current + 7, 88));
-      setStageIndex((current) =>
-        current < updateStages.length - 2 ? current + 1 : current,
-      );
-    }, 900);
+    let isMounted = true;
 
-    return () => window.clearInterval(interval);
-  }, [status]);
+    async function pollProgress() {
+      try {
+        const nextProgress = await fetchDictionaryProgress(
+          runningSource ?? "all",
+        );
+        if (!isMounted || !nextProgress) {
+          return;
+        }
+        setProgress(nextProgress.percent);
+        setStageIndex(progressStageIndex(nextProgress.stage));
+        setProgressDetail(formatProgressDetail(nextProgress));
+        if (nextProgress.message) {
+          setMessage(nextProgress.message);
+        }
+        if (nextProgress.status === "running") {
+          hasSeenRunningProgressRef.current = true;
+        }
+        if (
+          hasSeenRunningProgressRef.current &&
+          (nextProgress.status === "completed" ||
+            nextProgress.status === "failed")
+        ) {
+          const succeeded = nextProgress.status === "completed";
+          setProgress(100);
+          setStageIndex(updateStages.length - 1);
+          setStatus(
+            succeeded
+              ? nextProgress.importedCount > 0
+                ? "success"
+                : "empty"
+              : "error",
+          );
+          setMessage(
+            succeeded
+              ? formatRunSummary(nextProgress)
+              : nextProgress.failureReason ||
+                  "사전 업데이트에 실패했어요. 최근 작업 기록을 확인해 주세요.",
+          );
+          setRunningSource(null);
+          isRunningRef.current = false;
+        }
+      } catch (_error) {
+        if (isMounted) {
+          setProgressDetail("진행 상태를 다시 확인하고 있어요.");
+        }
+      }
+    }
+
+    void pollProgress();
+    const intervalId = window.setInterval(() => void pollProgress(), 800);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [runningSource, status]);
 
   async function update(source: UpdateSource) {
     if (isRunningRef.current) {
@@ -73,7 +146,9 @@ export function DictionaryUpdateButton() {
     setStatus("loading");
     setModalOpen(true);
     setStageIndex(0);
-    setProgress(8);
+    setProgress(0);
+    setProgressDetail("준비 중");
+    hasSeenRunningProgressRef.current = false;
     setMessage(
       "사전 데이터를 가져오고 있어요. 완료되면 검색과 용어 설명에 바로 반영됩니다.",
     );
@@ -184,7 +259,7 @@ export function DictionaryUpdateButton() {
 
             <div className={styles.progressMeta}>
               <span>{updateStages[stageIndex]}</span>
-              <span>{runningSourceLabel(runningSource)}</span>
+              <span>{progressDetail}</span>
             </div>
 
             <div
@@ -239,4 +314,84 @@ function runningSourceLabel(source: UpdateSource | null) {
     return "법령용어";
   }
   return "전체";
+}
+
+async function fetchDictionaryProgress(source: UpdateSource) {
+  const params = new URLSearchParams({ source });
+  const response = await fetch(`/api/admin/dictionary/update?${params}`, {
+    method: "GET",
+  });
+  if (!response.ok) {
+    throw new Error("progress_failed");
+  }
+  const data = (await response.json()) as unknown;
+  return isProgressResponse(data) ? data.progress : null;
+}
+
+function isProgressResponse(value: unknown): value is ProgressResponse {
+  if (!isRecord(value) || !("progress" in value)) {
+    return false;
+  }
+  if (value.progress === null) {
+    return true;
+  }
+  return (
+    isRecord(value.progress) &&
+    typeof value.progress.current === "number" &&
+    (typeof value.progress.failureReason === "string" ||
+      value.progress.failureReason === null) &&
+    typeof value.progress.importedCount === "number" &&
+    typeof value.progress.message === "string" &&
+    typeof value.progress.percent === "number" &&
+    isUpdateSource(value.progress.source) &&
+    isProgressStage(value.progress.stage) &&
+    typeof value.progress.status === "string" &&
+    typeof value.progress.total === "number"
+  );
+}
+
+function isUpdateSource(value: unknown): value is Exclude<UpdateSource, "all"> {
+  return value === "basic" || value === "standard" || value === "legal";
+}
+
+function isProgressStage(value: unknown): value is ProgressStage {
+  return (
+    value === "preparing" ||
+    value === "downloading" ||
+    value === "scanning" ||
+    value === "saving" ||
+    value === "finalizing" ||
+    value === "done"
+  );
+}
+
+function progressStageIndex(stage: ProgressStage) {
+  if (stage === "downloading") {
+    return 1;
+  }
+  if (stage === "scanning") {
+    return 2;
+  }
+  if (stage === "saving") {
+    return 3;
+  }
+  if (stage === "finalizing" || stage === "done") {
+    return 4;
+  }
+  return 0;
+}
+
+function formatProgressDetail(progress: DictionaryProgress) {
+  const source = runningSourceLabel(progress.source);
+  if (progress.stage === "downloading" || progress.stage === "saving") {
+    return `${source} · ${progress.current.toLocaleString("ko-KR")}/${progress.total.toLocaleString("ko-KR")}`;
+  }
+  return source;
+}
+
+function formatRunSummary(progress: DictionaryProgress) {
+  if (progress.importedCount === 0) {
+    return "가져오기는 끝났지만 새로 반영된 뜻풀이가 없어요. 최근 작업 기록에서 원본 데이터 상태를 확인해 주세요.";
+  }
+  return `${progress.importedCount.toLocaleString("ko-KR")}개의 뜻풀이를 반영했어요.`;
 }

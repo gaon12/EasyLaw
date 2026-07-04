@@ -132,6 +132,22 @@ export const corpusMigrations = [
         END;
     `,
   },
+  {
+    id: 4,
+    name: "dictionary_import_progress",
+    sql: `
+      ALTER TABLE corpus.dictionary_imports
+        ADD COLUMN progress_stage TEXT NOT NULL DEFAULT 'preparing';
+      ALTER TABLE corpus.dictionary_imports
+        ADD COLUMN progress_current INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE corpus.dictionary_imports
+        ADD COLUMN progress_total INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE corpus.dictionary_imports
+        ADD COLUMN progress_message TEXT NOT NULL DEFAULT '';
+      ALTER TABLE corpus.dictionary_imports
+        ADD COLUMN last_progress_at TEXT;
+    `,
+  },
 ] as const;
 
 export const migrations = [

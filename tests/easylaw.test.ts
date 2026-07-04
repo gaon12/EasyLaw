@@ -38,6 +38,7 @@ import {
   addLegalDictionaryTerm,
   buildTermExplanation,
   extractDictionaryTerms,
+  getDictionaryImportProgress,
   updateDictionarySource,
   updateOpenLawLegalDictionary,
 } from "../src/lib/dictionary";
@@ -3007,6 +3008,13 @@ test("downloadable dictionary import processes zip entries in batches", async ()
     const result = await updateDictionarySource(db, "basic");
     assert.equal(result.ok, true);
     assert.equal(result.ok ? result.importedCount : 0, 3);
+    const progress = getDictionaryImportProgress(db, "basic");
+    assert.equal(progress?.stage, "done");
+    assert.equal(progress?.status, "completed");
+    assert.equal(progress?.percent, 100);
+    assert.equal(progress?.importedCount, 3);
+    assert.equal(progress?.current, 3);
+    assert.equal(progress?.total, 3);
     assert.deepEqual(requests, [
       "GET https://krdict.korean.go.kr/dicBatchDownload?seq=208",
     ]);

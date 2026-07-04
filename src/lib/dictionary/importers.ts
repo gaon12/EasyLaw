@@ -7,6 +7,7 @@ import {
   completeDictionaryImport,
   failDictionaryImport,
   startDictionaryImport,
+  updateDictionaryImportProgress,
   upsertDictionaryTerms,
 } from "./repository";
 import type { DictionarySource, DictionaryTerm } from "./types";
@@ -29,7 +30,14 @@ export async function updateDictionarySource(
     status: "success",
   });
   try {
-    const importedCount = await importDictionaryZip(db, source);
+    const importedCount = await importDictionaryZip(db, source, importId);
+    updateDictionaryImportProgress(db, importId, {
+      current: importedCount,
+      importedCount,
+      message: "사전 업데이트 결과를 정리하고 있어요.",
+      stage: "finalizing",
+      total: Math.max(1, importedCount),
+    });
     completeDictionaryImport(db, { importId, importedCount });
     logIntegrationEvent(db, {
       action: `${source}.import`,
@@ -59,10 +67,12 @@ export async function updateDictionarySource(
 async function importDictionaryZip(
   db: SqliteDatabase,
   source: Exclude<DictionarySource, "legal">,
+  importId: string,
 ) {
   let importedCount = 0;
   const pendingTerms: DictionaryTerm[] = [];
   const dedupe = createImportDedupe(db);
+  const progressReporter = createDictionaryProgressReporter(db, importId);
 
   const flush = () => {
     if (pendingTerms.length === 0) {
@@ -72,26 +82,81 @@ async function importDictionaryZip(
       source,
       terms: pendingTerms.splice(0, pendingTerms.length),
     });
+    progressReporter.reportImportedCount(importedCount);
   };
 
   try {
-    await processJsonZipEntries(requestForSource(source), (entry) => {
-      for (const term of extractDictionaryTerms(entry)) {
-        if (!dedupe.remember(source, term)) {
-          continue;
+    await processJsonZipEntries(
+      requestForSource(source),
+      (entry) => {
+        for (const term of extractDictionaryTerms(entry)) {
+          if (!dedupe.remember(source, term)) {
+            continue;
+          }
+          pendingTerms.push(term);
+          if (pendingTerms.length >= importBatchSize) {
+            flush();
+          }
         }
-        pendingTerms.push(term);
-        if (pendingTerms.length >= importBatchSize) {
-          flush();
-        }
-      }
-    });
+      },
+      (progress) => {
+        progressReporter.report({
+          ...progress,
+          importedCount,
+        });
+      },
+    );
     flush();
   } finally {
     dedupe.dispose();
   }
 
   return importedCount;
+}
+
+function createDictionaryProgressReporter(
+  db: SqliteDatabase,
+  importId: string,
+) {
+  let lastStage: string | null = null;
+  let lastPercent = -1;
+  let lastImportedCount = 0;
+
+  return {
+    report(input: {
+      current: number;
+      importedCount: number;
+      message: string;
+      stage: "downloading" | "saving" | "scanning";
+      total: number;
+    }) {
+      const percent = progressEventPercent(input);
+      if (
+        input.stage === lastStage &&
+        percent === lastPercent &&
+        input.importedCount === lastImportedCount
+      ) {
+        return;
+      }
+      lastStage = input.stage;
+      lastPercent = percent;
+      lastImportedCount = input.importedCount;
+      updateDictionaryImportProgress(db, importId, {
+        current: input.current,
+        importedCount: input.importedCount,
+        message: input.message,
+        stage: input.stage,
+        total: input.total,
+      });
+    },
+    reportImportedCount(importedCount: number) {
+      lastImportedCount = importedCount;
+    },
+  };
+}
+
+function progressEventPercent(input: { current: number; total: number }) {
+  return Math.round((input.current / Math.max(1, input.total)) * 100);
 }
 
 function createImportDedupe(db: SqliteDatabase) {

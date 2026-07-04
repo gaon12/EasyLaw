@@ -5,6 +5,7 @@ import {
   completeDictionaryImport,
   failDictionaryImport,
   startDictionaryImport,
+  updateDictionaryImportProgress,
   upsertDictionaryTerms,
 } from "./repository";
 import type { DictionaryTerm } from "./types";
@@ -67,10 +68,25 @@ export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
   });
 
   try {
-    const terms = await fetchOpenLawLegalTerms(oc);
+    const terms = await fetchOpenLawLegalTerms(oc, (progress) => {
+      updateDictionaryImportProgress(db, importId, progress);
+    });
+    updateDictionaryImportProgress(db, importId, {
+      current: 0,
+      message: "법령용어를 로컬 사전에 저장하고 있어요.",
+      stage: "saving",
+      total: 1,
+    });
     const importedCount = upsertDictionaryTerms(db, {
       source: "legal",
       terms,
+    });
+    updateDictionaryImportProgress(db, importId, {
+      current: importedCount,
+      importedCount,
+      message: "법령용어 업데이트 결과를 정리하고 있어요.",
+      stage: "finalizing",
+      total: Math.max(1, importedCount),
     });
     completeDictionaryImport(db, { importId, importedCount });
     logIntegrationEvent(db, {
@@ -104,17 +120,37 @@ export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
   }
 }
 
-async function fetchOpenLawLegalTerms(oc: string) {
+async function fetchOpenLawLegalTerms(
+  oc: string,
+  onProgress: (progress: {
+    current: number;
+    message: string;
+    stage: "downloading" | "saving" | "scanning";
+    total: number;
+  }) => void,
+) {
   const terms: DictionaryTerm[] = [];
   let page = 1;
   let totalCount: number | null = null;
 
   while (page <= MAX_LEGAL_TERM_PAGES) {
+    onProgress({
+      current: page - 1,
+      message: `${page.toLocaleString("ko-KR")}쪽 법령용어를 가져오고 있어요.`,
+      stage: "downloading",
+      total: totalCount ? pageTotal(totalCount) : page,
+    });
     const payload = await fetchOpenLawLegalTermPage(oc, page);
     const root = findLegalTermRoot(payload);
     const pageTerms = legalTermItems(root).flatMap(parseLegalTermItem);
     terms.push(...pageTerms);
     totalCount ??= parseTotalCount(root);
+    onProgress({
+      current: page,
+      message: `${terms.length.toLocaleString("ko-KR")}개 법령용어를 확인했어요.`,
+      stage: "downloading",
+      total: totalCount ? pageTotal(totalCount) : page,
+    });
 
     if (pageTerms.length === 0) {
       break;
@@ -126,6 +162,10 @@ async function fetchOpenLawLegalTerms(oc: string) {
   }
 
   return terms;
+}
+
+function pageTotal(totalCount: number) {
+  return Math.max(1, Math.ceil(totalCount / LEGAL_TERM_PAGE_SIZE));
 }
 
 async function fetchOpenLawLegalTermPage(oc: string, page: number) {

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { getDatabase } from "@/lib/db";
 import {
+  getDictionaryImportProgress,
   isDictionarySource,
   updateDictionarySource,
   updateDownloadableDictionaries,
@@ -15,6 +16,28 @@ export const dynamic = "force-dynamic";
 const requestSchema = z.object({
   source: z.string().optional(),
 });
+
+export async function GET(request: Request) {
+  const db = getDatabase();
+  const user = getSessionUser(db, (await cookies()).get(SESSION_COOKIE)?.value);
+  if (user?.role !== "super_admin") {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const source = searchParams.get("source") ?? "all";
+  if (source !== "all" && !isDictionarySource(source)) {
+    return Response.json({ error: "invalid_source" }, { status: 400 });
+  }
+
+  return Response.json({
+    ok: true,
+    progress: getDictionaryImportProgress(
+      db,
+      source === "all" ? undefined : source,
+    ),
+  });
+}
 
 export async function POST(request: Request) {
   const db = getDatabase();

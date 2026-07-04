@@ -5,9 +5,14 @@ export {
   updateDownloadableDictionaries,
 } from "./importers";
 export { addLegalDictionaryTerm, updateOpenLawLegalDictionary } from "./legal";
-export type { LegalDictionaryTermRow } from "./repository";
+export type {
+  DictionaryImportProgress,
+  DictionaryImportProgressStage,
+  LegalDictionaryTermRow,
+} from "./repository";
 export {
   findDictionaryTerms,
+  getDictionaryImportProgress,
   latestDictionaryImport,
   listLegalDictionaryTerms,
 } from "./repository";
