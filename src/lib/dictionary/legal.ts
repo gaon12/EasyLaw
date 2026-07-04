@@ -33,13 +33,21 @@ export function addLegalDictionaryTerm(
   });
 }
 
-const OPEN_LAW_LEGAL_TERM_API_URL = "https://www.law.go.kr/DRF/lawSearch.do";
+const OPEN_LAW_LEGAL_TERM_SEARCH_API_URL =
+  "https://www.law.go.kr/DRF/lawSearch.do";
+const OPEN_LAW_LEGAL_TERM_SERVICE_API_URL =
+  "https://www.law.go.kr/DRF/lawService.do";
 const LEGAL_TERM_PAGE_SIZE = 100;
 const MAX_LEGAL_TERM_PAGES = 1000;
 
+type LegalTermReference = {
+  id: string | null;
+  word: string;
+};
+
 export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
   const oc = getOpenLawOc(db);
-  const sourceUrl = `${OPEN_LAW_LEGAL_TERM_API_URL}?target=lstrmAI`;
+  const sourceUrl = `${OPEN_LAW_LEGAL_TERM_SEARCH_API_URL}?target=lstrm`;
   const importId = startDictionaryImport(db, {
     source: "legal",
     sourceUrl,
@@ -68,18 +76,8 @@ export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
   });
 
   try {
-    const terms = await fetchOpenLawLegalTerms(oc, (progress) => {
+    const importedCount = await importOpenLawLegalTerms(db, oc, (progress) => {
       updateDictionaryImportProgress(db, importId, progress);
-    });
-    updateDictionaryImportProgress(db, importId, {
-      current: 0,
-      message: "법령용어를 로컬 사전에 저장하고 있어요.",
-      stage: "saving",
-      total: 1,
-    });
-    const importedCount = upsertDictionaryTerms(db, {
-      source: "legal",
-      terms,
     });
     updateDictionaryImportProgress(db, importId, {
       current: importedCount,
@@ -120,39 +118,63 @@ export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
   }
 }
 
-async function fetchOpenLawLegalTerms(
+async function importOpenLawLegalTerms(
+  db: SqliteDatabase,
   oc: string,
   onProgress: (progress: {
     current: number;
+    importedCount?: number;
     message: string;
     stage: "downloading" | "saving" | "scanning";
     total: number;
   }) => void,
 ) {
-  const terms: DictionaryTerm[] = [];
+  let importedCount = 0;
   let page = 1;
   let totalCount: number | null = null;
 
   while (page <= MAX_LEGAL_TERM_PAGES) {
+    const totalPages = totalCount ? pageTotal(totalCount) : page;
     onProgress({
       current: page - 1,
       message: `${page.toLocaleString("ko-KR")}쪽 법령용어를 가져오고 있어요.`,
       stage: "downloading",
-      total: totalCount ? pageTotal(totalCount) : page,
+      total: totalPages,
     });
     const payload = await fetchOpenLawLegalTermPage(oc, page);
     const root = findLegalTermRoot(payload);
-    const pageTerms = legalTermItems(root).flatMap(parseLegalTermItem);
-    terms.push(...pageTerms);
+    const pageReferences = legalTermItems(root).flatMap(
+      parseLegalTermReference,
+    );
     totalCount ??= parseTotalCount(root);
+    const nextTotalPages = totalCount ? pageTotal(totalCount) : page;
+    const pageTerms =
+      pageReferences.length > 0
+        ? parseLegalTermDetailPayload(
+            await fetchOpenLawLegalTermDetails(oc, pageReferences),
+            pageReferences,
+          )
+        : [];
+    onProgress({
+      current: page - 1,
+      importedCount,
+      message: `${page.toLocaleString("ko-KR")}쪽 법령용어 정의를 저장하고 있어요.`,
+      stage: "saving",
+      total: nextTotalPages,
+    });
+    importedCount += upsertDictionaryTerms(db, {
+      source: "legal",
+      terms: pageTerms,
+    });
     onProgress({
       current: page,
-      message: `${terms.length.toLocaleString("ko-KR")}개 법령용어를 확인했어요.`,
-      stage: "downloading",
-      total: totalCount ? pageTotal(totalCount) : page,
+      importedCount,
+      message: `${importedCount.toLocaleString("ko-KR")}개 법령용어 정의를 저장했어요.`,
+      stage: "saving",
+      total: nextTotalPages,
     });
 
-    if (pageTerms.length === 0) {
+    if (pageReferences.length === 0) {
       break;
     }
     if (totalCount && page * LEGAL_TERM_PAGE_SIZE >= totalCount) {
@@ -161,7 +183,7 @@ async function fetchOpenLawLegalTerms(
     page += 1;
   }
 
-  return terms;
+  return importedCount;
 }
 
 function pageTotal(totalCount: number) {
@@ -169,9 +191,9 @@ function pageTotal(totalCount: number) {
 }
 
 async function fetchOpenLawLegalTermPage(oc: string, page: number) {
-  const url = new URL(OPEN_LAW_LEGAL_TERM_API_URL);
+  const url = new URL(OPEN_LAW_LEGAL_TERM_SEARCH_API_URL);
   url.searchParams.set("OC", oc);
-  url.searchParams.set("target", "lstrmAI");
+  url.searchParams.set("target", "lstrm");
   url.searchParams.set("type", "JSON");
   url.searchParams.set("display", String(LEGAL_TERM_PAGE_SIZE));
   url.searchParams.set("page", String(page));
@@ -191,18 +213,54 @@ async function fetchOpenLawLegalTermPage(oc: string, page: number) {
   return payload;
 }
 
+async function fetchOpenLawLegalTermDetails(
+  oc: string,
+  references: readonly LegalTermReference[],
+) {
+  const ids = references
+    .map((reference) => reference.id)
+    .filter((id): id is string => Boolean(id));
+  const url = new URL(OPEN_LAW_LEGAL_TERM_SERVICE_API_URL);
+  url.searchParams.set("OC", oc);
+  url.searchParams.set("target", "lstrm");
+  url.searchParams.set("type", "JSON");
+  if (ids.length > 0) {
+    url.searchParams.set("trmSeqs", ids.join(","));
+  } else {
+    url.searchParams.set("query", references[0]?.word ?? "");
+  }
+
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `법령용어 본문 API가 ${response.status} 상태를 반환했습니다.`,
+    );
+  }
+
+  const payload = (await response.json()) as unknown;
+  if (isRecord(payload) && typeof payload.result === "string") {
+    throw new Error(payload.msg?.toString() || payload.result);
+  }
+  return payload;
+}
+
 function findLegalTermRoot(payload: unknown) {
   return (
     objectValue(payload, "LstrmAISearch") ??
     objectValue(payload, "lstrmAISearch") ??
     objectValue(payload, "LsTrmSearch") ??
     objectValue(payload, "LstrmSearch") ??
+    objectValue(payload, "lstrmSearch") ??
     payload
   );
 }
 
 function legalTermItems(root: unknown) {
   return [
+    ...(arrayValue(root, "법령용어") ?? []),
     ...(arrayValue(root, "lstrmAI") ?? []),
     ...(arrayValue(root, "LstrmAI") ?? []),
     ...(arrayValue(root, "lstrm") ?? []),
@@ -211,42 +269,106 @@ function legalTermItems(root: unknown) {
   ];
 }
 
-function parseLegalTermItem(item: unknown): DictionaryTerm[] {
+function parseLegalTermReference(item: unknown): LegalTermReference[] {
   if (!isRecord(item)) {
     return [];
   }
 
   const word =
     textValue(item, "법령용어명") ??
+    textValue(item, "법령용어명_한글") ??
     textValue(item, "용어명") ??
     textValue(item, "term") ??
     textValue(item, "word");
-  const definition =
-    textValue(item, "정의") ??
-    textValue(item, "정의문") ??
-    textValue(item, "뜻풀이") ??
-    textValue(item, "설명") ??
-    textValue(item, "용어설명") ??
-    textValue(item, "법령용어설명") ??
-    textValue(item, "비고");
 
-  if (!word || !definition) {
+  if (!word) {
     return [];
   }
 
   return [
     {
-      definition,
-      origin:
-        textValue(item, "출처법령") ?? textValue(item, "관련법령") ?? null,
-      partOfSpeech: textValue(item, "품사") ?? null,
-      senseNo:
+      id:
         textValue(item, "법령용어ID") ??
+        textValue(item, "법령용어일련번호") ??
         textValue(item, "id") ??
-        normalizeSenseNo(word),
+        null,
       word,
     },
   ];
+}
+
+function parseLegalTermDetailPayload(
+  payload: unknown,
+  references: readonly LegalTermReference[],
+): DictionaryTerm[] {
+  const root =
+    objectValue(payload, "LsTrmService") ??
+    objectValue(payload, "lsTrmService") ??
+    payload;
+  if (!isRecord(root)) {
+    return [];
+  }
+
+  const rows = legalTermDetailRowCount(root);
+  const terms: DictionaryTerm[] = [];
+  const referencesById = new Map(
+    references
+      .filter((reference) => reference.id)
+      .map((reference) => [reference.id, reference]),
+  );
+
+  for (let index = 0; index < rows; index += 1) {
+    const senseNo =
+      indexedTextValue(root, "법령용어일련번호", index) ??
+      indexedTextValue(root, "법령용어ID", index);
+    const fallbackReference =
+      (senseNo ? referencesById.get(senseNo) : undefined) ?? references[index];
+    const word =
+      indexedTextValue(root, "법령용어명_한글", index) ??
+      indexedTextValue(root, "법령용어명", index) ??
+      fallbackReference?.word;
+    const definition = decodeHtmlEntities(
+      indexedTextValue(root, "법령용어정의", index) ??
+        indexedTextValue(root, "정의", index) ??
+        "",
+    );
+
+    if (!word || !definition) {
+      continue;
+    }
+
+    terms.push({
+      definition,
+      origin: indexedTextValue(root, "출처", index) ?? null,
+      partOfSpeech: indexedTextValue(root, "법령용어코드명", index) ?? null,
+      senseNo:
+        senseNo ??
+        indexedTextValue(root, "법령용어코드", index) ??
+        fallbackReference?.id ??
+        normalizeSenseNo(`${word}-${index + 1}`),
+      word,
+    });
+  }
+
+  return terms;
+}
+
+function legalTermDetailRowCount(root: Record<string, unknown>) {
+  const fields = [
+    "법령용어일련번호",
+    "법령용어명_한글",
+    "법령용어정의",
+    "법령용어코드명",
+    "출처",
+  ];
+  const arrayLengths = fields
+    .map((field) => root[field])
+    .filter(Array.isArray)
+    .map((value) => value.length);
+  if (arrayLengths.length > 0) {
+    return Math.max(...arrayLengths);
+  }
+  return fields.some((field) => root[field] !== undefined) ? 1 : 0;
 }
 
 function parseTotalCount(root: unknown) {
@@ -277,6 +399,16 @@ function normalizeWhitespace(value: string | undefined) {
   return value?.replaceAll(/\s+/g, " ").trim() ?? "";
 }
 
+function decodeHtmlEntities(value: string) {
+  return value
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'")
+    .replaceAll("&amp;", "&")
+    .trim();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -296,6 +428,22 @@ function textValue(source: unknown, key: string) {
     return undefined;
   }
   return normalizeWhitespace(scalarText(source[key])) || undefined;
+}
+
+function indexedTextValue(source: unknown, key: string, index: number) {
+  if (!isRecord(source)) {
+    return undefined;
+  }
+  const value = source[key];
+  let text: string | undefined;
+  if (Array.isArray(value)) {
+    text = scalarText(value[index]);
+  } else if (index === 0) {
+    text = scalarText(value);
+  } else {
+    return undefined;
+  }
+  return decodeHtmlEntities(normalizeWhitespace(text)) || undefined;
 }
 
 function objectValue(source: unknown, key: string) {

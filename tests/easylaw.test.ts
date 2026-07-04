@@ -3043,27 +3043,45 @@ test("open law legal terms import into the priority dictionary", async () => {
   const originalFetch = globalThis.fetch;
   try {
     setSetting(db, "open_law_oc", "test-oc");
-    const requestedPages: string[] = [];
+    const requests: string[] = [];
     globalThis.fetch = async (input) => {
       const url = new URL(String(input));
-      requestedPages.push(
-        `${url.searchParams.get("target")}:${url.searchParams.get("page")}`,
+      const target = url.searchParams.get("target");
+      if (url.pathname.endsWith("/lawSearch.do")) {
+        requests.push(`search:${target}:${url.searchParams.get("page")}`);
+        return new Response(
+          JSON.stringify({
+            LsTrmSearch: {
+              lstrm:
+                url.searchParams.get("page") === "1"
+                  ? [
+                      {
+                        법령용어ID: "3945293",
+                        법령용어명: "기판력",
+                        사전구분코드: "011402",
+                      },
+                    ]
+                  : [],
+              totalCnt: "1",
+            },
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+      requests.push(
+        `service:${target}:${url.searchParams.get("trmSeqs") ?? ""}`,
       );
       return new Response(
         JSON.stringify({
-          LstrmAISearch: {
-            lstrmAI:
-              url.searchParams.get("page") === "1"
-                ? [
-                    {
-                      법령용어ID: "term-1",
-                      법령용어명: "기판력",
-                      정의: "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
-                      출처법령: "민사소송법",
-                    },
-                  ]
-                : [],
-            totalCnt: "1",
+          LsTrmService: {
+            법령용어일련번호: ["3945293"],
+            법령용어명_한글: ["기판력"],
+            법령용어코드명: ["법률"],
+            법령용어정의: ["확정된 판결의 판단을 다시 다투기 어렵게 하는 효력"],
+            출처: ["민사소송법"],
           },
         }),
         {
@@ -3077,7 +3095,7 @@ test("open law legal terms import into the priority dictionary", async () => {
     assert.equal(result.ok, true);
     assert.ok(result.ok);
     assert.equal(result.importedCount, 1);
-    assert.deepEqual(requestedPages, ["lstrmAI:1"]);
+    assert.deepEqual(requests, ["search:lstrm:1", "service:lstrm:3945293"]);
 
     const explanation = buildTermExplanation(db, { term: "기판력" });
     assert.equal(explanation.priority, "자체 법률 용어 사전");
