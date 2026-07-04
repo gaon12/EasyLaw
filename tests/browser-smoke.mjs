@@ -816,8 +816,21 @@ try {
     throw new Error("Landing page still exposes implementation terminology.");
   }
 
-  await anonymousPage.goto(`${baseUrl}/research`, { waitUntil: "networkidle" });
-  await anonymousPage.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
+  const researchResponse = await anonymousPage.goto(`${baseUrl}/research`, {
+    waitUntil: "networkidle",
+  });
+  try {
+    await anonymousPage.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
+  } catch (error) {
+    console.error(
+      `research page status: ${researchResponse?.status() ?? "unknown"}`,
+    );
+    console.error("research page snapshot (first 4000 chars):");
+    console.error((await anonymousPage.content()).slice(0, 4000));
+    console.error("server output tail:");
+    console.error(output.slice(-4000));
+    throw error;
+  }
 
   await anonymousPage.goto(`${baseUrl}/guide`, { waitUntil: "networkidle" });
   await anonymousPage
