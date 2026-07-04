@@ -25,6 +25,18 @@ type ResearchRequest = {
   query: string;
 };
 
+type ResearchInputMode = "simple" | "structured";
+
+type StructuredQuestion = {
+  additional: string;
+  how: string;
+  what: string;
+  when: string;
+  where: string;
+  who: string;
+  why: string;
+};
+
 type AgentActivity = {
   detail: string;
   id: number;
@@ -32,6 +44,29 @@ type AgentActivity = {
   title: string;
   type: "progress" | "skill" | "tool";
 };
+
+const emptyStructuredQuestion: StructuredQuestion = {
+  additional: "",
+  how: "",
+  what: "",
+  when: "",
+  where: "",
+  who: "",
+  why: "",
+};
+
+const structuredQuestionFields: Array<{
+  field: keyof StructuredQuestion;
+  label: string;
+}> = [
+  { field: "who", label: "누가" },
+  { field: "when", label: "언제" },
+  { field: "where", label: "어디서" },
+  { field: "what", label: "무엇을" },
+  { field: "how", label: "어떻게" },
+  { field: "why", label: "왜" },
+  { field: "additional", label: "추가 설명" },
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -87,6 +122,24 @@ function exportFilename(query: string, extension: "md") {
 
 function documentTitle(query: string) {
   return query.trim() || "EasyLaw AI 답변";
+}
+
+function structuredQuestionText(question: StructuredQuestion) {
+  return structuredQuestionFields
+    .flatMap(({ field, label }) => {
+      const value = question[field].trim();
+      return value ? [`${label}: ${value}`] : [];
+    })
+    .join("\n");
+}
+
+function currentAgentActivity(activities: AgentActivity[]) {
+  for (let index = activities.length - 1; index >= 0; index -= 1) {
+    if (activities[index]?.status === "running") {
+      return activities[index];
+    }
+  }
+  return activities.at(-1) ?? null;
 }
 
 function citedEvidence(answer: string, evidence: CitationEvidence[]) {
@@ -254,6 +307,9 @@ export function LegalResearchPanel({
   initialQuery?: string;
 }) {
   const [query, setQuery] = useState(initialQuery);
+  const [inputMode, setInputMode] = useState<ResearchInputMode>("simple");
+  const [structuredQuestion, setStructuredQuestion] =
+    useState<StructuredQuestion>(emptyStructuredQuestion);
   const [answerDetail, setAnswerDetail] = useState<AnswerDetailLevel>("simple");
   const [easyExplanation, setEasyExplanation] = useState(false);
   const [activeRequest, setActiveRequest] = useState<ResearchRequest | null>(
@@ -289,6 +345,11 @@ export function LegalResearchPanel({
     () => citedEvidence(answer, evidence),
     [answer, evidence],
   );
+  const submittedQuery =
+    inputMode === "simple"
+      ? query.trim()
+      : structuredQuestionText(structuredQuestion);
+  const activeActivity = currentAgentActivity(activities);
 
   const appendActivity = useCallback((activity: Omit<AgentActivity, "id">) => {
     setActivities((current) => {
@@ -495,7 +556,7 @@ export function LegalResearchPanel({
 
   const handleCaptchaVerified = useCallback(
     (payload: string) => {
-      const nextQuery = activeRequest?.query ?? query.trim();
+      const nextQuery = activeRequest?.query ?? submittedQuery;
       if (!nextQuery) {
         return;
       }
@@ -507,7 +568,7 @@ export function LegalResearchPanel({
         query: nextQuery,
       });
     },
-    [activeRequest, answerDetail, easyExplanation, query],
+    [activeRequest, answerDetail, easyExplanation, submittedQuery],
   );
 
   const exportResearch = useCallback(
@@ -553,13 +614,13 @@ export function LegalResearchPanel({
             if (submitGuardRef.current || status === "loading") {
               return;
             }
-            if (query.trim()) {
+            if (submittedQuery) {
               submitGuardRef.current = true;
               setActiveRequest({
                 answerDetail,
                 easyExplanation,
                 nonce: Date.now(),
-                query: query.trim(),
+                query: submittedQuery,
               });
               queueMicrotask(() => {
                 submitGuardRef.current = false;
@@ -567,17 +628,105 @@ export function LegalResearchPanel({
             }
           }}
         >
-          <textarea
-            aria-label="AI 법률 질문"
-            id="research-query"
-            maxLength={LEGAL_RESEARCH_QUERY_MAX_LENGTH}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="예: 중고거래 사기를 당했는데 신고와 배상 절차가 궁금합니다."
-            value={query}
-          />
+          <fieldset className={styles.researchInputMode}>
+            <legend>질문 입력 방식</legend>
+            <div className={styles.researchSegmentedControl}>
+              <label>
+                <input
+                  checked={inputMode === "simple"}
+                  disabled={status === "loading"}
+                  name="input-mode"
+                  onChange={() => setInputMode("simple")}
+                  type="radio"
+                />
+                <span>
+                  <strong>간단 질문</strong>
+                  <small>한 칸에 자유롭게 입력</small>
+                </span>
+              </label>
+              <label>
+                <input
+                  checked={inputMode === "structured"}
+                  disabled={status === "loading"}
+                  name="input-mode"
+                  onChange={() => setInputMode("structured")}
+                  type="radio"
+                />
+                <span>
+                  <strong>상세 입력</strong>
+                  <small>육하원칙으로 나눠 입력</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+          {inputMode === "simple" ? (
+            <textarea
+              aria-label="AI 법률 질문"
+              className={styles.researchQuestionTextarea}
+              id="research-query"
+              maxLength={LEGAL_RESEARCH_QUERY_MAX_LENGTH}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="예: 중고거래 사기를 당했는데 신고와 배상 절차가 궁금합니다."
+              value={query}
+            />
+          ) : (
+            <div className={styles.researchStructuredInput}>
+              {structuredQuestionFields.map(({ field, label }) => (
+                <label
+                  className={
+                    field === "additional"
+                      ? styles.researchStructuredAdditional
+                      : undefined
+                  }
+                  htmlFor={`structured-question-${field}`}
+                  key={field}
+                >
+                  <span>{label}</span>
+                  {field === "who" || field === "when" || field === "where" ? (
+                    <input
+                      aria-label={`상세 질문 ${label}`}
+                      disabled={status === "loading"}
+                      id={`structured-question-${field}`}
+                      maxLength={field === "where" ? 100 : 80}
+                      onChange={(event) =>
+                        setStructuredQuestion((current) => ({
+                          ...current,
+                          [field]: event.target.value,
+                        }))
+                      }
+                      placeholder={structuredPlaceholder(field)}
+                      value={structuredQuestion[field]}
+                    />
+                  ) : (
+                    <textarea
+                      aria-label={`상세 질문 ${label}`}
+                      disabled={status === "loading"}
+                      id={`structured-question-${field}`}
+                      maxLength={field === "additional" ? 220 : 250}
+                      onChange={(event) =>
+                        setStructuredQuestion((current) => ({
+                          ...current,
+                          [field]: event.target.value,
+                        }))
+                      }
+                      placeholder={structuredPlaceholder(field)}
+                      value={structuredQuestion[field]}
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+          {submittedQuery.length > LEGAL_RESEARCH_QUERY_MAX_LENGTH && (
+            <p className={styles.researchInputWarning}>
+              상세 입력 전체는{" "}
+              {LEGAL_RESEARCH_QUERY_MAX_LENGTH.toLocaleString("ko-KR")}자
+              이내여야 합니다.
+            </p>
+          )}
           <div className={styles.researchOptions}>
             <fieldset>
-              <legend>답변 형식</legend>
+              <legend>받을 답변 형식</legend>
               <div className={styles.researchSegmentedControl}>
                 <label>
                   <input
@@ -622,7 +771,11 @@ export function LegalResearchPanel({
           </div>
           <button
             className={styles.primaryButton}
-            disabled={status === "loading" || query.trim().length < 2}
+            disabled={
+              status === "loading" ||
+              submittedQuery.length < 2 ||
+              submittedQuery.length > LEGAL_RESEARCH_QUERY_MAX_LENGTH
+            }
             type="submit"
           >
             {status === "loading" ? "근거 찾는 중" : "질문하기"}
@@ -638,7 +791,7 @@ export function LegalResearchPanel({
           </div>
         )}
 
-        {status === "loading" && (
+        {status === "loading" && activities.length === 0 && (
           <div className={styles.aiSearchActivity}>
             <span aria-hidden="true" className={styles.aiSearchSpinner} />
             <div>
@@ -652,41 +805,56 @@ export function LegalResearchPanel({
           </div>
         )}
 
-        {activities.length > 0 && (
-          <details
-            className={styles.aiAgentTimeline}
-            open={status === "loading"}
-          >
+        {activities.length > 0 && activeActivity && (
+          <details className={styles.aiAgentTimeline}>
             <summary>
-              <span className={styles.aiAgentTimelineTitle}>
-                <strong>답변 준비 과정</strong>
-                <small>
-                  {status === "loading"
-                    ? "근거를 찾고 답변을 구성하고 있어요."
-                    : `${activities.length}단계 작업을 마쳤어요.`}
-                </small>
+              <span
+                aria-hidden="true"
+                className={`${styles.aiAgentCurrentDot} ${
+                  status === "loading" ? styles.aiAgentCurrentDotRunning : ""
+                }`}
+              >
+                {activityStatusSymbol(activeActivity.status)}
+              </span>
+              <span
+                className={styles.aiAgentCurrentCopy}
+                key={`${activeActivity.id}-${activeActivity.status}-${activeActivity.detail}`}
+              >
+                <small>답변 준비 과정</small>
+                <strong>{activeActivity.title}</strong>
+                <span>{activeActivity.detail}</span>
               </span>
               <span className={styles.aiAgentTimelineState}>
-                {status === "loading" ? "진행 중" : "상세 보기"}
+                {status === "loading" ? "진행 중" : `${activities.length}단계`}
+              </span>
+              <span aria-hidden="true" className={styles.aiAgentChevron}>
+                ⌄
               </span>
             </summary>
-            <ol>
-              {activities.map((activity) => (
-                <li
-                  className={activityClassName(activity.status)}
-                  key={activity.id}
-                >
-                  <span aria-hidden="true">
-                    {activityStatusSymbol(activity.status)}
-                  </span>
-                  <div>
-                    <small>{activityTypeLabel(activity.type)}</small>
-                    <strong>{activity.title}</strong>
-                    <p>{activity.detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <div className={styles.aiAgentTimelineDetails}>
+              <span>
+                {status === "loading"
+                  ? "완료된 단계와 현재 작업"
+                  : "답변을 만들 때 수행한 작업"}
+              </span>
+              <ol>
+                {activities.map((activity) => (
+                  <li
+                    className={activityClassName(activity.status)}
+                    key={activity.id}
+                  >
+                    <span aria-hidden="true">
+                      {activityStatusSymbol(activity.status)}
+                    </span>
+                    <div>
+                      <small>{activityTypeLabel(activity.type)}</small>
+                      <strong>{activity.title}</strong>
+                      <p>{activity.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </details>
         )}
 
@@ -830,6 +998,19 @@ function phaseLabel(phase: string) {
     verifying: "답변을 한 번 더 확인하는 중이에요.",
   };
   return labels[phase] ?? "법률 질문을 처리하는 중이에요.";
+}
+
+function structuredPlaceholder(field: keyof StructuredQuestion) {
+  const placeholders: Record<keyof StructuredQuestion, string> = {
+    additional: "피해, 증거, 원하는 해결 방법 등 더 설명할 내용을 적어 주세요.",
+    how: "어떤 방식으로 일이 진행됐나요?",
+    what: "무슨 일이 있었나요?",
+    when: "예: 2026년 7월 3일 저녁",
+    where: "예: 온라인 중고거래 앱",
+    who: "예: 구매자인 나와 판매자",
+    why: "알고 있는 이유나 상대방의 설명이 있나요?",
+  };
+  return placeholders[field];
 }
 
 function toolStatusLabel(stage: string) {

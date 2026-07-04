@@ -146,8 +146,17 @@ export async function buildResearchPlan(
     query: normalizedQuery,
     steps: stepsForResearchMode(route.mode),
   };
-  emitSkill(onEvent, "summarize_question", "completed", plan.intent);
-  onEvent?.({ plan, type: "plan" });
+  emitSkill(
+    onEvent,
+    "summarize_question",
+    "completed",
+    route.mode === "deep"
+      ? "AI가 질문에서 실제 법적 쟁점을 정리합니다."
+      : plan.intent,
+  );
+  if (route.mode !== "deep") {
+    onEvent?.({ plan, type: "plan" });
+  }
 
   if (route.mode === "quick") {
     onEvent?.({ phase: "composing", type: "phase" });

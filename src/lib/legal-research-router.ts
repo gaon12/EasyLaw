@@ -127,11 +127,7 @@ export function routeResearchQuery(query: string): ResearchRoute {
     return {
       coverageLevel: 4,
       hypothetical,
-      intent: intentLabel(
-        normalized,
-        [...legalIssues, ...deepMatches],
-        "고위험 법률 상황 검토",
-      ),
+      intent: normalized.slice(0, 200),
       legalIssues: dedupe([...legalIssues, ...deepMatches]).slice(0, 6),
       mode: "deep",
     };

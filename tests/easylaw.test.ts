@@ -2299,15 +2299,34 @@ test("hypothetical legal scenarios keep their premise and require MCP-grounded a
       ],
     });
     globalThis.fetch = mock.fetch;
+    const events: ResearchHarnessEvent[] = [];
 
     const result = await buildResearchPlan(
       db,
       "엘프가 마력을 다 소진한 채 응급실에 실려왔는데 의사가 엘프를 보자마자 치료를 포기했습니다. 의사는 처벌을 받나요?",
+      (event) => events.push(event),
     );
 
     assert.equal(result.hypothetical, true);
     assert.deepEqual(result.assumptions, assumptions);
     assert.deepEqual(result.legalIssues, legalIssues);
+    const planEvents = events.filter((event) => event.type === "plan");
+    assert.ok(planEvents.length > 0);
+    assert.ok(
+      planEvents.every(
+        (event) =>
+          event.type === "plan" &&
+          event.plan.intent ===
+            "가상 응급환자에 대한 치료 포기의 법적 책임 확인",
+      ),
+    );
+    assert.ok(
+      events.every(
+        (event) =>
+          event.type !== "plan" ||
+          !event.plan.intent.includes("고위험 법률 상황 검토"),
+      ),
+    );
     assert.equal(mock.state.toolCalls, 4);
     assert.equal(
       new Set(mock.state.toolArguments.map((value) => JSON.stringify(value)))

@@ -1052,7 +1052,7 @@
 }
 
 .researchShell {
-  width: min(920px, 100%);
+  width: min(1120px, 100%);
   display: grid;
   gap: 18px;
   margin: 0 auto;
@@ -1097,10 +1097,10 @@
   box-shadow: var(--focus-ring);
 }
 
-.researchSearchForm textarea {
+.researchQuestionTextarea {
   grid-column: 1 / -1;
-  min-height: 58px;
-  max-height: 160px;
+  min-height: 128px;
+  max-height: 280px;
   min-width: 0;
   resize: vertical;
   border: 0;
@@ -1112,7 +1112,7 @@
   line-height: 1.55;
 }
 
-.researchSearchForm textarea::placeholder {
+.researchQuestionTextarea::placeholder {
   color: var(--fg-tertiary);
 }
 
@@ -1131,17 +1131,101 @@
   padding: 0 12px 2px;
 }
 
+.researchInputMode {
+  grid-column: 1 / -1;
+  width: fit-content;
+  margin: 0 12px;
+  border: 0;
+  padding: 0;
+}
+
+.researchInputMode legend,
+.researchOptions fieldset {
+  margin: 0;
+}
+
+.researchInputMode legend,
+.researchOptions legend {
+  margin-bottom: 6px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .researchOptions fieldset {
   margin: 0;
   border: 0;
   padding: 0;
 }
 
-.researchOptions legend {
-  margin-bottom: 6px;
-  color: var(--fg-tertiary);
-  font-size: 11px;
+.researchStructuredInput {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 2px 12px 6px;
+}
+
+.researchStructuredInput label {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.researchStructuredInput label > span {
+  color: var(--fg-secondary);
+  font-size: 12px;
   font-weight: 800;
+}
+
+.researchStructuredInput input,
+.researchStructuredInput textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-12);
+  padding: 10px 12px;
+  outline: 0;
+  background: var(--bg-subtle);
+  color: var(--fg-strong);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.researchStructuredInput input {
+  min-height: 44px;
+}
+
+.researchStructuredInput textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.researchStructuredInput input:focus,
+.researchStructuredInput textarea:focus {
+  border-color: var(--bg-brand);
+  background: var(--bg-surface);
+}
+
+.researchStructuredInput input::placeholder,
+.researchStructuredInput textarea::placeholder {
+  color: var(--fg-tertiary);
+}
+
+.researchStructuredAdditional {
+  grid-column: 1 / -1;
+}
+
+.researchInputWarning {
+  grid-column: 1 / -1;
+  margin: 0 12px;
+  color: var(--fg-danger);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .researchSegmentedControl {
@@ -1370,11 +1454,12 @@
 }
 
 .aiAgentTimeline summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto 18px;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
+  gap: 10px;
+  min-height: 64px;
+  padding: 9px 14px;
   cursor: pointer;
   list-style: none;
 }
@@ -1383,9 +1468,53 @@
   display: none;
 }
 
-.aiAgentTimelineTitle {
+.aiAgentCurrentDot {
+  width: 24px;
+  height: 24px;
   display: grid;
-  gap: 2px;
+  place-items: center;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--fg-success);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.aiAgentCurrentDotRunning {
+  border-color: color-mix(in oklch, var(--fg-brand) 35%, transparent);
+  background: var(--bg-brand-subtle);
+  color: var(--fg-brand);
+  animation: aiStepPulse 1.5s ease-in-out infinite;
+}
+
+.aiAgentCurrentCopy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  animation: aiStepEnter 280ms ease-out;
+}
+
+.aiAgentCurrentCopy small {
+  color: var(--fg-tertiary);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.aiAgentCurrentCopy strong {
+  overflow: hidden;
+  color: var(--fg-strong);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aiAgentCurrentCopy > span {
+  overflow: hidden;
+  color: var(--fg-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .aiAgentTimelineState {
@@ -1397,22 +1526,34 @@
   font-weight: 800;
 }
 
-.aiAgentTimeline summary strong {
-  color: var(--fg-strong);
-  font-size: 14px;
-  font-weight: 800;
+.aiAgentChevron {
+  color: var(--fg-tertiary);
+  font-size: 16px;
+  transition: transform 180ms ease;
 }
 
-.aiAgentTimeline summary small {
-  color: var(--fg-secondary);
-  font-size: 12px;
+.aiAgentTimeline[open] .aiAgentChevron {
+  transform: rotate(180deg);
+}
+
+.aiAgentTimelineDetails {
+  border-top: 1px solid var(--border-subtle);
+  padding: 10px 14px 12px;
+}
+
+.aiAgentTimelineDetails > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .aiAgentTimeline ol {
   display: grid;
   gap: 0;
   margin: 0;
-  padding: 2px 16px 16px;
+  padding: 2px 0 0;
   list-style: none;
 }
 
@@ -5272,6 +5413,36 @@
   }
 }
 
+@keyframes aiStepEnter {
+  from {
+    transform: translateY(4px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes aiStepPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--fg-brand) 24%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aiAgentCurrentCopy,
+  .aiAgentCurrentDotRunning {
+    animation: none;
+  }
+}
+
 @media (max-width: 1240px) {
   .judgmentViewer {
     grid-template-columns: 210px minmax(0, 1fr);
@@ -5346,6 +5517,10 @@
 
   .aiSources > div {
     grid-template-columns: 1fr;
+  }
+
+  .researchStructuredInput {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .mainNav {
@@ -5468,6 +5643,16 @@
     padding: 0 4px;
   }
 
+  .researchInputMode {
+    width: auto;
+    margin: 0 4px;
+  }
+
+  .researchStructuredInput {
+    grid-template-columns: 1fr;
+    padding: 2px 4px 6px;
+  }
+
   .researchSegmentedControl,
   .researchEasyToggle {
     width: 100%;
@@ -5475,6 +5660,14 @@
 
   .researchSegmentedControl label > span {
     min-width: 0;
+  }
+
+  .aiAgentTimelineState {
+    display: none;
+  }
+
+  .aiAgentTimeline summary {
+    grid-template-columns: 26px minmax(0, 1fr) 18px;
   }
 
   .researchSearchPanel h1 {

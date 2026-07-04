@@ -950,18 +950,72 @@ try {
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.goto(`${baseUrl}/research`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "AI 법률 질문" }).waitFor();
-  await page.getByLabel("AI 법률 질문").fill(exampleQuestion);
+  const questionLayout = await page.evaluate(() => {
+    const form = document.querySelector("form");
+    const textarea = document.querySelector(
+      'textarea[aria-label="AI 법률 질문"]',
+    );
+    if (!form || !textarea) {
+      return null;
+    }
+    return {
+      formWidth: form.getBoundingClientRect().width,
+      inputHeight: textarea.getBoundingClientRect().height,
+      inputWidth: textarea.getBoundingClientRect().width,
+    };
+  });
+  if (
+    !questionLayout ||
+    questionLayout.inputWidth / questionLayout.formWidth < 0.9 ||
+    questionLayout.inputHeight < 100
+  ) {
+    throw new Error("Simple research input is not using the available space.");
+  }
+  await page.locator("label").filter({ hasText: "상세 입력육하원칙" }).click();
+  await page.getByLabel("상세 질문 누가").fill("임차인인 나와 임대인");
+  await page.getByLabel("상세 질문 언제").fill("계약 종료 후");
+  await page.getByLabel("상세 질문 어디서").fill("서울의 전셋집");
+  await page
+    .getByLabel("상세 질문 무엇을")
+    .fill("전세보증금을 돌려받지 못했습니다.");
+  await page
+    .getByLabel("상세 질문 어떻게")
+    .fill("임대인이 반환일을 계속 미루고 있습니다.");
+  await page
+    .getByLabel("상세 질문 추가 설명")
+    .fill("이체 내역과 대화 기록을 가지고 있습니다.");
   await page.locator("label").filter({ hasText: "상세육하원칙" }).click();
   await page.locator("label").filter({ hasText: "쉬운 설명법령용어" }).click();
   await page.getByRole("button", { name: "질문하기" }).click();
   await page
     .getByRole("heading", { name: "AI 답변" })
     .waitFor({ timeout: 15_000 });
-  await page.getByRole("radio", { name: /간단/ }).waitFor();
-  await page.getByRole("radio", { name: /상세/ }).waitFor();
+  await page
+    .getByRole("radio", {
+      exact: true,
+      name: "간단 질문 한 칸에 자유롭게 입력",
+    })
+    .waitFor();
+  await page
+    .getByRole("radio", {
+      exact: true,
+      name: "상세 육하원칙·근거·추가 설명",
+    })
+    .waitFor();
   await page.getByRole("checkbox", { name: /쉬운 설명/ }).waitFor();
   await page.getByText("상세 답변 · 쉬운 설명", { exact: true }).waitFor();
   await page.getByRole("heading", { name: "근거 확인" }).waitFor();
+  const processDetails = page
+    .locator("details")
+    .filter({ hasText: "답변 준비 과정" });
+  await processDetails.waitFor();
+  const processLayout = await processDetails.evaluate((element) => ({
+    height: element.getBoundingClientRect().height,
+    open: element.hasAttribute("open"),
+  }));
+  if (processLayout.open || processLayout.height > 82) {
+    throw new Error("Research progress should stay compact until expanded.");
+  }
   await page.getByText("손해 자료", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Markdown" }).waitFor();
   await page.getByRole("button", { name: "PDF" }).waitFor();
