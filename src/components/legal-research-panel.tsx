@@ -660,61 +660,82 @@ export function LegalResearchPanel({
             </div>
           </fieldset>
           {inputMode === "simple" ? (
-            <textarea
-              aria-label="AI 법률 질문"
-              className={styles.researchQuestionTextarea}
-              id="research-query"
-              maxLength={LEGAL_RESEARCH_QUERY_MAX_LENGTH}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="예: 중고거래 사기를 당했는데 신고와 배상 절차가 궁금합니다."
-              value={query}
-            />
+            <div className={styles.researchPromptBox}>
+              <div className={styles.researchPromptHeader}>
+                <span>질문 내용</span>
+                <span>
+                  {query.length.toLocaleString("ko-KR")} /{" "}
+                  {LEGAL_RESEARCH_QUERY_MAX_LENGTH.toLocaleString("ko-KR")}
+                </span>
+              </div>
+              <textarea
+                aria-label="AI 법률 질문"
+                className={styles.researchQuestionTextarea}
+                disabled={status === "loading"}
+                id="research-query"
+                maxLength={LEGAL_RESEARCH_QUERY_MAX_LENGTH}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="예: 중고거래 사기를 당했는데 신고와 배상 절차가 궁금합니다."
+                value={query}
+              />
+            </div>
           ) : (
-            <div className={styles.researchStructuredInput}>
-              {structuredQuestionFields.map(({ field, label }) => (
-                <label
-                  className={
-                    field === "additional"
-                      ? styles.researchStructuredAdditional
-                      : undefined
-                  }
-                  htmlFor={`structured-question-${field}`}
-                  key={field}
-                >
-                  <span>{label}</span>
-                  {field === "who" || field === "when" || field === "where" ? (
-                    <input
-                      aria-label={`상세 질문 ${label}`}
-                      disabled={status === "loading"}
-                      id={`structured-question-${field}`}
-                      maxLength={field === "where" ? 100 : 80}
-                      onChange={(event) =>
-                        setStructuredQuestion((current) => ({
-                          ...current,
-                          [field]: event.target.value,
-                        }))
-                      }
-                      placeholder={structuredPlaceholder(field)}
-                      value={structuredQuestion[field]}
-                    />
-                  ) : (
-                    <textarea
-                      aria-label={`상세 질문 ${label}`}
-                      disabled={status === "loading"}
-                      id={`structured-question-${field}`}
-                      maxLength={field === "additional" ? 220 : 250}
-                      onChange={(event) =>
-                        setStructuredQuestion((current) => ({
-                          ...current,
-                          [field]: event.target.value,
-                        }))
-                      }
-                      placeholder={structuredPlaceholder(field)}
-                      value={structuredQuestion[field]}
-                    />
-                  )}
-                </label>
-              ))}
+            <div className={styles.researchPromptBox}>
+              <div className={styles.researchPromptHeader}>
+                <span>상세 입력</span>
+                <span>
+                  {submittedQuery.length.toLocaleString("ko-KR")} /{" "}
+                  {LEGAL_RESEARCH_QUERY_MAX_LENGTH.toLocaleString("ko-KR")}
+                </span>
+              </div>
+              <div className={styles.researchStructuredInput}>
+                {structuredQuestionFields.map(({ field, label }) => (
+                  <label
+                    className={
+                      field === "additional"
+                        ? styles.researchStructuredAdditional
+                        : undefined
+                    }
+                    htmlFor={`structured-question-${field}`}
+                    key={field}
+                  >
+                    <span>{label}</span>
+                    {field === "who" ||
+                    field === "when" ||
+                    field === "where" ? (
+                      <input
+                        aria-label={`상세 질문 ${label}`}
+                        disabled={status === "loading"}
+                        id={`structured-question-${field}`}
+                        maxLength={field === "where" ? 100 : 80}
+                        onChange={(event) =>
+                          setStructuredQuestion((current) => ({
+                            ...current,
+                            [field]: event.target.value,
+                          }))
+                        }
+                        placeholder={structuredPlaceholder(field)}
+                        value={structuredQuestion[field]}
+                      />
+                    ) : (
+                      <textarea
+                        aria-label={`상세 질문 ${label}`}
+                        disabled={status === "loading"}
+                        id={`structured-question-${field}`}
+                        maxLength={field === "additional" ? 220 : 250}
+                        onChange={(event) =>
+                          setStructuredQuestion((current) => ({
+                            ...current,
+                            [field]: event.target.value,
+                          }))
+                        }
+                        placeholder={structuredPlaceholder(field)}
+                        value={structuredQuestion[field]}
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
             </div>
           )}
           {submittedQuery.length > LEGAL_RESEARCH_QUERY_MAX_LENGTH && (
@@ -827,9 +848,7 @@ export function LegalResearchPanel({
               <span className={styles.aiAgentTimelineState}>
                 {status === "loading" ? "진행 중" : `${activities.length}단계`}
               </span>
-              <span aria-hidden="true" className={styles.aiAgentChevron}>
-                ⌄
-              </span>
+              <ChevronDownIcon className={styles.aiAgentChevron} />
             </summary>
             <div className={styles.aiAgentTimelineDetails}>
               <span>
@@ -1075,4 +1094,24 @@ function activityClassName(status: AgentActivity["status"]) {
     return `${styles.aiAgentTimelineItem} ${styles.aiAgentTimelineFailed}`;
   }
   return styles.aiAgentTimelineItem;
+}
+
+function ChevronDownIcon({ className }: { className: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      focusable="false"
+      viewBox="0 0 20 20"
+    >
+      <path
+        d="M5.5 7.5 10 12l4.5-4.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
 }

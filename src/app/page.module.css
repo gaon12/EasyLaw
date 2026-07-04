@@ -1083,10 +1083,10 @@
   align-items: end;
   gap: 10px;
   margin-top: 8px;
-  padding: 10px;
-  border: 1px solid var(--border-default);
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-16);
-  background: var(--bg-surface);
+  background: var(--bg-subtle);
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -1097,16 +1097,50 @@
   box-shadow: var(--focus-ring);
 }
 
-.researchQuestionTextarea {
+.researchPromptBox {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-16);
+  padding: 10px;
+  background: var(--bg-surface);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.researchPromptBox:focus-within {
+  border-color: color-mix(in oklch, var(--fg-brand) 48%, var(--border-default));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--fg-brand) 14%, transparent);
+}
+
+.researchPromptHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  color: var(--fg-tertiary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.researchPromptHeader span:last-child {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.researchQuestionTextarea {
   min-height: 128px;
   max-height: 280px;
   min-width: 0;
   resize: vertical;
   border: 0;
+  border-radius: var(--radius-12);
   padding: 12px 14px;
   outline: 0;
-  background: transparent;
+  background: var(--bg-muted);
   color: var(--fg-strong);
   font-size: 16px;
   line-height: 1.55;
@@ -1159,11 +1193,9 @@
 }
 
 .researchStructuredInput {
-  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
-  padding: 2px 12px 6px;
 }
 
 .researchStructuredInput label {
@@ -1527,8 +1559,9 @@
 }
 
 .aiAgentChevron {
+  width: 18px;
+  height: 18px;
   color: var(--fg-tertiary);
-  font-size: 16px;
   transition: transform 180ms ease;
 }
 
@@ -5650,7 +5683,7 @@
 
   .researchStructuredInput {
     grid-template-columns: 1fr;
-    padding: 2px 4px 6px;
+    padding: 0;
   }
 
   .researchSegmentedControl,
