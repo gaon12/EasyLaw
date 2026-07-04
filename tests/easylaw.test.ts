@@ -1206,6 +1206,68 @@ test("the MCP endpoint serves corpus search and document tools", async () => {
   }
 });
 
+test("date MCP tool caches data.go.kr holiday API responses", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "data_go_kr_api_key", "test-service-key", true);
+    let requestCount = 0;
+    globalThis.fetch = async (input) => {
+      requestCount += 1;
+      const url = new URL(String(input));
+      const year = url.searchParams.get("solYear");
+      const month = url.searchParams.get("solMonth");
+      const body =
+        year === "2026" && month === "03"
+          ? `<?xml version="1.0" encoding="UTF-8"?>
+            <response><header><resultCode>00</resultCode><resultMsg>OK</resultMsg></header>
+            <body><items><item><dateName>삼일절 대체공휴일</dateName><locdate>20260302</locdate><isHoliday>Y</isHoliday></item></items></body></response>`
+          : `<?xml version="1.0" encoding="UTF-8"?>
+            <response><header><resultCode>00</resultCode><resultMsg>OK</resultMsg></header>
+            <body><items></items></body></response>`;
+      return new Response(body, {
+        headers: { "Content-Type": "application/xml" },
+        status: 200,
+      });
+    };
+
+    const first = await handleMcpRequest(db, {
+      id: 41,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { date: "2026-03-02", operation: "is_holiday" },
+        name: "calculate_date",
+      },
+    });
+    assert.ok(first.kind === "json");
+    const firstResult = first.body.result as {
+      structuredContent: { holidayNames: string[]; isHoliday: boolean };
+    };
+    assert.equal(firstResult.structuredContent.isHoliday, true);
+    assert.deepEqual(firstResult.structuredContent.holidayNames, [
+      "삼일절 대체공휴일",
+    ]);
+    assert.ok(requestCount > 0);
+
+    const countAfterFirst = requestCount;
+    const second = await handleMcpRequest(db, {
+      id: 42,
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: {
+        arguments: { date: "2026-03-02", operation: "is_holiday" },
+        name: "calculate_date",
+      },
+    });
+    assert.ok(second.kind === "json");
+    assert.equal(requestCount, countAfterFirst);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
 test("manual judgment collection stores fetched public judgments", async () => {
   const { db, cleanup } = withDb();
   const originalFetch = globalThis.fetch;

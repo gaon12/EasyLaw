@@ -51,7 +51,7 @@ export function createLocalLegalToolbox(db: SqliteDatabase): McpToolbox {
         return calculateExpression(args);
       }
       if (toolKey === dateCalculatorTool.key) {
-        return calculateDate(args);
+        return calculateDate(db, args);
       }
       throw new Error(`local_tool_not_found:${toolKey}`);
     },

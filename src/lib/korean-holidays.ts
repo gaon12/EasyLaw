@@ -1,4 +1,4 @@
-type HolidayRule = "fixed" | "lunar" | "substitute";
+type HolidayRule = "api" | "fixed" | "lunar" | "substitute";
 
 export type KoreanHoliday = {
   date: string;
@@ -51,20 +51,40 @@ export function koreanHolidaysForYear(year: number): KoreanHoliday[] {
 }
 
 export function koreanCalendarDay(date: Date): KoreanCalendarDay {
-  const iso = formatIsoDate(date);
-  const holidays = koreanHolidaysNearYear(date.getUTCFullYear()).filter(
-    (holiday) => holiday.date === iso,
+  return koreanCalendarDayFromHolidays(
+    date,
+    koreanHolidaysNearYear(date.getUTCFullYear()),
   );
+}
+
+export function koreanCalendarDayFromHolidays(
+  date: Date,
+  holidays: KoreanHoliday[],
+): KoreanCalendarDay {
+  const iso = formatIsoDate(date);
+  const matchedHolidays = holidays.filter((holiday) => holiday.date === iso);
   return {
     date: iso,
-    holidayNames: holidays.map((holiday) => holiday.name),
-    isHoliday: holidays.length > 0,
+    holidayNames: matchedHolidays.map((holiday) => holiday.name),
+    isHoliday: matchedHolidays.length > 0,
     isWeekend: isWeekend(date),
     weekday: weekdayLabel(date),
   };
 }
 
 export function koreanCalendarDays(startDate: Date, endDate: Date) {
+  return koreanCalendarDaysFromHolidays(
+    startDate,
+    endDate,
+    koreanHolidaysNearYear(startDate.getUTCFullYear()),
+  );
+}
+
+export function koreanCalendarDaysFromHolidays(
+  startDate: Date,
+  endDate: Date,
+  holidays: KoreanHoliday[],
+) {
   if (startDate.getTime() > endDate.getTime()) {
     throw new Error("시작일은 종료일보다 늦을 수 없습니다.");
   }
@@ -72,7 +92,6 @@ export function koreanCalendarDays(startDate: Date, endDate: Date) {
     throw new Error("기간 목록은 최대 370일까지 지원합니다.");
   }
 
-  const holidays = koreanHolidaysNearYear(startDate.getUTCFullYear());
   const holidayByDate = new Map<string, KoreanHoliday[]>();
   for (const holiday of holidays) {
     holidayByDate.set(holiday.date, [

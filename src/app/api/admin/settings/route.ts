@@ -35,7 +35,7 @@ const allowedKeys = {
     "mcp_case_law_endpoint",
     "mcp_timeout_ms",
   ]),
-  openLaw: new Set(["open_law_oc"]),
+  openLaw: new Set(["open_law_oc", "data_go_kr_api_key"]),
 };
 
 const validators = {

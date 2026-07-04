@@ -1,5 +1,9 @@
 import { periodBounds } from "./calendar-periods";
-import { koreanCalendarDay, koreanCalendarDays } from "./korean-holidays";
+import type { SqliteDatabase } from "./db";
+import {
+  koreanCalendarDayCached,
+  koreanCalendarDaysCached,
+} from "./korean-holiday-cache";
 import type { McpToolCallResult } from "./mcp-client";
 
 export const dateCalculatorInputSchema = {
@@ -56,9 +60,18 @@ export const dateCalculatorInputSchema = {
 } as const;
 
 export function calculateDate(
+  db: SqliteDatabase,
   args: Record<string, unknown>,
-): McpToolCallResult {
+): Promise<McpToolCallResult> {
   const operation = typeof args.operation === "string" ? args.operation : "";
+  return calculateDateInner(db, operation, args);
+}
+
+async function calculateDateInner(
+  db: SqliteDatabase,
+  operation: string,
+  args: Record<string, unknown>,
+): Promise<McpToolCallResult> {
   try {
     if (operation === "today") {
       const resultDate = todayInKorea();
@@ -73,7 +86,11 @@ export function calculateDate(
       typeof args.date === "string" ? readIsoDate(args.date, "date") : null;
     const period = periodForOperation(operation, args, date);
     if (period) {
-      const days = koreanCalendarDays(period.startDate, period.endDate);
+      const days = await koreanCalendarDaysCached(
+        db,
+        period.startDate,
+        period.endDate,
+      );
       return toolJsonResult({
         endDate: formatIsoDate(period.endDate),
         holidays: days
@@ -103,8 +120,9 @@ export function calculateDate(
     }
 
     if (operation === "is_holiday") {
+      const calendarDay = await koreanCalendarDayCached(db, date);
       return toolJsonResult({
-        ...koreanCalendarDay(date),
+        ...calendarDay,
         operation,
       });
     }
