@@ -21,7 +21,7 @@ import { getSessionUser, SESSION_COOKIE } from "@/lib/session";
 type ShellVariant = "service" | "admin";
 
 const publicNav = [
-  { href: "/", key: "nav.service", label: "서비스 소개" },
+  { href: "/about", key: "nav.service", label: "서비스 소개" },
   { href: "/guide", key: "nav.guide", label: "쉬운 판결문" },
   { href: "/notice", key: "nav.notice", label: "공지사항" },
   { href: "/support", key: "nav.support", label: "고객센터" },

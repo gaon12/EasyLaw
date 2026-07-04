@@ -4,6 +4,7 @@ import { getSiteUrl } from "@/lib/metadata";
 
 const staticRoutes = [
   "",
+  "/about",
   "/catalog",
   "/research",
   "/guide",
