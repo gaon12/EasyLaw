@@ -2,6 +2,8 @@ import type { McpToolCallResult, McpToolDefinition } from "./mcp-client";
 
 export type McpEvidenceDraft = {
   confidence: "high" | "medium";
+  documentId?: string;
+  documentType?: string;
   source: string;
   summary: string;
   title: string;
@@ -91,6 +93,7 @@ function normalizeRecord(
 ): McpEvidenceDraft | null {
   const title = firstString(record, [
     "title",
+    "word",
     "name",
     "caseName",
     "법령명",
@@ -103,6 +106,7 @@ function normalizeRecord(
   ]);
   const summary = firstString(record, [
     "summary",
+    "definition",
     "content",
     "text",
     "excerpt",
@@ -115,6 +119,13 @@ function normalizeRecord(
   }
   return {
     confidence: "high",
+    documentId: firstString(record, ["documentId", "document_id"]),
+    documentType: firstString(record, [
+      "documentType",
+      "document_type",
+      "caseType",
+      "case_type",
+    ]),
     source:
       firstString(record, ["source", "provider", "court", "법원명"]) ??
       `${tool.serverLabel} · ${tool.title}`,

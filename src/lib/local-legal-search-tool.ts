@@ -60,3 +60,21 @@ export const localSearchTool: McpToolDefinition = {
   serverLabel: "EasyLaw DB",
   title: "내부 법률 데이터 검색",
 };
+
+export const localLawSearchTool: McpToolDefinition = {
+  description:
+    "EasyLaw에 수집된 법률, 시행령, 시행규칙 등 법령 문서만 검색합니다. 판례와 구분해 현재 법적 의무·금지·벌칙의 직접 근거를 찾을 때 사용합니다.",
+  inputSchema: {
+    properties: {
+      limit: legalSearchInputSchema.properties.limit,
+      query: legalSearchInputSchema.properties.query,
+    },
+    required: ["query"],
+    type: "object",
+  },
+  key: "local-legal/search_laws",
+  name: "search_laws",
+  serverId: "local-legal",
+  serverLabel: "EasyLaw DB",
+  title: "수집 법령 검색",
+};

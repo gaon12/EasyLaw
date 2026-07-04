@@ -68,6 +68,56 @@ export function findDictionaryTerms(db: SqliteDatabase, word: string) {
     }));
 }
 
+export function searchDictionaryTerms(
+  db: SqliteDatabase,
+  input: {
+    limit?: number;
+    query: string;
+    source: DictionarySource;
+  },
+) {
+  const query = input.query.trim().replaceAll(/\s+/g, " ").slice(0, 300);
+  const limit = Math.min(Math.max(input.limit ?? 6, 1), 12);
+  if (!query) {
+    return [];
+  }
+  return db
+    .prepare<
+      [DictionarySource, string, string, string, string, number],
+      {
+        definition: string;
+        origin: string | null;
+        part_of_speech: string | null;
+        sense_no: string;
+        source: DictionarySource;
+        word: string;
+      }
+    >(
+      `SELECT word, sense_no, part_of_speech, definition, origin, source
+       FROM dictionary_terms
+       WHERE source = ?
+         AND (
+           word = ?
+           OR ? LIKE '%' || word || '%'
+           OR definition LIKE ?
+         )
+       ORDER BY CASE WHEN word = ? THEN 0 ELSE 1 END,
+         LENGTH(word) DESC,
+         CAST(NULLIF(sense_no, '') AS INTEGER),
+         definition
+       LIMIT ?`,
+    )
+    .all(input.source, query, query, `%${query}%`, query, limit)
+    .map((row) => ({
+      definition: row.definition,
+      origin: row.origin,
+      partOfSpeech: row.part_of_speech,
+      senseNo: row.sense_no,
+      source: row.source,
+      word: row.word,
+    }));
+}
+
 export function latestDictionaryImport(
   db: SqliteDatabase,
   source?: DictionarySource,

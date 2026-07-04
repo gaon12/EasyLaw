@@ -1,5 +1,11 @@
 import type { SqliteDatabase } from "./db";
+import {
+  basicDictionaryTool,
+  legalTermTool,
+  standardDictionaryTool,
+} from "./dictionary-tools";
 import { getJudgmentText } from "./judgment-texts";
+import { localLawSearchTool } from "./local-legal-search-tool";
 import {
   createLocalLegalToolbox,
   legalSearchInputSchema,
@@ -36,6 +42,22 @@ const tools = [
     name: "search_legal_corpus",
     title: "법률 코퍼스 검색",
   },
+  {
+    annotations: { readOnlyHint: true },
+    description: localLawSearchTool.description,
+    inputSchema: localLawSearchTool.inputSchema,
+    name: "search_laws",
+    title: localLawSearchTool.title,
+  },
+  ...[legalTermTool, basicDictionaryTool, standardDictionaryTool].map(
+    (tool) => ({
+      annotations: { readOnlyHint: true },
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      name: tool.name,
+      title: tool.title,
+    }),
+  ),
   {
     annotations: { readOnlyHint: true },
     description:
@@ -143,6 +165,23 @@ async function callTool(
       "local-legal/search_local_legal_data",
       args,
     );
+    return {
+      content: result.content,
+      isError: result.isError,
+      structuredContent: result.structuredContent,
+    };
+  }
+
+  const localToolKeys: Record<string, string> = {
+    search_basic_korean_dictionary: basicDictionaryTool.key,
+    search_laws: localLawSearchTool.key,
+    search_legal_terms: legalTermTool.key,
+    search_standard_korean_dictionary: standardDictionaryTool.key,
+  };
+  const localToolKey = localToolKeys[name];
+  if (localToolKey) {
+    const toolbox = createLocalLegalToolbox(db);
+    const result = await toolbox.call(localToolKey, args);
     return {
       content: result.content,
       isError: result.isError,

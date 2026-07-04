@@ -75,6 +75,7 @@ import {
 } from "../src/lib/legal-research";
 import { routeResearchQuery } from "../src/lib/legal-research-router";
 import { requestLlmText } from "../src/lib/llm-client";
+import { createLocalLegalToolbox } from "../src/lib/local-legal-toolbox";
 import {
   completeLoginChallenge,
   createLoginChallenge,
@@ -90,6 +91,7 @@ import {
   getPublicJudgments,
 } from "../src/lib/queries";
 import { getPublicRequestOrigin } from "../src/lib/request-origin";
+import { answerFormatInstruction } from "../src/lib/research-options";
 import { optionalSafeNextPath, safeNextPath } from "../src/lib/safe-next-path";
 import { checkAnonymousAccess } from "../src/lib/security/anonymous-access";
 import { decryptSecret } from "../src/lib/security/crypto";
@@ -1064,7 +1066,11 @@ test("the MCP endpoint serves corpus search and document tools", async () => {
       "calculate",
       "calculate_date",
       "get_legal_document",
+      "search_basic_korean_dictionary",
+      "search_laws",
       "search_legal_corpus",
+      "search_legal_terms",
+      "search_standard_korean_dictionary",
     ]);
 
     const searched = await handleMcpRequest(db, {
@@ -1204,6 +1210,57 @@ test("the MCP endpoint serves corpus search and document tools", async () => {
       method: "notifications/initialized",
     });
     assert.deepEqual(notified, { kind: "empty", status: 202 });
+  } finally {
+    cleanup();
+  }
+});
+
+test("research options require structured detail and dictionary-grounded plain language", () => {
+  const detailed = answerFormatInstruction({
+    answerDetail: "detailed",
+    easyExplanation: true,
+  });
+  assert.match(detailed, /육하원칙/);
+  assert.match(detailed, /누가·언제·어디서·무엇을·어떻게·왜/);
+  assert.match(detailed, /추가 설명/);
+  assert.match(detailed, /사전·법령용어 도구/);
+
+  const simple = answerFormatInstruction({
+    answerDetail: "simple",
+    easyExplanation: false,
+  });
+  assert.match(simple, /줄글 6~10문장/);
+  assert.doesNotMatch(simple, /육하원칙 표/);
+});
+
+test("local research tools expose collected legal, basic, and standard dictionaries", async () => {
+  const { db, cleanup } = withDb();
+  try {
+    const updatedAt = "2026-07-04T00:00:00.000Z";
+    db.prepare(
+      `INSERT INTO dictionary_terms
+        (id, source, priority, word, sense_no, definition, raw_json, updated_at)
+       VALUES
+        ('dict_legal_tool', 'legal', 0, '기판력', '1', '확정된 재판의 판단이 다시 다투어지지 않는 효력', '{}', ?),
+        ('dict_basic_tool', 'basic', 1, '재판', '1', '법원에서 옳고 그름을 판단하는 일', '{}', ?),
+        ('dict_standard_tool', 'standard', 2, '판단', '1', '사물을 인식하여 결론을 내림', '{}', ?)`,
+    ).run(updatedAt, updatedAt, updatedAt);
+
+    const toolbox = createLocalLegalToolbox(db);
+    assert.ok(
+      toolbox.tools.some((tool) => tool.key === "local-legal/search_laws"),
+    );
+    for (const [toolKey, query] of [
+      ["local-dictionary/search_legal_terms", "기판력"],
+      ["local-dictionary/search_basic_korean_dictionary", "재판"],
+      ["local-dictionary/search_standard_korean_dictionary", "판단"],
+    ]) {
+      const result = await toolbox.call(toolKey, { query });
+      const records = (result.structuredContent as { records: unknown[] })
+        .records;
+      assert.equal(records.length, 1);
+    }
+    await toolbox.close();
   } finally {
     cleanup();
   }
@@ -1964,9 +2021,9 @@ test("legal research harness assigns coverage and evidence", async () => {
       ),
       JSON.stringify(plan.evidence),
     );
-    // 초안 + "근거 확인" 섹션이 하나의 답으로 합쳐진다.
+    // 간단 답변은 별도 제목 없이 초안과 근거 확인 문단이 이어진다.
     assert.match(plan.answer, /민사상 손해배상 청구/);
-    assert.match(plan.answer, /## 근거 확인/);
+    assert.doesNotMatch(plan.answer, /## 근거 확인/);
     assert.match(plan.answer, /\[E1\]/);
     // LLM 호출은 초안·근거확인 딱 2번뿐이다(계획 JSON 호출 없음).
     assert.equal(mock.state.llmRequests, 2);
@@ -2032,6 +2089,67 @@ test("ollama requests disable reasoning for thinking models", async () => {
     assert.equal(bodies[0]?.reasoning_effort, "none");
     assert.equal(bodies[0]?.stream, true);
     assert.equal("reasoning" in (bodies[0] ?? {}), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("llm responses never expose tagged reasoning, including streamed tags", async () => {
+  const originalFetch = globalThis.fetch;
+  const streamed: string[] = [];
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        [
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "<tho" } }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "ught>내부 추론" } }] })}`,
+          `data: ${JSON.stringify({ choices: [{ delta: { content: "</thought>사용자 답변" } }] })}`,
+          "data: [DONE]",
+          "",
+        ].join("\n\n"),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+
+    const response = await requestLlmText(
+      {
+        apiKey: null,
+        baseUrl: "http://localhost:1234/v1",
+        model: "local-model",
+        provider: "LM Studio",
+        totalTimeoutMs: 10_000,
+      },
+      [{ content: "질문", role: "user" }],
+      { onToken: (token) => streamed.push(token) },
+    );
+
+    assert.equal(response, "사용자 답변");
+    assert.equal(streamed.join(""), "사용자 답변");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("lm studio requests also ask compatible servers to disable reasoning", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies: Array<Record<string, unknown>> = [];
+  try {
+    globalThis.fetch = async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return sseChatResponse("답변");
+    };
+
+    await requestLlmText(
+      {
+        apiKey: null,
+        baseUrl: "http://localhost:1234/v1",
+        model: "local-model",
+        provider: "LM Studio",
+        totalTimeoutMs: 10_000,
+      },
+      [{ content: "질문", role: "user" }],
+    );
+
+    assert.equal(bodies[0]?.reasoning_effort, "none");
   } finally {
     globalThis.fetch = originalFetch;
   }

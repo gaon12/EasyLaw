@@ -32,6 +32,10 @@ import {
   type McpToolDefinition,
 } from "./mcp-client";
 import { evidenceFromMcpResult, type McpEvidenceDraft } from "./mcp-evidence";
+import {
+  defaultResearchOptions,
+  type ResearchOptions,
+} from "./research-options";
 
 export type CoverageLevel = 1 | 2 | 3 | 4;
 export type ResearchMode = "quick" | "overview" | "deep";
@@ -91,7 +95,7 @@ export type ResearchHarnessEvent =
 
 const OVERVIEW_EVIDENCE_LIMIT = 12;
 const OVERVIEW_SEARCH_TOOL_LIMIT = 4;
-const GROUNDING_HEADING = "\n\n## 근거 확인\n\n";
+const DEEP_EVIDENCE_LIMIT = 24;
 
 export function getResearchHarnessFlowchart() {
   return researchHarnessFlowchart();
@@ -112,6 +116,7 @@ export async function buildResearchPlan(
   db: SqliteDatabase,
   query: string,
   onEvent?: (event: ResearchHarnessEvent) => void,
+  options: ResearchOptions = defaultResearchOptions,
 ): Promise<ResearchPlan> {
   const normalizedQuery = query.trim();
   const configuration = readLlmConfiguration(db);
@@ -156,6 +161,7 @@ export async function buildResearchPlan(
     const answer = await streamQuickAnswer(
       configuration,
       normalizedQuery,
+      options,
       (token) => {
         streamed += token;
         onEvent?.({ answer: streamed, type: "answer", verified: false });
@@ -172,13 +178,14 @@ export async function buildResearchPlan(
   }
 
   if (route.mode === "overview") {
-    return runAnswerFirstOverview(db, configuration, plan, onEvent);
+    return runAnswerFirstOverview(db, configuration, plan, options, onEvent);
   }
 
   return runFastFirstDeepResearch(
     db,
     configuration,
     plan,
+    options,
     onEvent,
     (updated) => {
       plan = updated;
@@ -190,6 +197,7 @@ async function runFastFirstDeepResearch(
   db: SqliteDatabase,
   configuration: LlmConfiguration,
   plan: PlanDraft,
+  options: ResearchOptions,
   onEvent?: (event: ResearchHarnessEvent) => void,
   onPlanUpdate?: (plan: PlanDraft) => void,
 ): Promise<ResearchPlan> {
@@ -206,6 +214,7 @@ async function runFastFirstDeepResearch(
     configuration,
     plan.query,
     plan.intent,
+    options,
     (token) => {
       if (finalAnswerStarted) {
         return;
@@ -256,6 +265,7 @@ async function runFastFirstDeepResearch(
         configuration,
         toolbox,
         plan,
+        options,
         (event) => {
           if (event.type === "answer") {
             finalAnswerStarted = true;
@@ -291,7 +301,13 @@ async function runFastFirstDeepResearch(
     onEvent?.({ plan: fallbackPlan, type: "plan" });
     finalAnswerStarted = true;
     await Promise.allSettled([previewPromise]);
-    return runAnswerFirstOverview(db, configuration, fallbackPlan, onEvent);
+    return runAnswerFirstOverview(
+      db,
+      configuration,
+      fallbackPlan,
+      options,
+      onEvent,
+    );
   }
 }
 
@@ -300,6 +316,7 @@ async function runAnswerFirstOverview(
   db: SqliteDatabase,
   configuration: LlmConfiguration,
   plan: PlanDraft,
+  options: ResearchOptions,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ): Promise<ResearchPlan> {
   onEvent?.({ phase: "composing", type: "phase" });
@@ -314,6 +331,7 @@ async function runAnswerFirstOverview(
     configuration,
     plan.query,
     plan.intent,
+    options,
     (token) => {
       draftText += token;
       onEvent?.({ answer: draftText, type: "answer", verified: false });
@@ -325,7 +343,12 @@ async function runAnswerFirstOverview(
     "running",
     "MCP와 로컬 검색 도구를 병렬로 호출합니다.",
   );
-  const evidencePromise = retrieveEvidenceInParallel(db, plan.query, onEvent);
+  const evidencePromise = retrieveEvidenceInParallel(
+    db,
+    plan.query,
+    options,
+    onEvent,
+  );
 
   const [draftResult, evidenceResult] = await Promise.allSettled([
     draftPromise,
@@ -365,22 +388,25 @@ async function runAnswerFirstOverview(
     "초안과 검색 근거를 대조합니다.",
   );
   let sectionText = "";
+  const groundingSeparator =
+    options.answerDetail === "detailed" ? "\n\n## 근거 확인\n\n" : "\n\n";
   try {
     const section = await streamGroundedRevision(
       configuration,
       plan.query,
       draft,
       evidence,
+      options,
       (token) => {
         sectionText += token;
         onEvent?.({
-          answer: `${draft}${GROUNDING_HEADING}${sectionText}`,
+          answer: `${draft}${groundingSeparator}${sectionText}`,
           type: "answer",
           verified: false,
         });
       },
     );
-    const answer = `${draft}${GROUNDING_HEADING}${section.trim()}`;
+    const answer = `${draft}${groundingSeparator}${section.trim()}`;
     emitSkill(
       onEvent,
       "verify_answer",
@@ -415,6 +441,7 @@ async function runAnswerFirstOverview(
 async function retrieveEvidenceInParallel(
   db: SqliteDatabase,
   query: string,
+  options: ResearchOptions,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ): Promise<ResearchEvidence[]> {
   const toolbox = mergeToolboxes(
@@ -424,7 +451,19 @@ async function retrieveEvidenceInParallel(
   try {
     const searchTools = toolbox.tools
       .filter((tool) => queryPropertyName(tool) !== null)
-      .slice(0, OVERVIEW_SEARCH_TOOL_LIMIT);
+      .filter(
+        (tool) =>
+          options.easyExplanation || !tool.key.startsWith("local-dictionary/"),
+      )
+      .sort(
+        (left, right) => searchToolPriority(left) - searchToolPriority(right),
+      )
+      .slice(
+        0,
+        options.easyExplanation
+          ? OVERVIEW_SEARCH_TOOL_LIMIT + 3
+          : OVERVIEW_SEARCH_TOOL_LIMIT,
+      );
     const settled = await Promise.allSettled(
       searchTools.map(async (tool) => {
         onEvent?.({ stage: "calling", tool: tool.title, type: "tool" });
@@ -447,14 +486,23 @@ async function retrieveEvidenceInParallel(
     );
 
     const evidence: ResearchEvidence[] = [];
+    const seenEvidence = new Set<string>();
+    const evidenceLimit = options.easyExplanation
+      ? OVERVIEW_EVIDENCE_LIMIT + 6
+      : OVERVIEW_EVIDENCE_LIMIT;
     for (const outcome of settled) {
       if (outcome.status !== "fulfilled") {
         continue;
       }
       for (const draft of outcome.value) {
-        if (evidence.length >= OVERVIEW_EVIDENCE_LIMIT) {
+        if (evidence.length >= evidenceLimit) {
           break;
         }
+        const key = evidenceKey(draft);
+        if (seenEvidence.has(key)) {
+          continue;
+        }
+        seenEvidence.add(key);
         const item = { ...draft, id: `E${evidence.length + 1}` };
         evidence.push(item);
         onEvent?.({ evidence: item, type: "evidence" });
@@ -464,6 +512,19 @@ async function retrieveEvidenceInParallel(
   } finally {
     await toolbox.close();
   }
+}
+
+function searchToolPriority(tool: McpToolDefinition) {
+  if (tool.key === "local-legal/search_laws") {
+    return 0;
+  }
+  if (tool.key === "local-legal/search_local_legal_data") {
+    return 2;
+  }
+  if (tool.key.startsWith("local-dictionary/")) {
+    return 1;
+  }
+  return 3;
 }
 
 function queryPropertyName(tool: McpToolDefinition): string | null {
@@ -489,6 +550,7 @@ async function runDeepToolLoop(
   configuration: LlmConfiguration,
   toolbox: McpToolbox,
   initialPlan: PlanDraft,
+  options: ResearchOptions,
   onEvent?: (event: ResearchHarnessEvent) => void,
   onPlanUpdate?: (plan: PlanDraft) => void,
 ): Promise<ResearchPlan> {
@@ -517,6 +579,7 @@ async function runDeepToolLoop(
     const decision = await requestAgentDecision(configuration, {
       evidence,
       history,
+      options,
       plan,
       query: plan.query,
       reviewFeedback,
@@ -542,6 +605,7 @@ async function runDeepToolLoop(
         evidence,
         history,
         decision.answer,
+        options,
       );
       if (rejection) {
         onEvent?.({
@@ -565,6 +629,7 @@ async function runDeepToolLoop(
         evidence,
         decision.answer,
         plan.query,
+        options,
         onEvent,
       );
     }
@@ -590,6 +655,7 @@ async function runDeepToolLoop(
     plan.query,
     plan,
     evidence,
+    options,
   );
   return finishAnswer(
     configuration,
@@ -597,6 +663,7 @@ async function runDeepToolLoop(
     evidence,
     answer,
     plan.query,
+    options,
     onEvent,
   );
 }
@@ -666,8 +733,17 @@ async function executeToolCalls(
     }),
   );
 
+  const seenEvidence = new Set(evidence.map(evidenceKey));
   for (const outcome of settled) {
     for (const draft of outcome.drafts) {
+      if (evidence.length >= DEEP_EVIDENCE_LIMIT) {
+        break;
+      }
+      const key = evidenceKey(draft);
+      if (seenEvidence.has(key)) {
+        continue;
+      }
+      seenEvidence.add(key);
       const item = { ...draft, id: `E${evidence.length + 1}` };
       evidence.push(item);
       onEvent?.({ evidence: item, type: "evidence" });
@@ -685,12 +761,30 @@ async function executeToolCalls(
   );
 }
 
+function evidenceKey(evidence: McpEvidenceDraft) {
+  if (evidence.url) {
+    return `url:${evidence.url
+      .trim()
+      .replace(/[?#].*$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase()}`;
+  }
+  if (evidence.documentType === "dictionary") {
+    return `dictionary:${evidence.source}:${evidence.title}`
+      .replaceAll(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+  return `title:${evidence.title.replaceAll(/\s+/g, " ").trim().toLowerCase()}`;
+}
+
 async function finishAnswer(
   configuration: LlmConfiguration,
   plan: PlanDraft,
   evidence: ResearchEvidence[],
   draft: string,
   query: string,
+  options: ResearchOptions,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ): Promise<ResearchPlan> {
   const shouldUseDraftAnswer = isLocalLlmConfiguration(configuration);
@@ -702,6 +796,7 @@ async function finishAnswer(
         evidence,
         draft,
         query,
+        options,
         onEvent,
       );
   if (shouldUseDraftAnswer) {
@@ -724,6 +819,7 @@ async function finishAnswer(
       query,
       evidence,
       answer,
+      options,
     );
     emitSkill(
       onEvent,
@@ -757,6 +853,7 @@ async function composeVisibleAnswer(
   evidence: ResearchEvidence[],
   draft: string,
   query: string,
+  options: ResearchOptions,
   onEvent?: (event: ResearchHarnessEvent) => void,
 ) {
   onEvent?.({ phase: "composing", type: "phase" });
@@ -778,6 +875,7 @@ async function composeVisibleAnswer(
       query,
       plan,
       evidence,
+      options,
       ({ answer: partialAnswer, sectionTitle }) => {
         onEvent?.({
           detail: `${sectionTitle} 문단을 작성하는 중입니다.`,
@@ -843,6 +941,7 @@ function rejectUngroundedAnswer(
     toolKey: string;
   }>,
   answer: string,
+  options: ResearchOptions,
 ) {
   if (evidence.length === 0) {
     return "개별 법률상황 답변인데 MCP 근거가 하나도 없다. 쟁점별 도구 검색을 먼저 수행한다.";
@@ -857,6 +956,16 @@ function rejectUngroundedAnswer(
     : 2;
   if (completedSearches < requiredSearches) {
     return `현재 서로 다른 MCP 검색은 ${completedSearches}회뿐이다. 이 질문은 답변 전에 쟁점을 나눈 검색을 최소 ${requiredSearches}회 완료해야 한다.`;
+  }
+  if (
+    options.easyExplanation &&
+    !history.some(
+      (call) =>
+        call.status === "completed" &&
+        call.toolKey.startsWith("local-dictionary/"),
+    )
+  ) {
+    return "쉬운 설명을 요청했지만 사전 도구 검색이 없다. 법령용어와 국어사전 뜻풀이를 먼저 확인한다.";
   }
   const citedIds = new Set(
     [...answer.matchAll(/\[(E\d+)\]/g)].map((match) => match[1]),

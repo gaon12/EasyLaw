@@ -167,13 +167,22 @@ async function requestText(
 
     armPhaseTimer("first_chunk", timeouts.firstChunkMs);
     let result = "";
+    const visibleText = new ReasoningBlockFilter();
     for await (const chunk of stream) {
       armPhaseTimer("stalled", timeouts.idleMs);
       const token = chunk.choices?.[0]?.delta?.content ?? "";
       if (token) {
-        result += token;
-        options.onToken?.(token);
+        const visibleToken = visibleText.push(token);
+        if (visibleToken) {
+          result += visibleToken;
+          options.onToken?.(visibleToken);
+        }
       }
+    }
+    const trailingText = visibleText.finish();
+    if (trailingText) {
+      result += trailingText;
+      options.onToken?.(trailingText);
     }
     return result;
   } catch (error) {
@@ -318,7 +327,7 @@ function safeErrorBody(error: APIError) {
 function reasoningControl(configuration: LlmConfiguration): {
   reasoning_effort?: "none";
 } {
-  if (isOllama(configuration.provider)) {
+  if (isLocalProvider(configuration.provider)) {
     return { reasoning_effort: "none" };
   }
   if (canDisableGeminiThinking(configuration)) {
@@ -327,12 +336,88 @@ function reasoningControl(configuration: LlmConfiguration): {
   return {};
 }
 
-function isAnthropic(provider: string) {
-  return provider.trim().toLowerCase() === "anthropic";
+const REASONING_OPEN_TAGS = ["<think>", "<thought>"];
+const REASONING_CLOSE_TAGS = ["</think>", "</thought>"];
+
+/**
+ * 일부 OpenAI 호환 로컬 서버는 reasoning_effort를 무시하고 내부 사고를
+ * delta.content에 섞어 보낸다. 태그가 여러 스트림 청크에 나뉘어도 브라우저로
+ * 전달되기 전에 제거한다.
+ */
+class ReasoningBlockFilter {
+  private buffer = "";
+  private hidden = false;
+
+  push(chunk: string) {
+    this.buffer += chunk;
+    return this.read(false);
+  }
+
+  finish() {
+    return this.read(true);
+  }
+
+  private read(final: boolean) {
+    let visible = "";
+    for (;;) {
+      const tags = this.hidden ? REASONING_CLOSE_TAGS : REASONING_OPEN_TAGS;
+      const match = earliestTag(this.buffer, tags);
+      if (match) {
+        if (!this.hidden) {
+          visible += this.buffer.slice(0, match.index);
+        }
+        this.buffer = this.buffer.slice(match.index + match.tag.length);
+        this.hidden = !this.hidden;
+        continue;
+      }
+
+      if (final) {
+        if (!this.hidden) {
+          visible += this.buffer;
+        }
+        this.buffer = "";
+        return visible;
+      }
+
+      const retainedLength = possibleTagSuffixLength(this.buffer, tags);
+      if (!this.hidden) {
+        visible += this.buffer.slice(0, this.buffer.length - retainedLength);
+      }
+      this.buffer = this.buffer.slice(this.buffer.length - retainedLength);
+      return visible;
+    }
+  }
 }
 
-function isOllama(provider: string) {
-  return provider.trim().toLowerCase() === "ollama";
+function earliestTag(value: string, tags: string[]) {
+  const normalized = value.toLowerCase();
+  let earliest: { index: number; tag: string } | null = null;
+  for (const tag of tags) {
+    const index = normalized.indexOf(tag);
+    if (index >= 0 && (!earliest || index < earliest.index)) {
+      earliest = { index, tag };
+    }
+  }
+  return earliest;
+}
+
+function possibleTagSuffixLength(value: string, tags: string[]) {
+  const normalized = value.toLowerCase();
+  const maxLength = Math.min(
+    normalized.length,
+    Math.max(...tags.map((tag) => tag.length)) - 1,
+  );
+  for (let length = maxLength; length > 0; length -= 1) {
+    const suffix = normalized.slice(-length);
+    if (tags.some((tag) => tag.startsWith(suffix))) {
+      return length;
+    }
+  }
+  return 0;
+}
+
+function isAnthropic(provider: string) {
+  return provider.trim().toLowerCase() === "anthropic";
 }
 
 function isLocalProvider(provider: string) {

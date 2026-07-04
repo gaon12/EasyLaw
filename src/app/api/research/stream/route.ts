@@ -12,6 +12,7 @@ import {
   isResearchHarnessConfigured,
 } from "@/lib/legal-research";
 import { LlmError } from "@/lib/llm-client";
+import { answerDetailLevels } from "@/lib/research-options";
 import {
   anonymousLimitResponse,
   applyAnonymousCookie,
@@ -19,7 +20,9 @@ import {
 } from "@/lib/security/anonymous-access";
 
 const requestSchema = z.object({
+  answerDetail: z.enum(answerDetailLevels).default("simple"),
   captchaPayload: z.string().max(12_000).optional(),
+  easyExplanation: z.boolean().default(false),
   query: z.string().trim().min(2).max(LEGAL_RESEARCH_QUERY_MAX_LENGTH),
 });
 
@@ -101,44 +104,52 @@ export async function POST(request: NextRequest) {
       }, 15_000);
       void (async () => {
         try {
-          await buildResearchPlan(db, parsed.data.query, (event) => {
-            switch (event.type) {
-              case "plan":
-                send("plan", event.plan);
-                break;
-              case "evidence":
-                send("evidence", event.evidence);
-                break;
-              case "answer":
-                send("answer", {
-                  text: event.answer,
-                  verified: event.verified,
-                });
-                break;
-              case "skill":
-                send("skill", event.skill);
-                break;
-              case "progress":
-                send("progress", {
-                  detail: event.detail,
-                  status: event.status,
-                  title: event.title,
-                });
-                break;
-              case "warning":
-                send("warning", event.message);
-                break;
-              case "tool":
-                send("tool", {
-                  stage: event.stage,
-                  tool: event.tool,
-                });
-                break;
-              case "phase":
-                send("phase", event.phase);
-                break;
-            }
-          });
+          await buildResearchPlan(
+            db,
+            parsed.data.query,
+            (event) => {
+              switch (event.type) {
+                case "plan":
+                  send("plan", event.plan);
+                  break;
+                case "evidence":
+                  send("evidence", event.evidence);
+                  break;
+                case "answer":
+                  send("answer", {
+                    text: event.answer,
+                    verified: event.verified,
+                  });
+                  break;
+                case "skill":
+                  send("skill", event.skill);
+                  break;
+                case "progress":
+                  send("progress", {
+                    detail: event.detail,
+                    status: event.status,
+                    title: event.title,
+                  });
+                  break;
+                case "warning":
+                  send("warning", event.message);
+                  break;
+                case "tool":
+                  send("tool", {
+                    stage: event.stage,
+                    tool: event.tool,
+                  });
+                  break;
+                case "phase":
+                  send("phase", event.phase);
+                  break;
+              }
+            },
+            {
+              answerDetail: parsed.data.answerDetail,
+              easyExplanation: parsed.data.easyExplanation,
+            },
+          );
           send("done", { ok: true });
         } catch (error) {
           const code =

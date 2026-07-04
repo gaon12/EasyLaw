@@ -77,7 +77,7 @@ export function searchJudgmentTexts(
       runFtsQuery(
         db,
         "judgment_texts_fts",
-        trigramTokens.map((token) => `"${token}"`).join(" OR "),
+        trigramTokens.map((token) => `"${token}"`).join(" AND "),
         limit,
       ),
     );
@@ -87,7 +87,7 @@ export function searchJudgmentTexts(
       runFtsQuery(
         db,
         "judgment_words_fts",
-        shortTokens.map((token) => `"${token}" *`).join(" OR "),
+        shortTokens.map((token) => `"${token}" *`).join(" AND "),
         limit,
       ),
     );

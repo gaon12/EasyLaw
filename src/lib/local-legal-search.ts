@@ -128,26 +128,21 @@ function fetchByMetadata(
 ) {
   const tokens = tokenize(query);
   const filter = sqlFilters(filters);
+  const searchable = `(COALESCE(case_number, '') || ' ' ||
+    COALESCE(court_name, '') || ' ' ||
+    COALESCE(title, '') || ' ' ||
+    COALESCE(source_summary, ''))`;
+  const relevance = tokens.map(() => `(${searchable} LIKE ?)`).join(" + ");
+  const minimumMatches = Math.min(2, tokens.length);
   return db
     .prepare<Array<string | number>, LocalJudgmentRow>(
       `${judgmentSelect}
-        AND (${tokens
-          .map(
-            () => `(case_number LIKE ?
-              OR court_name LIKE ?
-              OR title LIKE ?
-              OR source_summary LIKE ?)`,
-          )
-          .join(" OR ")})
+        AND (${relevance}) >= ?
        ${filter.sql}
-       ORDER BY decided_on DESC
+       ORDER BY (${relevance}) DESC, decided_on DESC
        LIMIT ?`,
     )
-    .all(
-      ...tokens.flatMap((token) => Array.from({ length: 4 }, () => token)),
-      ...filter.params,
-      filters.limit,
-    );
+    .all(...tokens, minimumMatches, ...filter.params, ...tokens, filters.limit);
 }
 
 function fetchByOriginalTextLike(
@@ -157,17 +152,19 @@ function fetchByOriginalTextLike(
 ) {
   const tokens = tokenize(query);
   const filter = sqlFilters(filters);
+  const relevance = tokens
+    .map(() => "(judgment_texts.original_text LIKE ?)")
+    .join(" + ");
+  const minimumMatches = Math.min(2, tokens.length);
   return db
     .prepare<Array<string | number>, LocalJudgmentRow>(
       `${judgmentSelect}
-        AND (${tokens
-          .map(() => "judgment_texts.original_text LIKE ?")
-          .join(" OR ")})
+        AND (${relevance}) >= ?
        ${filter.sql}
-       ORDER BY decided_on DESC
+       ORDER BY (${relevance}) DESC, decided_on DESC
        LIMIT ?`,
     )
-    .all(...tokens, ...filter.params, filters.limit);
+    .all(...tokens, minimumMatches, ...filter.params, ...tokens, filters.limit);
 }
 
 function tokenize(query: string) {

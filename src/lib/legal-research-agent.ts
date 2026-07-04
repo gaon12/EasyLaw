@@ -3,6 +3,10 @@ import type { ResearchEvidence, ResearchPlan } from "./legal-research";
 import type { LlmConfiguration } from "./llm-client";
 import { LlmError, requestLlmText } from "./llm-client";
 import type { McpToolDefinition } from "./mcp-client";
+import {
+  answerFormatInstruction,
+  type ResearchOptions,
+} from "./research-options";
 
 const decisionBase = {
   assumptions: z.array(z.string().trim().min(1).max(300)).max(8).default([]),
@@ -50,6 +54,7 @@ export type AgentDecision = z.infer<typeof agentDecisionSchema>;
 export async function streamQuickAnswer(
   configuration: LlmConfiguration,
   query: string,
+  options: ResearchOptions,
   onToken: (token: string) => void,
 ) {
   return requestLlmText(
@@ -57,9 +62,9 @@ export async function streamQuickAnswer(
     [
       {
         role: "system",
-        content: `대한민국 법률 용어와 개념을 쉬운 한국어로 설명하는 도우미다.
-Markdown으로 간결하게 답한다. 핵심 정의를 먼저, 필요한 경우 짧은 예시를 덧붙인다.
-개별 사건의 결과를 예측하거나 법률 자문을 제공하지 않는다.`,
+        content: `대한민국 법률 용어와 개념을 설명하는 도우미다.
+개별 사건의 결과를 예측하거나 법률 자문을 제공하지 않는다.
+${answerFormatInstruction(options)}`,
       },
       { role: "user", content: query },
     ],
@@ -75,6 +80,7 @@ export async function streamDraftAnswer(
   configuration: LlmConfiguration,
   query: string,
   intent: string,
+  options: ResearchOptions,
   onToken: (token: string) => void,
 ) {
   return requestLlmText(
@@ -90,8 +96,8 @@ export async function streamDraftAnswer(
 - 일반적으로 알려진 법적 방향과 절차를 먼저 설명하되, 조문 번호나 판례를 단정적으로 인용하지 않는다.
 - "~일 수 있습니다", "일반적으로 ~입니다"처럼 확인 전임이 드러나는 표현을 쓴다.
 - 질문의 가상 사실은 전제로 존중한다.
-- 6~10문장 이내로 간결하게. 제목 없이 본문만 출력한다.
-- 법률 자문이 아니라 이해를 돕는 안내임을 한 문장으로 밝힌다.`,
+- 법률 자문이 아니라 이해를 돕는 안내임을 한 문장으로 밝힌다.
+${answerFormatInstruction(options)}`,
       },
       { role: "user", content: JSON.stringify({ intent, query }) },
     ],
@@ -108,6 +114,7 @@ export async function streamGroundedRevision(
   query: string,
   draft: string,
   evidence: ResearchEvidence[],
+  options: ResearchOptions,
   onToken: (token: string) => void,
 ) {
   return requestLlmText(
@@ -126,7 +133,8 @@ export async function streamGroundedRevision(
 규칙:
 - 제공된 근거만 사실 근거로 사용한다. 근거 ID는 실제 존재하는 것만 인용한다.
 - 초안을 반복하지 말고 확인·교정에 집중한다.
-- 8문장 이내로 간결하게.`,
+- 쉬운 설명 모드에서는 사전 근거의 뜻풀이를 반영한다.
+${answerFormatInstruction(options)}`,
       },
       {
         role: "user",
@@ -148,6 +156,7 @@ export async function requestAgentDecision(
     }>;
     plan: Omit<ResearchPlan, "answer" | "evidence"> | null;
     query: string;
+    options: ResearchOptions;
     reviewFeedback: string[];
     tools: McpToolDefinition[];
   },
@@ -164,6 +173,8 @@ export async function requestAgentDecision(
 overview/deep은 근거가 모이기 전에 답하지 말고 type="tool_calls"를 반환한다.
 도구는 제공된 key를 그대로 쓰고 inputSchema에 맞는 arguments를 만든다.
 근거가 충분하면 Markdown 답변을 만들고 사실 주장 뒤에 [E1] 형식의 근거 ID를 붙인다.
+사용자가 쉬운 설명을 요청하면 법령용어·한국어기초사전·표준국어대사전 도구를 사용하고 어려운 말을 풀어 쓴다.
+사용자가 상세 답변을 요청하면 육하원칙과 추가 설명을 빠뜨리지 않는다.
 
 가상·초현실적 사실도 질문자가 정한 사실로 받아들인다. 존재하지 않는다는 이유만으로 분석을 끝내지 않는다.
 - 엘프·외계인·인공지능 같은 대상은 지능, 의사능력, 생명·신체, 환자 지위 등 법적으로 중요한 기능을 현실의 가장 가까운 개념에 대응시킨다.
@@ -193,6 +204,7 @@ assumptions에는 결론에 필요한 사실 가정을, legalIssues에는 실제
         })),
         evidence: context.evidence,
         previousCalls: context.history,
+        outputInstructions: answerFormatInstruction(context.options),
         query: context.query,
         reviewFeedback: context.reviewFeedback,
         selectedPlan: context.plan,
@@ -207,6 +219,7 @@ export async function forceResearchAnswer(
   query: string,
   plan: Omit<ResearchPlan, "answer" | "evidence">,
   evidence: ResearchEvidence[],
+  options: ResearchOptions,
 ) {
   return requestLlmText(configuration, [
     {
@@ -217,7 +230,8 @@ export async function forceResearchAnswer(
 가상 사실은 질문의 전제로 유지하고 현실에 존재하지 않는다는 말로 결론을 회피하지 않는다.
 가장 합리적인 법적 대응 관계를 주된 가정으로 명시한 뒤 구성요건을 사실관계에 적용한다.
 결론은 "가능성이 높다/낮다/추가 사실이 필요하다"처럼 직접 제시하고, 법적 지위가 달라질 때 결론이 바뀌는 경우에만 짧은 대안 분기를 둔다.
-형사처벌 질문은 특별법상 벌칙, 형법상 책임, 행정상 제재를 근거가 있는 범위에서 구분한다.`,
+형사처벌 질문은 특별법상 벌칙, 형법상 책임, 행정상 제재를 근거가 있는 범위에서 구분한다.
+${answerFormatInstruction(options)}`,
     },
     { role: "user", content: JSON.stringify({ evidence, plan, query }) },
   ]);
@@ -228,13 +242,17 @@ export async function composeResearchAnswer(
   query: string,
   plan: Omit<ResearchPlan, "answer" | "evidence">,
   evidence: ResearchEvidence[],
+  options: ResearchOptions,
   onProgress?: (event: { answer: string; sectionTitle: string }) => void,
 ) {
   let answer = "";
-  for (const section of answerSections(plan)) {
+  for (const section of answerSections(plan, options)) {
     if (answer.trim()) {
       answer = `${answer.trimEnd()}\n\n`;
       onProgress?.({ answer, sectionTitle: section.title });
+    }
+    if (options.answerDetail === "detailed") {
+      answer = `${answer}## ${section.title}\n\n`;
     }
     let sectionText = "";
     const previousAnswer = answer.trim();
@@ -251,7 +269,10 @@ export async function composeResearchAnswer(
 - 제공된 MCP 근거만 사실 근거로 사용하고, 사실 주장 뒤에는 [E1] 형식의 근거 ID를 붙인다.
 - 이미 쓴 내용을 반복하지 말고 이번 섹션의 역할에 집중한다.
 - 불확실하면 결론을 흐리지 말고 필요한 추가 사실을 분명히 적는다.
-- 제목은 쓰지 말고 본문만 출력한다.`,
+- 제목은 쓰지 말고 본문만 출력한다.
+- 쉬운 설명 모드에서는 제공된 사전 근거로 어려운 용어를 풀어 쓴다.
+${section.format ?? ""}
+${answerFormatInstruction(options)}`,
         },
         {
           role: "user",
@@ -284,6 +305,7 @@ export async function verifyResearchAnswer(
   query: string,
   evidence: ResearchEvidence[],
   draft: string,
+  options: ResearchOptions,
 ) {
   const response = await requestLlmText(configuration, [
     {
@@ -291,7 +313,9 @@ export async function verifyResearchAnswer(
       content: `고위험 법률 답변의 인용과 단정 표현만 검증한다.
 수정한 Markdown 답변과 결과를 JSON 객체 하나로 출력한다.
 스키마: {"answer":string,"grounded":boolean,"issues":string[]}
-제공된 근거 ID만 사용하고 [E1] 인용 형식을 유지한다.`,
+제공된 근거 ID만 사용하고 [E1] 인용 형식을 유지한다.
+답변 형식과 설명 난이도는 유지한다.
+${answerFormatInstruction(options)}`,
     },
     {
       role: "user",
@@ -301,7 +325,35 @@ export async function verifyResearchAnswer(
   return parseJsonResponse(response, verificationSchema).answer;
 }
 
-function answerSections(plan: Omit<ResearchPlan, "answer" | "evidence">) {
+function answerSections(
+  plan: Omit<ResearchPlan, "answer" | "evidence">,
+  options: ResearchOptions,
+): AnswerSection[] {
+  if (options.answerDetail === "detailed") {
+    return [
+      {
+        focus: "질문에 대한 직접적인 결론과 가장 중요한 조건을 먼저 설명한다.",
+        title: "핵심 결론",
+      },
+      {
+        focus:
+          "질문에서 확인되는 사실을 누가·언제·어디서·무엇을·어떻게·왜 항목으로 분리한다. 없는 사실은 확인 필요로 둔다.",
+        format:
+          "누가·언제·어디서·무엇을·어떻게·왜의 6개 행을 가진 Markdown 표만 작성한다.",
+        title: "육하원칙",
+      },
+      {
+        focus:
+          "법령상 의무·금지·벌칙과 판례상 판단기준을 구분해 근거 ID와 함께 사실관계에 적용한다.",
+        title: "법적 근거와 적용",
+      },
+      {
+        focus:
+          "용어 설명, 예외, 결론이 달라지는 조건과 사용자가 추가로 확인할 자료를 적는다. 추가 설명이 없으면 그 사실을 명시한다.",
+        title: "추가 설명과 확인할 점",
+      },
+    ];
+  }
   if (plan.mode === "overview") {
     return [
       {
@@ -333,6 +385,12 @@ function answerSections(plan: Omit<ResearchPlan, "answer" | "evidence">) {
     },
   ];
 }
+
+type AnswerSection = {
+  focus: string;
+  format?: string;
+  title: string;
+};
 
 function parseJsonResponse<T>(response: string, schema: z.ZodType<T>): T {
   for (const candidate of jsonCandidates(response)) {

@@ -1,7 +1,9 @@
 import type { SqliteDatabase } from "./db";
+import { createDictionaryToolbox, dictionaryTools } from "./dictionary-tools";
 import { searchLocalLegalData } from "./local-legal-search";
 import {
   legalSearchInputSchema,
+  localLawSearchTool,
   localSearchTool,
 } from "./local-legal-search-tool";
 import type { McpToolbox, McpToolDefinition } from "./mcp-client";
@@ -38,14 +40,24 @@ const dateCalculatorTool: McpToolDefinition = {
   title: "날짜 계산기",
 };
 
-const localTools = [localSearchTool, calculatorTool, dateCalculatorTool];
+const localTools = [
+  localSearchTool,
+  localLawSearchTool,
+  calculatorTool,
+  dateCalculatorTool,
+  ...dictionaryTools,
+];
 
 export function createLocalLegalToolbox(db: SqliteDatabase): McpToolbox {
+  const dictionaryToolbox = createDictionaryToolbox(db);
   return {
     tools: localTools,
     async call(toolKey, args) {
       if (toolKey === localSearchTool.key) {
         return searchLocalLegalData(db, args);
+      }
+      if (toolKey === localLawSearchTool.key) {
+        return searchLocalLegalData(db, { ...args, caseType: "law" });
       }
       if (toolKey === calculatorTool.key) {
         return calculateExpression(args);
@@ -53,9 +65,14 @@ export function createLocalLegalToolbox(db: SqliteDatabase): McpToolbox {
       if (toolKey === dateCalculatorTool.key) {
         return calculateDate(db, args);
       }
+      if (dictionaryTools.some((tool) => tool.key === toolKey)) {
+        return dictionaryToolbox.call(toolKey, args);
+      }
       throw new Error(`local_tool_not_found:${toolKey}`);
     },
-    async close() {},
+    async close() {
+      await dictionaryToolbox.close();
+    },
   };
 }
 
