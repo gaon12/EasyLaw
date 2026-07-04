@@ -499,6 +499,51 @@ test("external catalog creates public pending judgments", async () => {
   }
 });
 
+test("public judgment queries hide current or future-dated case records", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const judgmentId = upsertJudgmentFromExternal(db, {
+      caseNumber: "2999다100",
+      caseType: "civil",
+      courtName: "대법원",
+      decidedOn: "2999-01-01",
+      externalId: "future-public-case",
+      originalText: "미래 선고 판례는 공개 목록과 상세에서 제외한다.",
+      sourceProvider: "open-law",
+      sourceUrl: "https://example.test/future",
+      title: "미래 선고 판례",
+    });
+    const todayJudgmentId = upsertJudgmentFromExternal(db, {
+      caseNumber: "오늘헌마100",
+      caseType: "constitutional",
+      courtName: "헌법재판소",
+      decidedOn: new Date().toISOString().slice(0, 10),
+      externalId: "current-public-case",
+      originalText:
+        "날짜 fallback으로 생긴 오늘 날짜 헌재결정례는 공개하지 않는다.",
+      sourceProvider: "open-law-constitutional",
+      sourceUrl: "https://example.test/current",
+      title: "오늘 날짜 fallback 헌재결정례",
+    });
+
+    assert.equal(
+      getPublicJudgments(db).some((judgment) => judgment.id === judgmentId),
+      false,
+    );
+    assert.equal(
+      getPublicJudgments(db).some(
+        (judgment) => judgment.id === todayJudgmentId,
+      ),
+      false,
+    );
+    assert.equal(getPublicJudgmentByIdentifier(db, judgmentId), null);
+    assert.equal(getPublicJudgmentByIdentifier(db, "2999다100"), null);
+    assert.equal(getPublicJudgmentByIdentifier(db, todayJudgmentId), null);
+  } finally {
+    cleanup();
+  }
+});
+
 test("generation jobs dedupe and notification sending is idempotent", async () => {
   const { db, cleanup } = withDb();
   try {
@@ -896,6 +941,26 @@ test("open law parser normalizes public case records", () => {
   assert.equal(records[0].sourceUrl?.includes("OC="), false);
 });
 
+test("open law parser rejects case records without a reliable decision date", () => {
+  const records = parseOpenLawSearchResponse(
+    {
+      DetcSearch: {
+        detc: [
+          {
+            사건명: "날짜 없는 헌재결정례",
+            사건번호: "92헌마91",
+            헌재결정례상세링크: "/DRF/lawService.do?target=detc&ID=56816",
+            헌재결정례일련번호: "56816",
+          },
+        ],
+      },
+    },
+    "detc",
+  );
+
+  assert.equal(records.length, 0);
+});
+
 test("open law parser normalizes constitutional and law records", () => {
   const constitutionalRecords = parseOpenLawSearchResponse(
     {
@@ -970,6 +1035,7 @@ test("open law parser normalizes administrative rules and ordinances", () => {
             시행일자: "20260702",
             소관부처명: "교육부",
             제개정구분명: "일부개정",
+            조문내용: ["제1조 목적", "제2조 정의"],
             행정규칙ID: "ADM001",
             행정규칙명: "학교 안전 고시",
             행정규칙상세링크: "/DRF/lawService.do?target=admrul&ID=ADM001",
@@ -1004,6 +1070,7 @@ test("open law parser normalizes administrative rules and ordinances", () => {
       caseNumber: administrativeRules[0]?.caseNumber,
       caseType: administrativeRules[0]?.caseType,
       courtName: administrativeRules[0]?.courtName,
+      originalText: administrativeRules[0]?.originalText,
       sourceProvider: administrativeRules[0]?.sourceProvider,
       summary: administrativeRules[0]?.summary,
     },
@@ -1011,6 +1078,7 @@ test("open law parser normalizes administrative rules and ordinances", () => {
       caseNumber: "행정규칙 ADM001-2026-12",
       caseType: "law",
       courtName: "교육부",
+      originalText: "제1조 목적\n\n제2조 정의",
       sourceProvider: "open-law-administrative-rule",
       summary: "고시 / 일부개정",
     },
@@ -1665,6 +1733,232 @@ test("manual judgment collection stores fetched public judgments", async () => {
     assert.equal(
       afterIncremental.some((judgment) => judgment.caseNumber === "2026Da1004"),
       false,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("judgment collection backfills existing records missing original text", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    const judgmentId = upsertJudgmentFromExternal(db, {
+      caseNumber: "2024다100",
+      caseType: "civil",
+      courtName: "대법원",
+      decidedOn: "2024-01-01",
+      externalId: "missing-body",
+      sourceProvider: "open-law",
+      sourceUrl:
+        "https://www.law.go.kr/DRF/lawService.do?target=prec&ID=missing-body",
+      title: "기존 원문 누락 판례",
+    });
+
+    const requests: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      if (url.pathname.endsWith("/lawService.do")) {
+        requests.push(`detail:${target}:${url.searchParams.get("ID")}`);
+        return new Response(
+          JSON.stringify({
+            PrecService: {
+              판례내용: "누락됐던 상세 판례 본문",
+            },
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+      requests.push(`search:${target}`);
+      const roots: Record<string, unknown> = {
+        admrul: { AdmRulSearch: { admrul: [] } },
+        detc: { DetcSearch: { detc: [] } },
+        law: { LawSearch: { law: [] } },
+        ordin: { OrdinSearch: { ordin: [] } },
+        prec: { PrecSearch: { prec: [] } },
+      };
+      return new Response(JSON.stringify(roots[target] ?? {}), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
+
+    const result = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.equal(result.updatedCount, 1);
+    assert.equal(result.importedCount, 1);
+    assert.deepEqual(requests, [
+      "search:prec",
+      "search:detc",
+      "search:law",
+      "search:admrul",
+      "search:ordin",
+      "detail:prec:missing-body",
+    ]);
+    assert.equal(
+      getPublicJudgmentByIdentifier(db, judgmentId)?.originalText,
+      "누락됐던 상세 판례 본문",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("judgment collection repairs fallback case dates from original text", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    const judgmentId = upsertJudgmentFromExternal(db, {
+      caseNumber: "92헌마91",
+      caseType: "constitutional",
+      courtName: "헌법재판소",
+      decidedOn: new Date().toISOString().slice(0, 10),
+      externalId: "fallback-date",
+      originalText:
+        "헌 법 재 판 소 결정 사 건 92헌마91 주문 이 사건 심판청구를 각하한다. 1992. 5. 13. 재판장 재판관",
+      sourceProvider: "open-law-constitutional",
+      sourceUrl:
+        "https://www.law.go.kr/DRF/lawService.do?target=detc&ID=fallback-date",
+      title: "1994학년도신입생선발입시안 에 대한 헌법소원",
+    });
+
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      const roots: Record<string, unknown> = {
+        admrul: { AdmRulSearch: { admrul: [] } },
+        detc: { DetcSearch: { detc: [] } },
+        law: { LawSearch: { law: [] } },
+        ordin: { OrdinSearch: { ordin: [] } },
+        prec: { PrecSearch: { prec: [] } },
+      };
+      return new Response(JSON.stringify(roots[target] ?? {}), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
+
+    const result = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.equal(result.updatedCount, 1);
+    assert.equal(
+      getPublicJudgmentByIdentifier(db, judgmentId)?.decidedOn,
+      "1992-05-13",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("judgment collection skips future case records but keeps future laws", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    const requestedDetails: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      const target = url.searchParams.get("target") ?? "prec";
+      if (url.pathname.endsWith("/lawService.do")) {
+        requestedDetails.push(`${target}:${url.searchParams.get("ID")}`);
+        return new Response(
+          JSON.stringify({
+            LawService: {
+              법령내용: "미래 시행 법령 본문",
+            },
+            PrecService: {
+              판례내용: "미래 판례 본문",
+            },
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+      if (target === "prec") {
+        return new Response(
+          JSON.stringify({
+            PrecSearch: {
+              prec: [
+                {
+                  caseNumber: "2999다100",
+                  courtName: "대법원",
+                  decidedOn: "29990101",
+                  detailLink: "/DRF/lawService.do?target=prec&ID=future-case",
+                  precSeq: "future-case",
+                  title: "미래 선고 판례",
+                },
+              ],
+            },
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+      if (target === "law") {
+        const page = url.searchParams.get("page") ?? "1";
+        return new Response(
+          JSON.stringify({
+            LawSearch: {
+              law:
+                page === "1"
+                  ? [
+                      {
+                        공포번호: "1",
+                        법령ID: "future-law",
+                        법령명한글: "미래 시행 법률",
+                        법령상세링크:
+                          "/DRF/lawService.do?target=law&ID=future-law",
+                        시행일자: "29990101",
+                        소관부처명: "법제처",
+                      },
+                    ]
+                  : [],
+            },
+          }),
+          { headers: { "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+      const roots: Record<string, unknown> = {
+        admrul: { AdmRulSearch: { admrul: [] } },
+        detc: { DetcSearch: { detc: [] } },
+        ordin: { OrdinSearch: { ordin: [] } },
+      };
+      return new Response(JSON.stringify(roots[target] ?? {}), {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      });
+    };
+
+    const result = await runJudgmentCollection(db, {
+      forceRefresh: true,
+      trigger: "manual",
+    });
+
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.deepEqual(requestedDetails, ["law:future-law"]);
+    const judgments = getPublicJudgments(db);
+    assert.equal(
+      judgments.some((judgment) => judgment.sourceProvider === "open-law"),
+      false,
+    );
+    assert.equal(
+      judgments.some((judgment) => judgment.sourceProvider === "open-law-law"),
+      true,
     );
   } finally {
     globalThis.fetch = originalFetch;

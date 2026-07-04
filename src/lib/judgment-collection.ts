@@ -1,6 +1,7 @@
 import { auditLog } from "./audit";
 import type { SqliteDatabase } from "./db";
 import {
+  ensurePublicJudgmentOriginalText,
   fetchOpenLawRecordPage,
   hydrateOpenLawRecordOriginalText,
   openLawCollectionTargets,
@@ -17,6 +18,7 @@ const COLLECTION_SCOPE_LABEL = "전체 판례·헌재·법령·행정규칙·자
 const COLLECTION_PAGE_SIZE = 100;
 const COLLECTION_HYDRATE_CONCURRENCY = 100;
 const COLLECTION_PROGRESS_BATCH_SIZE = 25;
+const COLLECTION_BACKFILL_BATCH_SIZE = 500;
 const DEFAULT_INTERVAL_MINUTES = 360;
 const MIN_INTERVAL_MINUTES = 10;
 const MAX_INTERVAL_MINUTES = 10_080;
@@ -630,6 +632,9 @@ async function collectAndStoreOpenLawRecords(
       let existingCount = 0;
       const candidates: CollectionCandidate[] = [];
       for (const record of pageRecords) {
+        if (isFutureDatedCaseRecord(record)) {
+          continue;
+        }
         const key = `${record.sourceProvider}:${record.externalId}`;
         if (seen.has(key)) {
           continue;
@@ -710,7 +715,194 @@ async function collectAndStoreOpenLawRecords(
     });
   }
 
+  const backfillCounts = await backfillExistingOpenLawOriginalTexts(db, runId, {
+    currentImportedCount: importedCount,
+    estimatedTotal,
+  });
+  importedCount += backfillCounts.importedCount;
+  updatedCount += backfillCounts.updatedCount;
+
+  const repairedDateCount = repairExistingOpenLawCaseDecisionDates(db);
+  updatedCount += repairedDateCount;
+
   return { createdCount, importedCount, updatedCount };
+}
+
+async function backfillExistingOpenLawOriginalTexts(
+  db: SqliteDatabase,
+  runId: string,
+  input: { currentImportedCount: number; estimatedTotal: number },
+) {
+  const totalCandidates = countOpenLawOriginalTextBackfillCandidates(db);
+  if (totalCandidates === 0) {
+    return { importedCount: 0, updatedCount: 0 };
+  }
+
+  let cursorId: string | null = null;
+  let scannedCount = 0;
+  let updatedCount = 0;
+  while (true) {
+    const candidates = findOpenLawOriginalTextBackfillCandidates(db, cursorId);
+    if (candidates.length === 0) {
+      break;
+    }
+    cursorId = candidates[candidates.length - 1].id;
+
+    let completedBatchCount = 0;
+    await mapWithConcurrency(
+      candidates,
+      COLLECTION_HYDRATE_CONCURRENCY,
+      async (candidate) => {
+        const originalText = await ensurePublicJudgmentOriginalText(
+          db,
+          candidate,
+        );
+        if (originalText) {
+          updatedCount += 1;
+        }
+        completedBatchCount += 1;
+        const completedTotal = scannedCount + completedBatchCount;
+        if (
+          completedTotal === totalCandidates ||
+          completedTotal % COLLECTION_PROGRESS_BATCH_SIZE === 0
+        ) {
+          updateRunProgress(db, runId, {
+            current: input.currentImportedCount + completedTotal,
+            message: `기존 문서 본문 보강 중 ${completedTotal}/${totalCandidates}건`,
+            stage: "saving",
+            total: input.estimatedTotal + totalCandidates,
+          });
+        }
+        return originalText;
+      },
+    );
+    scannedCount += candidates.length;
+  }
+
+  return { importedCount: updatedCount, updatedCount };
+}
+
+function countOpenLawOriginalTextBackfillCandidates(db: SqliteDatabase) {
+  return (
+    db
+      .prepare<[], { count: number }>(
+        `SELECT COUNT(*) AS count
+       FROM judgments
+       LEFT JOIN judgment_texts ON judgment_texts.judgment_id = judgments.id
+       WHERE ${openLawOriginalTextBackfillWhereSql}`,
+      )
+      .get()?.count ?? 0
+  );
+}
+
+const openLawOriginalTextBackfillWhereSql = `judgments.source_provider IN (
+    'open-law',
+    'open-law-constitutional',
+    'open-law-law',
+    'open-law-administrative-rule',
+    'open-law-ordinance'
+  )
+  AND (
+    judgment_texts.original_text IS NULL
+    OR TRIM(judgment_texts.original_text) = ''
+    OR TRIM(judgment_texts.original_text) LIKE '%...'
+    OR TRIM(judgment_texts.original_text) LIKE '%…'
+  )`;
+
+function findOpenLawOriginalTextBackfillCandidates(
+  db: SqliteDatabase,
+  cursorId: string | null,
+) {
+  return db
+    .prepare<
+      [string, number],
+      {
+        caseNumber: string;
+        id: string;
+        originalText: string | null;
+        sourceExternalId: string;
+        sourceProvider: string;
+        sourceUrl: string | null;
+        title: string;
+      }
+    >(
+      `SELECT judgments.id,
+        judgments.case_number AS caseNumber,
+        judgments.title,
+        judgments.source_provider AS sourceProvider,
+        judgments.source_external_id AS sourceExternalId,
+        judgments.source_url AS sourceUrl,
+        judgment_texts.original_text AS originalText
+       FROM judgments
+       LEFT JOIN judgment_texts ON judgment_texts.judgment_id = judgments.id
+       WHERE ${openLawOriginalTextBackfillWhereSql}
+        AND judgments.id > ?
+       ORDER BY judgments.id ASC
+       LIMIT ?`,
+    )
+    .all(cursorId ?? "", COLLECTION_BACKFILL_BATCH_SIZE);
+}
+
+function repairExistingOpenLawCaseDecisionDates(db: SqliteDatabase) {
+  const rows = db
+    .prepare<[], { decidedOn: string; id: string; originalText: string }>(
+      `SELECT judgments.id,
+        judgments.decided_on AS decidedOn,
+        judgment_texts.original_text AS originalText
+       FROM judgments
+       JOIN judgment_texts ON judgment_texts.judgment_id = judgments.id
+       WHERE judgments.source_provider IN ('open-law', 'open-law-constitutional')
+        AND judgments.decided_on >= date('now')
+        AND judgment_texts.original_text IS NOT NULL
+        AND TRIM(judgment_texts.original_text) != ''`,
+    )
+    .all();
+  if (rows.length === 0) {
+    return 0;
+  }
+
+  const update = db.prepare(
+    `UPDATE judgments
+     SET decided_on = ?, updated_at = ?
+     WHERE id = ?`,
+  );
+  const repair = db.transaction(() => {
+    let repairedCount = 0;
+    for (const row of rows) {
+      const inferred = inferCaseDecisionDateFromText(row.originalText);
+      if (!inferred || inferred === row.decidedOn) {
+        continue;
+      }
+      update.run(inferred, nowIso(), row.id);
+      repairedCount += 1;
+    }
+    return repairedCount;
+  });
+  return repair();
+}
+
+function inferCaseDecisionDateFromText(originalText: string) {
+  const today = todayIsoDate();
+  const matches = originalText.matchAll(
+    /((?:19|20)\d{2})\s*(?:[.년/-])\s*(\d{1,2})\s*(?:[.월/-])\s*(\d{1,2})/g,
+  );
+  let inferred: string | null = null;
+  for (const match of matches) {
+    const isoDate = formatIsoDateParts(match[1], match[2], match[3]);
+    if (isoDate && isoDate <= today) {
+      inferred = isoDate;
+    }
+  }
+  return inferred;
+}
+
+function formatIsoDateParts(year: string, month: string, day: string) {
+  const monthNumber = Number.parseInt(month, 10);
+  const dayNumber = Number.parseInt(day, 10);
+  if (monthNumber < 1 || monthNumber > 12 || dayNumber < 1 || dayNumber > 31) {
+    return null;
+  }
+  return `${year}-${String(monthNumber).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`;
 }
 
 function saveHydratedCandidates(
@@ -740,7 +932,7 @@ function saveHydratedCandidates(
 async function mapWithConcurrency<T, R>(
   items: readonly T[],
   concurrency: number,
-  mapper: (item: T) => Promise<R>,
+  mapper: (item: T, index: number) => Promise<R>,
 ) {
   const results = new Array<R>(items.length);
   let nextIndex = 0;
@@ -751,7 +943,7 @@ async function mapWithConcurrency<T, R>(
       if (index >= items.length) {
         return;
       }
-      results[index] = await mapper(items[index]);
+      results[index] = await mapper(items[index], index);
     }
   }
 
@@ -785,8 +977,19 @@ function isMutableOpenLawRecord(record: ExternalJudgmentRecord) {
   );
 }
 
+function isFutureDatedCaseRecord(record: ExternalJudgmentRecord) {
+  if (record.caseType === "law") {
+    return false;
+  }
+  return record.decidedOn > todayIsoDate();
+}
+
 function isMutableOpenLawTarget(target: string) {
   return target === "law" || target === "admrul" || target === "ordin";
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function updateRunProgress(

@@ -97,7 +97,11 @@ const judgmentSelect = `SELECT judgments.id, case_number, case_type, court_name,
     judgment_texts.original_text AS original_text
   FROM judgments
   LEFT JOIN judgment_texts ON judgment_texts.judgment_id = judgments.id
-  WHERE visibility = 'public'`;
+  WHERE visibility = 'public'
+    AND NOT (
+      source_provider IN ('open-law', 'open-law-constitutional')
+      AND decided_on >= date('now')
+    )`;
 
 function fetchByIds(
   db: SqliteDatabase,

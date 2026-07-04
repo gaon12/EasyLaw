@@ -6,6 +6,12 @@ import type {
   JudgmentListItem,
 } from "./types";
 
+const publicJudgmentVisibilitySql = `judgments.visibility = 'public'
+  AND NOT (
+    judgments.source_provider IN ('open-law', 'open-law-constitutional')
+    AND judgments.decided_on >= date('now')
+  )`;
+
 export function getPublicJudgments(
   db: SqliteDatabase,
   options: { limit?: number } = {},
@@ -53,7 +59,7 @@ export function getPublicJudgments(
           WHERE notifications.judgment_id = judgments.id
         ) AS notification_count
       FROM judgments
-      WHERE visibility = 'public'
+      WHERE ${publicJudgmentVisibilitySql}
       ORDER BY decided_on DESC
       ${limitClause}`,
     )
@@ -180,7 +186,7 @@ export function getPublicJudgmentByCaseNumber(
   const row = db
     .prepare<[string], JudgmentDetailRow>(
       `${judgmentDetailSql}
-       WHERE judgments.visibility = 'public'
+       WHERE ${publicJudgmentVisibilitySql}
          AND judgments.case_number = ?
        LIMIT 1`,
     )
@@ -195,7 +201,7 @@ export function getPublicJudgmentByIdentifier(
   const row = db
     .prepare<[string, string], JudgmentDetailRow>(
       `${judgmentDetailSql}
-       WHERE judgments.visibility = 'public'
+       WHERE ${publicJudgmentVisibilitySql}
          AND (judgments.id = ? OR judgments.case_number = ?)
        LIMIT 1`,
     )
@@ -215,7 +221,7 @@ export function getPublicJudgmentsByCaseNumbers(
   return db
     .prepare<unknown[], JudgmentDetailRow>(
       `${judgmentDetailSql}
-       WHERE judgments.visibility = 'public'
+       WHERE ${publicJudgmentVisibilitySql}
          AND judgments.case_number IN (${uniqueCaseNumbers.map(() => "?").join(", ")})`,
     )
     .all(...uniqueCaseNumbers)

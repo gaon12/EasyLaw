@@ -400,7 +400,7 @@ export async function ensurePublicJudgmentOriginalText(
     title?: string;
   },
 ) {
-  if (input.originalText && !isTruncatedOriginalText(input.originalText)) {
+  if (input.originalText && !needsOriginalTextHydration(input.originalText)) {
     return input.originalText;
   }
 
@@ -428,7 +428,7 @@ export async function hydrateOpenLawRecordOriginalText(
   db: SqliteDatabase,
   record: ExternalJudgmentRecord,
 ) {
-  if (record.originalText) {
+  if (record.originalText && !needsOriginalTextHydration(record.originalText)) {
     return record;
   }
 
@@ -1180,7 +1180,7 @@ function normalizeDate(value: string | undefined) {
   if (digits.length >= 8) {
     return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
   }
-  return new Date().toISOString().slice(0, 10);
+  return undefined;
 }
 
 function normalizeOpenLawUrl(value: string | undefined) {
@@ -1227,12 +1227,14 @@ function collectTextValues(source: unknown, keys: string[]) {
       return;
     }
     for (const [key, child] of Object.entries(value)) {
-      const text = keys.includes(key)
-        ? normalizeWhitespace(scalarText(child))
-        : undefined;
-      if (text && !seen.has(text)) {
-        seen.add(text);
-        values.push(text);
+      if (keys.includes(key)) {
+        for (const scalar of collectScalarTexts(child)) {
+          const text = normalizeWhitespace(scalar);
+          if (text && !seen.has(text)) {
+            seen.add(text);
+            values.push(text);
+          }
+        }
       }
       visit(child);
     }
@@ -1240,6 +1242,32 @@ function collectTextValues(source: unknown, keys: string[]) {
 
   visit(source);
   return values;
+}
+
+function collectScalarTexts(source: unknown) {
+  const texts: string[] = [];
+  function visit(value: unknown) {
+    const text = scalarText(value);
+    if (text) {
+      texts.push(text);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item);
+      }
+      return;
+    }
+    if (!isRecord(value)) {
+      return;
+    }
+    for (const child of Object.values(value)) {
+      visit(child);
+    }
+  }
+
+  visit(source);
+  return texts;
 }
 
 function extractHtmlAttribute(html: string, tag: string, attribute: string) {
@@ -1297,6 +1325,10 @@ function isUsefulOriginalText(value: string) {
 
 function isTruncatedOriginalText(value: string) {
   return /(?:\.{3}|…)\s*$/.test(value.trim());
+}
+
+function needsOriginalTextHydration(value: string) {
+  return isTruncatedOriginalText(value);
 }
 
 function normalizeWhitespace(value: string | undefined) {
