@@ -1090,6 +1090,17 @@ try {
       name: "판결문을 더 편하게 볼 수 있도록 기본 화면을 골라드릴게요",
     })
     .waitFor();
+  await page.getByText("판결문을 어떤 방식으로 보고 싶으신가요?").waitFor();
+  await page
+    .getByLabel("쉽게 풀어쓴 설명으로 보고 싶어요", { exact: true })
+    .check();
+  await page.getByRole("button", { name: "다음" }).click();
+  await page.getByText("법률 문서를 읽는 것이 익숙하신가요?").waitFor();
+  await page.getByLabel("어렵습니다", { exact: true }).check();
+  await page.getByRole("button", { name: "다음" }).click();
+  await page.getByText("긴 글을 읽는 것이 부담스럽나요?").waitFor();
+  await page.getByLabel("괜찮습니다", { exact: true }).check();
+  await page.getByRole("button", { name: "추천 보기 확인" }).click();
   await page.getByText("추천 보기: 쉬운 해설", { exact: true }).waitFor();
   await page.getByRole("button", { name: "이대로 시작하기" }).click();
   await page

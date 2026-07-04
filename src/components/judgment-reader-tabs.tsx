@@ -16,7 +16,12 @@ import {
 } from "@/lib/reading-onboarding";
 
 type ReaderTab = "document" | "explanation" | "easyread";
-type OnboardingStep = "questions" | "choose";
+type OnboardingStep =
+  | "reading"
+  | "familiarity"
+  | "length"
+  | "recommendation"
+  | "choose";
 
 const tabHashes: Record<string, ReaderTab> = {
   "#original-document": "document",
@@ -51,7 +56,7 @@ export function JudgmentReaderTabs({
   );
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] =
-    useState<OnboardingStep>("questions");
+    useState<OnboardingStep>("reading");
   const [noticeView, setNoticeView] = useState<ReaderView | null>(null);
   const [preferredReading, setPreferredReading] =
     useState<PreferredReading | null>(null);
@@ -75,7 +80,7 @@ export function JudgmentReaderTabs({
     setManualView(view);
     setNoticeView(view);
     setOnboardingOpen(false);
-    setOnboardingStep("questions");
+    setOnboardingStep("reading");
   }, []);
 
   const closeWithDefault = useCallback(() => {
@@ -119,6 +124,38 @@ export function JudgmentReaderTabs({
 
   function activateTab(tab: ReaderTab) {
     setActiveTab(tab);
+  }
+
+  function goToPreviousOnboardingStep() {
+    if (onboardingStep === "familiarity") {
+      setOnboardingStep("reading");
+      return;
+    }
+    if (onboardingStep === "length") {
+      setOnboardingStep("familiarity");
+      return;
+    }
+    if (onboardingStep === "recommendation") {
+      setOnboardingStep("length");
+      return;
+    }
+    if (onboardingStep === "choose") {
+      setOnboardingStep("recommendation");
+    }
+  }
+
+  function goToNextOnboardingStep() {
+    if (onboardingStep === "reading" && preferredReading) {
+      setOnboardingStep("familiarity");
+      return;
+    }
+    if (onboardingStep === "familiarity" && legalDocumentFamiliarity) {
+      setOnboardingStep("length");
+      return;
+    }
+    if (onboardingStep === "length" && longTextComfort) {
+      setOnboardingStep("recommendation");
+    }
   }
 
   return (
@@ -202,58 +239,112 @@ export function JudgmentReaderTabs({
               </p>
             </div>
 
-            {onboardingStep === "questions" ? (
+            {onboardingStep === "reading" ? (
               <>
-                <div className={styles.readerOnboardingQuestions}>
-                  <OnboardingQuestion
-                    legend="판결문을 어떤 방식으로 보고 싶으신가요?"
-                    name={`${baseId}-preferred-reading`}
-                    onChange={setPreferredReading}
-                    options={[
-                      {
-                        label: "원래 판결문 그대로 보고 싶어요",
-                        value: "original",
-                      },
-                      {
-                        label: "쉽게 풀어쓴 설명으로 보고 싶어요",
-                        value: "plain_language",
-                      },
-                      {
-                        label: "짧은 문장과 큰 글씨로 보고 싶어요",
-                        value: "easy_read",
-                      },
-                    ]}
-                    value={preferredReading}
-                  />
-                  <OnboardingQuestion
-                    legend="법률 문서를 읽는 것이 익숙하신가요?"
-                    name={`${baseId}-legal-familiarity`}
-                    onChange={setLegalDocumentFamiliarity}
-                    options={[
-                      { label: "익숙합니다", value: "familiar" },
-                      { label: "어렵습니다", value: "difficult" },
-                      {
-                        label: "매우 어렵습니다",
-                        value: "very_difficult",
-                      },
-                    ]}
-                    value={legalDocumentFamiliarity}
-                  />
-                  <OnboardingQuestion
-                    legend="긴 글을 읽는 것이 부담스럽나요?"
-                    name={`${baseId}-long-text`}
-                    onChange={setLongTextComfort}
-                    options={[
-                      { label: "괜찮습니다", value: "fine" },
-                      {
-                        label: "조금 부담스럽습니다",
-                        value: "some",
-                      },
-                      { label: "많이 부담스럽습니다", value: "high" },
-                    ]}
-                    value={longTextComfort}
-                  />
+                <OnboardingProgress currentStep={1} />
+                <OnboardingQuestion
+                  legend="판결문을 어떤 방식으로 보고 싶으신가요?"
+                  name={`${baseId}-preferred-reading`}
+                  onChange={setPreferredReading}
+                  options={[
+                    {
+                      label: "원래 판결문 그대로 보고 싶어요",
+                      value: "original",
+                    },
+                    {
+                      label: "쉽게 풀어쓴 설명으로 보고 싶어요",
+                      value: "plain_language",
+                    },
+                    {
+                      label: "짧은 문장과 큰 글씨로 보고 싶어요",
+                      value: "easy_read",
+                    },
+                  ]}
+                  value={preferredReading}
+                />
+                <div className={styles.readerOnboardingActions}>
+                  <button
+                    className={styles.primaryButton}
+                    disabled={!preferredReading}
+                    onClick={goToNextOnboardingStep}
+                    type="button"
+                  >
+                    다음
+                  </button>
                 </div>
+              </>
+            ) : onboardingStep === "familiarity" ? (
+              <>
+                <OnboardingProgress currentStep={2} />
+                <OnboardingQuestion
+                  legend="법률 문서를 읽는 것이 익숙하신가요?"
+                  name={`${baseId}-legal-familiarity`}
+                  onChange={setLegalDocumentFamiliarity}
+                  options={[
+                    { label: "익숙합니다", value: "familiar" },
+                    { label: "어렵습니다", value: "difficult" },
+                    {
+                      label: "매우 어렵습니다",
+                      value: "very_difficult",
+                    },
+                  ]}
+                  value={legalDocumentFamiliarity}
+                />
+                <div className={styles.readerOnboardingActions}>
+                  <button
+                    className={styles.secondaryButton}
+                    onClick={goToPreviousOnboardingStep}
+                    type="button"
+                  >
+                    이전
+                  </button>
+                  <button
+                    className={styles.primaryButton}
+                    disabled={!legalDocumentFamiliarity}
+                    onClick={goToNextOnboardingStep}
+                    type="button"
+                  >
+                    다음
+                  </button>
+                </div>
+              </>
+            ) : onboardingStep === "length" ? (
+              <>
+                <OnboardingProgress currentStep={3} />
+                <OnboardingQuestion
+                  legend="긴 글을 읽는 것이 부담스럽나요?"
+                  name={`${baseId}-long-text`}
+                  onChange={setLongTextComfort}
+                  options={[
+                    { label: "괜찮습니다", value: "fine" },
+                    {
+                      label: "조금 부담스럽습니다",
+                      value: "some",
+                    },
+                    { label: "많이 부담스럽습니다", value: "high" },
+                  ]}
+                  value={longTextComfort}
+                />
+                <div className={styles.readerOnboardingActions}>
+                  <button
+                    className={styles.secondaryButton}
+                    onClick={goToPreviousOnboardingStep}
+                    type="button"
+                  >
+                    이전
+                  </button>
+                  <button
+                    className={styles.primaryButton}
+                    disabled={!longTextComfort}
+                    onClick={goToNextOnboardingStep}
+                    type="button"
+                  >
+                    추천 보기 확인
+                  </button>
+                </div>
+              </>
+            ) : onboardingStep === "recommendation" ? (
+              <>
                 <div className={styles.readerRecommendation}>
                   <span>추천 보기: {recommendation.title}</span>
                   <p>{recommendation.description}</p>
@@ -262,6 +353,13 @@ export function JudgmentReaderTabs({
                   )}
                 </div>
                 <div className={styles.readerOnboardingActions}>
+                  <button
+                    className={styles.secondaryButton}
+                    onClick={goToPreviousOnboardingStep}
+                    type="button"
+                  >
+                    이전
+                  </button>
                   <button
                     className={styles.primaryButton}
                     onClick={() => completeOnboarding(recommendation.view)}
@@ -307,10 +405,10 @@ export function JudgmentReaderTabs({
                   </button>
                   <button
                     className={styles.secondaryButton}
-                    onClick={() => setOnboardingStep("questions")}
+                    onClick={goToPreviousOnboardingStep}
                     type="button"
                   >
-                    질문으로 돌아가기
+                    추천으로 돌아가기
                   </button>
                 </div>
               </>
@@ -327,6 +425,19 @@ const readerViewOptions = [
   { label: "쉬운 해설", value: "plain_language" },
   { label: "이지리드", value: "easy_read" },
 ] as const;
+
+function OnboardingProgress({ currentStep }: { currentStep: 1 | 2 | 3 }) {
+  return (
+    <div aria-hidden className={styles.readerOnboardingProgress}>
+      {[1, 2, 3].map((step) => (
+        <span
+          data-active={currentStep === step ? "true" : undefined}
+          key={step}
+        />
+      ))}
+    </div>
+  );
+}
 
 function OnboardingQuestion<Value extends string>({
   legend,

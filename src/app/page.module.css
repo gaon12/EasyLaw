@@ -3237,6 +3237,22 @@
   gap: 14px;
 }
 
+.readerOnboardingProgress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.readerOnboardingProgress span {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-muted);
+}
+
+.readerOnboardingProgress span[data-active="true"] {
+  background: var(--bg-brand);
+}
+
 .readerOnboardingQuestion,
 .readerManualChoice {
   display: grid;
