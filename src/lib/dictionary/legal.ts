@@ -39,10 +39,25 @@ const OPEN_LAW_LEGAL_TERM_SERVICE_API_URL =
   "https://www.law.go.kr/DRF/lawService.do";
 const LEGAL_TERM_PAGE_SIZE = 100;
 const MAX_LEGAL_TERM_PAGES = 1000;
+const LEGAL_TERM_DETAIL_BATCH_SIZE = 20;
+const LEGAL_TERM_PAGE_CONCURRENCY = 2;
+const LEGAL_TERM_DETAIL_CONCURRENCY = 4;
+const OPEN_LAW_LEGAL_TERM_TIMEOUT_MS = 15_000;
 
 type LegalTermReference = {
   id: string | null;
   word: string;
+};
+
+type LegalTermListPage = {
+  references: LegalTermReference[];
+  totalCount: number | null;
+};
+
+type LegalTermPage = {
+  references: LegalTermReference[];
+  terms: DictionaryTerm[];
+  totalCount: number | null;
 };
 
 export async function updateOpenLawLegalDictionary(db: SqliteDatabase) {
@@ -130,64 +145,143 @@ async function importOpenLawLegalTerms(
   }) => void,
 ) {
   let importedCount = 0;
-  let page = 1;
-  let totalCount: number | null = null;
 
-  while (page <= MAX_LEGAL_TERM_PAGES) {
-    const totalPages = totalCount ? pageTotal(totalCount) : page;
+  onProgress({
+    current: 0,
+    message: "1쪽 법령용어를 가져오고 있어요.",
+    stage: "downloading",
+    total: 1,
+  });
+  const firstPayload = await fetchOpenLawLegalTermPage(oc, 1);
+  const firstListPage = parseLegalTermListPage(firstPayload);
+  const totalPages = firstListPage.totalCount
+    ? Math.min(pageTotal(firstListPage.totalCount), MAX_LEGAL_TERM_PAGES)
+    : null;
+
+  if (!totalPages) {
+    return importLegalTermPagesSequentially({
+      db,
+      firstListPage,
+      importedCount,
+      oc,
+      onProgress,
+    });
+  }
+
+  let completedPages = 0;
+  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+  await mapWithConcurrency(pages, LEGAL_TERM_PAGE_CONCURRENCY, async (page) => {
     onProgress({
-      current: page - 1,
+      current: completedPages,
+      importedCount,
       message: `${page.toLocaleString("ko-KR")}쪽 법령용어를 가져오고 있어요.`,
       stage: "downloading",
       total: totalPages,
     });
-    const payload = await fetchOpenLawLegalTermPage(oc, page);
-    const root = findLegalTermRoot(payload);
-    const pageReferences = legalTermItems(root).flatMap(
-      parseLegalTermReference,
-    );
-    totalCount ??= parseTotalCount(root);
-    const nextTotalPages = totalCount ? pageTotal(totalCount) : page;
-    const pageTerms =
-      pageReferences.length > 0
-        ? parseLegalTermDetailPayload(
-            await fetchOpenLawLegalTermDetails(oc, pageReferences),
-            pageReferences,
-          )
-        : [];
-    onProgress({
-      current: page - 1,
-      importedCount,
-      message: `${page.toLocaleString("ko-KR")}쪽 법령용어 정의를 저장하고 있어요.`,
-      stage: "saving",
-      total: nextTotalPages,
-    });
+    const pageData =
+      page === 1
+        ? await hydrateLegalTermPage(oc, firstListPage)
+        : await fetchLegalTermPage(oc, page);
     importedCount += upsertDictionaryTerms(db, {
       source: "legal",
-      terms: pageTerms,
+      terms: pageData.terms,
     });
+    completedPages += 1;
     onProgress({
-      current: page,
+      current: completedPages,
       importedCount,
       message: `${importedCount.toLocaleString("ko-KR")}개 법령용어 정의를 저장했어요.`,
       stage: "saving",
-      total: nextTotalPages,
+      total: totalPages,
     });
-
-    if (pageReferences.length === 0) {
-      break;
-    }
-    if (totalCount && page * LEGAL_TERM_PAGE_SIZE >= totalCount) {
-      break;
-    }
-    page += 1;
-  }
+  });
 
   return importedCount;
 }
 
 function pageTotal(totalCount: number) {
   return Math.max(1, Math.ceil(totalCount / LEGAL_TERM_PAGE_SIZE));
+}
+
+async function importLegalTermPagesSequentially(input: {
+  db: SqliteDatabase;
+  firstListPage: LegalTermListPage;
+  importedCount: number;
+  oc: string;
+  onProgress: (progress: {
+    current: number;
+    importedCount?: number;
+    message: string;
+    stage: "downloading" | "saving" | "scanning";
+    total: number;
+  }) => void;
+}) {
+  let importedCount = input.importedCount;
+  let page = 1;
+  let pageData = await hydrateLegalTermPage(input.oc, input.firstListPage);
+
+  while (page <= MAX_LEGAL_TERM_PAGES) {
+    importedCount += upsertDictionaryTerms(input.db, {
+      source: "legal",
+      terms: pageData.terms,
+    });
+    input.onProgress({
+      current: page,
+      importedCount,
+      message: `${importedCount.toLocaleString("ko-KR")}개 법령용어 정의를 저장했어요.`,
+      stage: "saving",
+      total: page,
+    });
+
+    if (pageData.references.length === 0) {
+      break;
+    }
+    page += 1;
+    input.onProgress({
+      current: page - 1,
+      importedCount,
+      message: `${page.toLocaleString("ko-KR")}쪽 법령용어를 가져오고 있어요.`,
+      stage: "downloading",
+      total: page,
+    });
+    pageData = await fetchLegalTermPage(input.oc, page);
+  }
+
+  return importedCount;
+}
+
+function parseLegalTermListPage(payload: unknown): LegalTermListPage {
+  const root = findLegalTermRoot(payload);
+  const references = legalTermItems(root).flatMap(parseLegalTermReference);
+  return {
+    references,
+    totalCount: parseTotalCount(root),
+  };
+}
+
+async function fetchLegalTermPage(
+  oc: string,
+  page: number,
+): Promise<LegalTermPage> {
+  return hydrateLegalTermPage(
+    oc,
+    parseLegalTermListPage(await fetchOpenLawLegalTermPage(oc, page)),
+  );
+}
+
+async function hydrateLegalTermPage(
+  oc: string,
+  page: LegalTermListPage,
+): Promise<LegalTermPage> {
+  const terms =
+    page.references.length > 0
+      ? await fetchOpenLawLegalTermsInBatches(oc, page.references)
+      : [];
+  return {
+    references: page.references,
+    terms,
+    totalCount: page.totalCount,
+  };
 }
 
 async function fetchOpenLawLegalTermPage(oc: string, page: number) {
@@ -200,7 +294,7 @@ async function fetchOpenLawLegalTermPage(oc: string, page: number) {
 
   const response = await fetch(url, {
     headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(OPEN_LAW_LEGAL_TERM_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`법령용어 API가 ${response.status} 상태를 반환했습니다.`);
@@ -211,6 +305,23 @@ async function fetchOpenLawLegalTermPage(oc: string, page: number) {
     throw new Error(payload.msg?.toString() || payload.result);
   }
   return payload;
+}
+
+async function fetchOpenLawLegalTermsInBatches(
+  oc: string,
+  references: readonly LegalTermReference[],
+) {
+  const batches = chunkReferences(references, LEGAL_TERM_DETAIL_BATCH_SIZE);
+  const terms = await mapWithConcurrency(
+    batches,
+    LEGAL_TERM_DETAIL_CONCURRENCY,
+    async (batch) =>
+      parseLegalTermDetailPayload(
+        await fetchOpenLawLegalTermDetails(oc, batch),
+        batch,
+      ),
+  );
+  return terms.flat();
 }
 
 async function fetchOpenLawLegalTermDetails(
@@ -232,7 +343,7 @@ async function fetchOpenLawLegalTermDetails(
 
   const response = await fetch(url, {
     headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(OPEN_LAW_LEGAL_TERM_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(
@@ -245,6 +356,40 @@ async function fetchOpenLawLegalTermDetails(
     throw new Error(payload.msg?.toString() || payload.result);
   }
   return payload;
+}
+
+function chunkReferences(
+  references: readonly LegalTermReference[],
+  size: number,
+) {
+  const chunks: LegalTermReference[][] = [];
+  for (let index = 0; index < references.length; index += size) {
+    chunks.push(references.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    for (;;) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) {
+        return;
+      }
+      results[index] = await mapper(items[index]);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 function findLegalTermRoot(payload: unknown) {

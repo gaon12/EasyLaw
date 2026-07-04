@@ -3109,6 +3109,141 @@ test("open law legal terms import into the priority dictionary", async () => {
   }
 });
 
+test("open law legal terms import hydrates definitions in parallel batches", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    let activeDetails = 0;
+    let maxActiveDetails = 0;
+    const detailBatchSizes: number[] = [];
+    const requestedIds: string[] = [];
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/lawSearch.do")) {
+        const lstrm = Array.from({ length: 45 }, (_, index) => ({
+          법령용어ID: `legal-term-${index + 1}`,
+          법령용어명: `법령용어 ${index + 1}`,
+        }));
+        return new Response(
+          JSON.stringify({ LsTrmSearch: { lstrm, totalCnt: "45" } }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
+      const ids = (url.searchParams.get("trmSeqs") ?? "")
+        .split(",")
+        .filter(Boolean);
+      detailBatchSizes.push(ids.length);
+      requestedIds.push(...ids);
+      activeDetails += 1;
+      maxActiveDetails = Math.max(maxActiveDetails, activeDetails);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      activeDetails -= 1;
+
+      return new Response(
+        JSON.stringify({
+          LsTrmService: {
+            법령용어일련번호: ids,
+            법령용어명_한글: ids.map((id) => `용어 ${id}`),
+            법령용어코드명: ids.map(() => "법률"),
+            법령용어정의: ids.map((id) => `${id} 정의`),
+            출처: ids.map(() => "민사소송법"),
+          },
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    };
+
+    const result = await updateOpenLawLegalDictionary(db);
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.equal(result.importedCount, 45);
+    assert.ok(
+      maxActiveDetails > 1,
+      "legal term detail batches should run concurrently",
+    );
+    assert.deepEqual(detailBatchSizes, [20, 20, 5]);
+    assert.equal(new Set(requestedIds).size, 45);
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
+test("open law legal terms import fetches list pages in parallel", async () => {
+  const { db, cleanup } = withDb();
+  const originalFetch = globalThis.fetch;
+  try {
+    setSetting(db, "open_law_oc", "test-oc");
+    let activeListPages = 0;
+    let maxActiveListPages = 0;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/lawSearch.do")) {
+        const page = Number.parseInt(url.searchParams.get("page") ?? "1", 10);
+        if (page > 1) {
+          activeListPages += 1;
+          maxActiveListPages = Math.max(maxActiveListPages, activeListPages);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          activeListPages -= 1;
+        }
+        const firstIndex = (page - 1) * 100;
+        const count = page === 3 ? 1 : 100;
+        const lstrm = Array.from({ length: count }, (_, index) => {
+          const termIndex = firstIndex + index + 1;
+          return {
+            법령용어ID: `paged-legal-term-${termIndex}`,
+            법령용어명: `페이지 용어 ${termIndex}`,
+          };
+        });
+        return new Response(
+          JSON.stringify({ LsTrmSearch: { lstrm, totalCnt: "201" } }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+
+      const ids = (url.searchParams.get("trmSeqs") ?? "")
+        .split(",")
+        .filter(Boolean);
+      return new Response(
+        JSON.stringify({
+          LsTrmService: {
+            법령용어일련번호: ids,
+            법령용어명_한글: ids.map((id) => `용어 ${id}`),
+            법령용어정의: ids.map((id) => `${id} 정의`),
+          },
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
+    };
+
+    const result = await updateOpenLawLegalDictionary(db);
+    assert.equal(result.ok, true);
+    assert.ok(result.ok);
+    assert.equal(result.importedCount, 201);
+    assert.ok(
+      maxActiveListPages > 1,
+      "legal term list pages should not be fetched one at a time",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    cleanup();
+  }
+});
+
 test("term explanations keep standard dictionary after basic senses", () => {
   const { db, cleanup } = withDb();
   try {
