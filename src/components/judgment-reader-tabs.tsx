@@ -28,6 +28,11 @@ const tabHashes: Record<string, ReaderTab> = {
   "#easy-explanation": "explanation",
   "#easy-read": "easyread",
 };
+const tabToHash: Record<ReaderTab, string> = {
+  document: "#original-document",
+  easyread: "#easy-read",
+  explanation: "#easy-explanation",
+};
 const tabToReaderView: Record<ReaderTab, ReaderView> = {
   document: "original",
   easyread: "easy_read",
@@ -94,6 +99,7 @@ export function JudgmentReaderTabs({
       const tab = tabHashes[window.location.hash];
       if (tab) {
         setActiveTab(tab);
+        setManualView(tabToReaderView[tab]);
       }
     }
 
@@ -106,7 +112,11 @@ export function JudgmentReaderTabs({
     setManualView(tabToReaderView[hashTab ?? storedTab]);
     setOnboardingOpen(localStorage.getItem(onboardingStorageKey) !== "1");
     window.addEventListener("hashchange", syncTabWithHash);
-    return () => window.removeEventListener("hashchange", syncTabWithHash);
+    window.addEventListener("popstate", syncTabWithHash);
+    return () => {
+      window.removeEventListener("hashchange", syncTabWithHash);
+      window.removeEventListener("popstate", syncTabWithHash);
+    };
   }, []);
 
   useEffect(() => {
@@ -126,6 +136,10 @@ export function JudgmentReaderTabs({
 
   function activateTab(tab: ReaderTab) {
     setActiveTab(tab);
+    setManualView(tabToReaderView[tab]);
+    if (window.location.hash !== tabToHash[tab]) {
+      window.history.pushState(null, "", tabToHash[tab]);
+    }
   }
 
   function goToPreviousOnboardingStep() {

@@ -2219,6 +2219,163 @@
   font-weight: 800;
 }
 
+.documentShareBackdrop {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 55%);
+}
+
+.documentShareDismiss {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.documentShareModal {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+  width: min(680px, 100%);
+  max-height: min(780px, calc(100dvh - 40px));
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-16);
+  padding: 22px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.documentShareModal header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.documentShareModal header > div {
+  display: grid;
+  gap: 8px;
+}
+
+.documentShareModal h2 {
+  color: var(--fg-strong);
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.documentShareModal header button {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  cursor: pointer;
+}
+
+.documentShareUrl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.documentShareUrl span {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  padding: 0 12px;
+  background: var(--bg-muted);
+  color: var(--fg-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documentShareUrl button,
+.documentShareActions button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-8);
+  padding: 0 14px;
+  background: var(--bg-surface);
+  color: var(--fg-strong);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.documentShareUrl button:hover,
+.documentShareActions button:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-muted);
+}
+
+.documentShareActions button:first-child,
+.documentShareActions button:nth-child(2) {
+  border-color: transparent;
+  background: var(--bg-brand);
+  color: var(--fg-on-brand);
+}
+
+.documentShareActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.documentSharePreview {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-8);
+  background: var(--bg-muted);
+}
+
+.documentSharePreview div {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  color: var(--fg-secondary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.documentSharePreviewImage {
+  aspect-ratio: 1200 / 630;
+  min-height: 0;
+  background-position: center;
+  background-size: cover;
+}
+
+.documentShareModal output {
+  color: var(--fg-brand);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.documentShareActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .aiSources {
   margin: 0 24px;
   padding: 18px 0 20px;
@@ -6951,6 +7108,25 @@
     max-height: min(780px, calc(100dvh - 24px));
     gap: 16px;
     padding: 20px;
+  }
+
+  .documentShareBackdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .documentShareModal {
+    max-height: min(780px, calc(100dvh - 24px));
+    padding: 18px;
+  }
+
+  .documentShareUrl {
+    grid-template-columns: 1fr;
+  }
+
+  .documentShareActions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .readerOnboardingIntro {

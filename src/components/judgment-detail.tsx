@@ -1,6 +1,7 @@
 import styles from "@/app/page.module.css";
 import { BookmarkButton } from "@/components/bookmark-button";
 import { DocumentReferenceText } from "@/components/document-reference-text";
+import { DocumentShareButton } from "@/components/document-share-button";
 import { CheckIcon } from "@/components/icons";
 import { JudgmentReaderTabs } from "@/components/judgment-reader-tabs";
 import { LocalTime } from "@/components/local-time";
@@ -61,6 +62,14 @@ export function JudgmentDetailView({
           </p>
         </div>
         <div className={styles.viewerHeroActions}>
+          <DocumentShareButton
+            caseNumber={judgment.caseNumber}
+            dateLabel={judgment.decidedOn}
+            documentLabel={documentLabel}
+            documentNumberLabel={documentNumberLabel}
+            issuer={judgment.courtName}
+            title={judgment.title}
+          />
           <BookmarkButton
             initialActive={bookmarkInitialActive}
             judgmentId={judgment.id}
