@@ -189,11 +189,6 @@ export function TermExplainer() {
       {status === "error" && <p>설명을 불러오지 못했어요.</p>}
       {explanation && (
         <section>
-          <strong>
-            {explanation.definitions.length > 0
-              ? `쉬운 설명 · ${explanation.priority}`
-              : "사전 미등록"}
-          </strong>
           <p>{explanation.aiExplanation}</p>
           {explanation.definitions.length > 0 ? (
             <>

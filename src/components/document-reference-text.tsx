@@ -117,6 +117,7 @@ function referenceMatchTexts(reference: DocumentReferenceLink) {
     return [reference.lookupText];
   }
   return [
+    reference.text,
     reference.lookupText,
     `구 ${reference.lookupText}`,
     `「${reference.lookupText}」`,

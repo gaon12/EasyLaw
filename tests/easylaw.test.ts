@@ -2268,13 +2268,55 @@ test("judgment document parser splits bracket headings and numbered reasons", ()
   assert.equal(sections[2].blocks[2].kind, "paragraph");
 });
 
-test("judgment document parser uses a legal document fallback title", () => {
+test("judgment document parser splits legal documents by article", () => {
   const sections = parseJudgmentDocument(
-    "제1조 목적 이 법은 국민의 권리 보호를 목적으로 한다.",
+    "제1장 총칙 <개정 2011.4.5>\n\n제1조(목적) 이 법은 국민의 권리 보호를 목적으로 한다.\n\n1. 법원의 제청에 의한 법률의 위헌 여부 심판\n\n2. 탄핵의 심판\n\n제2조(관장사항) 헌법재판소는 다음 각 호의 사항을 관장한다.\n\n제3조(구성) 헌법재판소는 9명의 재판관으로 구성한다.",
     "법령",
   );
 
-  assert.equal(sections[0]?.title, "법령");
+  assert.deepEqual(
+    sections.map((section) => ({
+      blocks: section.blocks.map((block) => ({
+        kind: block.kind,
+        text: block.text,
+      })),
+      title: section.title,
+    })),
+    [
+      {
+        blocks: [
+          {
+            kind: "paragraph",
+            text: "이 법은 국민의 권리 보호를 목적으로 한다.",
+          },
+        ],
+        title: "제1조(목적)",
+      },
+      {
+        blocks: [
+          {
+            kind: "paragraph",
+            text: "헌법재판소는 다음 각 호의 사항을 관장한다.",
+          },
+          {
+            kind: "paragraph",
+            text: "1. 법원의 제청에 의한 법률의 위헌 여부 심판",
+          },
+          { kind: "paragraph", text: "2. 탄핵의 심판" },
+        ],
+        title: "제2조(관장사항)",
+      },
+      {
+        blocks: [
+          {
+            kind: "paragraph",
+            text: "헌법재판소는 9명의 재판관으로 구성한다.",
+          },
+        ],
+        title: "제3조(구성)",
+      },
+    ],
+  );
   assert.equal(sections[0]?.kind, "default");
 });
 
@@ -2374,7 +2416,7 @@ test("document reference parser extracts law titles and case numbers", () => {
     {
       kind: "law",
       lookupText: "지방세법",
-      text: "구 지방세법",
+      text: "구 지방세법 제106조",
     },
   ]);
 });
@@ -2389,7 +2431,7 @@ test("document reference parser trims sentence fragments before law titles", () 
     {
       kind: "law",
       lookupText: "헌법재판소법",
-      text: "헌법재판소법",
+      text: "헌법재판소법 제72조 제3항 제3호",
     },
   ]);
 });
@@ -3404,6 +3446,32 @@ test("term explanations prefer legal terms over public dictionaries", () => {
       explanation.definitions[0]?.definition,
       "확정된 판결의 판단을 다시 다투기 어렵게 하는 효력",
     );
+  } finally {
+    cleanup();
+  }
+});
+
+test("term explanations ignore English-only dictionary definitions", () => {
+  const { db, cleanup } = withDb();
+  try {
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO dictionary_terms
+        (id, source, priority, word, sense_no, definition, raw_json, updated_at)
+        VALUES
+        ('dict_basic_english', 'basic', 1, '보정명령', '1', 'order of correction;correction order', '{}', ?),
+        ('dict_standard_korean', 'standard', 2, '보정명령', '1', '부족한 부분을 바로잡으라고 명하는 일.', '{}', ?)`,
+    ).run(now, now);
+
+    const explanation = buildTermExplanation(db, { term: "보정명령" });
+
+    assert.equal(explanation.definitions.length, 1);
+    assert.equal(explanation.definitions[0]?.source, "standard");
+    assert.equal(
+      explanation.definitions[0]?.definition,
+      "부족한 부분을 바로잡으라고 명하는 일.",
+    );
+    assert.doesNotMatch(explanation.aiExplanation, /order of correction/);
   } finally {
     cleanup();
   }

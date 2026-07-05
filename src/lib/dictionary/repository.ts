@@ -97,6 +97,7 @@ export function findDictionaryTerms(db: SqliteDatabase, word: string) {
       LIMIT 12`,
     )
     .all(word.trim())
+    .filter((row) => hasKoreanDefinition(row.definition))
     .map((row) => ({
       definition: row.definition,
       origin: row.origin,
@@ -147,6 +148,7 @@ export function searchDictionaryTerms(
        LIMIT ?`,
     )
     .all(input.source, query, query, `%${query}%`, query, limit)
+    .filter((row) => hasKoreanDefinition(row.definition))
     .map((row) => ({
       definition: row.definition,
       origin: row.origin,
@@ -155,6 +157,10 @@ export function searchDictionaryTerms(
       source: row.source,
       word: row.word,
     }));
+}
+
+function hasKoreanDefinition(definition: string) {
+  return /[가-힣]/.test(definition);
 }
 
 export function latestDictionaryImport(

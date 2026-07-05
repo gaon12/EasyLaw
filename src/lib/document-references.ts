@@ -13,6 +13,7 @@ export type DocumentReferenceLink = {
   lookupText: string;
   source: string;
   summary: string | null;
+  text: string;
   title: string;
 };
 
@@ -20,7 +21,7 @@ const caseNumberPattern = /\b\d{4}[가-힣]{1,4}\d{1,8}\b/g;
 const quotedLawPattern =
   /[「『]([^」』\n]{2,80}?(?:특례법|시행령|시행규칙|법률|법|령|규칙|조례|고시|훈령|예규|규정))[」』]/g;
 const articleLawPattern =
-  /((?:구\s+)?[가-힣·ㆍ\s]{1,42}?(?:특례법|시행령|시행규칙|법률|법|령|규칙|조례|고시|훈령|예규|규정))\s+제\d+조(?:의\d+)?/g;
+  /((?:구\s+)?[가-힣·ㆍ\s]{1,42}?(?:특례법|시행령|시행규칙|법률|법|령|규칙|조례|고시|훈령|예규|규정))\s+(제\d+조(?:의\d+)?(?:\s+제\d+항)?(?:\s+제\d+호)?(?:\s+제\d+목)?)/g;
 
 export function extractDocumentReferenceCandidates(
   originalText: string | null,
@@ -59,14 +60,16 @@ export function extractDocumentReferenceCandidates(
 
   for (const match of normalized.matchAll(articleLawPattern)) {
     const rawTitle = match[1];
+    const articleText = match[2]?.trim();
     const title = normalizeLawTitle(rawTitle);
     if (!title || title.length < 2) {
       continue;
     }
+    const mention = normalizeLawMention(rawTitle) || title;
     references.set(`law:${title}`, {
       kind: "law",
       lookupText: title,
-      text: normalizeLawMention(rawTitle) || title,
+      text: articleText ? `${mention} ${articleText}` : mention,
     });
   }
 

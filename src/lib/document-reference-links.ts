@@ -54,6 +54,7 @@ export function buildDocumentReferenceLinks(
         matchedJudgment?.courtName ??
         (candidate.kind === "law" ? "EasyLaw 법령 검색" : "EasyLaw 판례 검색"),
       summary: matchedJudgment?.sourceSummary ?? null,
+      text: candidate.text,
       title: matchedJudgment?.title ?? candidate.lookupText,
     };
   });

@@ -47,6 +47,10 @@ export function parseJudgmentDocument(
   originalText: string,
   fallbackTitle = "판결문",
 ): JudgmentDocumentSection[] {
+  if (fallbackTitle === "법령") {
+    return parseLegalDocument(originalText, fallbackTitle);
+  }
+
   const lines = normalizeJudgmentText(originalText);
   const sections: JudgmentDocumentSection[] = [];
   let current: MutableSection | null = null;
@@ -86,16 +90,67 @@ export function parseJudgmentDocument(
       ];
 }
 
+function parseLegalDocument(
+  originalText: string,
+  fallbackTitle: string,
+): JudgmentDocumentSection[] {
+  const lines = normalizeLegalText(originalText);
+  const sections: JudgmentDocumentSection[] = [];
+  let current: MutableSection | null = null;
+
+  for (const line of lines) {
+    if (legalChapterPattern.test(line)) {
+      continue;
+    }
+
+    const article = articleFromLine(line);
+    if (article) {
+      const movedLines: string[] = current
+        ? takeTrailingLegalListLines(current, article.body)
+        : [];
+      if (current) {
+        pushSection(sections, current, { allowNumberedHeadings: false });
+      }
+      current = {
+        heading: article.title,
+        lines: [article.body, ...movedLines].filter(Boolean),
+        ownsFollowingLegalList: hasLegalListIntroPhrase(article.body),
+      };
+      current.protectedLineCount = current.lines.length;
+      continue;
+    }
+
+    if (!current) {
+      current = { heading: fallbackTitle, lines: [] };
+    }
+    current.lines.push(line);
+  }
+
+  if (current) {
+    pushSection(sections, current, { allowNumberedHeadings: false });
+  }
+
+  return sections.length > 0
+    ? sections
+    : [
+        {
+          id: "section-1",
+          kind: "default",
+          title: fallbackTitle,
+          blocks: splitBlocks(originalText),
+        },
+      ];
+}
+
 type MutableSection = {
   heading: string;
   lines: string[];
+  ownsFollowingLegalList?: boolean;
+  protectedLineCount?: number;
 };
 
 function normalizeJudgmentText(originalText: string) {
-  return decodeHtmlEntities(originalText)
-    .replace(/<br\s*\/?\s*>/gi, "\n")
-    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+  return normalizePlainText(originalText)
     .replace(/【([^】]+)】/g, "\n§§$1§§\n")
     .replace(
       implicitHeadingPattern,
@@ -104,15 +159,31 @@ function normalizeJudgmentText(originalText: string) {
           ? `${prefix}\n§§${compactHeading(heading)}§§\n`
           : `${prefix}${heading}`,
     )
-    .replace(/\r\n?/g, "\n")
     .split("\n")
-    .map((line) =>
-      line
-        .replace(/\u00a0/g, " ")
-        .replace(/[ \t]{2,}/g, " ")
-        .trim(),
-    )
+    .map(cleanLine)
     .filter(Boolean);
+}
+
+function normalizeLegalText(originalText: string) {
+  return normalizePlainText(originalText)
+    .split("\n")
+    .map(cleanLine)
+    .filter(Boolean);
+}
+
+function normalizePlainText(originalText: string) {
+  return decodeHtmlEntities(originalText)
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\r\n?/g, "\n");
+}
+
+function cleanLine(line: string) {
+  return line
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
 }
 
 function headingFromLine(line: string) {
@@ -153,11 +224,68 @@ function shouldSplitInlineHeading(prefix: string, heading: string) {
 
 const alwaysInlineHeadingCompacts = new Set(["피청구인"]);
 
+const legalChapterPattern = /^제\d+(?:편|장|절|관)\s+\S/;
+const legalArticlePattern =
+  /^(제\d+조(?:의\d+)?(?:\([^)\n]{1,80}\))?)(?:\s*(.*))?$/;
+
+function articleFromLine(line: string) {
+  const match = legalArticlePattern.exec(line);
+  if (!match) {
+    return null;
+  }
+  return {
+    body: match[2]?.trim() ?? "",
+    title: match[1].trim(),
+  };
+}
+
+function takeTrailingLegalListLines(
+  section: MutableSection,
+  nextArticleBody: string,
+): string[] {
+  const protectedLineCount = section.protectedLineCount ?? 0;
+  const candidateLines = section.lines.slice(protectedLineCount);
+  if (
+    candidateLines.length === 0 ||
+    section.ownsFollowingLegalList ||
+    section.lines.some(
+      (line) =>
+        !legalListLinePattern.test(line) && hasLegalListIntroPhrase(line),
+    )
+  ) {
+    return [];
+  }
+
+  let splitIndex = section.lines.length;
+  while (
+    splitIndex > protectedLineCount &&
+    legalListLinePattern.test(section.lines[splitIndex - 1])
+  ) {
+    splitIndex -= 1;
+  }
+  if (splitIndex === section.lines.length) {
+    return [];
+  }
+  if (
+    splitIndex === protectedLineCount &&
+    !hasLegalListIntroPhrase(nextArticleBody) &&
+    candidateLines.some((line) => !legalListLinePattern.test(line))
+  ) {
+    return [];
+  }
+  return section.lines.splice(splitIndex);
+}
+
+function hasLegalListIntroPhrase(line: string) {
+  return /다음\s+각\s+[호목]|각\s+[호목]의/.test(line);
+}
+
 function pushSection(
   sections: JudgmentDocumentSection[],
   section: MutableSection,
+  options: { allowNumberedHeadings?: boolean } = {},
 ) {
-  const blocks = linesToBlocks(section.lines, section.heading);
+  const blocks = linesToBlocks(section.lines, section.heading, options);
   if (blocks.length === 0 && sections.length > 0) {
     return;
   }
@@ -189,10 +317,11 @@ function sectionKind(title: string): JudgmentDocumentSection["kind"] {
 function linesToBlocks(
   lines: string[],
   sectionTitle?: string,
+  options: { allowNumberedHeadings?: boolean } = {},
 ): JudgmentDocumentBlock[] {
   return lines
     .flatMap(splitInlineBlocks)
-    .map((line) => lineToBlock(line, sectionTitle));
+    .map((line) => lineToBlock(line, sectionTitle, options));
 }
 
 function splitBlocks(text: string): JudgmentDocumentBlock[] {
@@ -202,9 +331,12 @@ function splitBlocks(text: string): JudgmentDocumentBlock[] {
 function lineToBlock(
   line: string,
   sectionTitle?: string,
+  options: { allowNumberedHeadings?: boolean } = {},
 ): JudgmentDocumentBlock {
   const headingLevel =
-    sectionTitle === "주문" || sectionTitle === "청구취지"
+    options.allowNumberedHeadings === false ||
+    sectionTitle === "주문" ||
+    sectionTitle === "청구취지"
       ? null
       : headingLevelFromNumberedLine(line);
   if (headingLevel) {
@@ -297,3 +429,4 @@ function decodeHtmlEntities(value: string) {
 
 const numberedLinePattern =
   /^((\d+|[가-힣]|[A-Z])\.|\d+\)|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])/;
+const legalListLinePattern = /^((\d+|[가-힣])\.|\d+\)|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳])/;
